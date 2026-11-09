@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
@@ -657,7 +658,7 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 }
             } catch (Exception e) {
-                Log.e("MainActivity", "Failed to save image to gallery", e);
+                android.util.Log.e("MainActivity", "Failed to save image to gallery", e);
             }
             return false;
         }
