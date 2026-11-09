@@ -1,0 +1,11 @@
+{
+  "name": "المؤذن - مواقيت الصلاة والقرآن الكريم والأذكار",
+  "description": "تطبيق إسلامي شامل يعمل بدون إنترنت: مواقيت الصلاة الدقيقة، الأذان التلقائي، المصحف الشريف والتفسير الميسر كاملاً، أذكار الصباح والمساء والقبلة.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

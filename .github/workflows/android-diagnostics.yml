@@ -1,0 +1,68 @@
+name: Android Build Environment Diagnostics
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  diagnose-android-env:
+    name: Print Environment Variables & Android File Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Print Environment Variables & Toolchain Versions
+        run: |
+          echo "=== SYSTEM & CI ENVIRONMENT VARIABLES ==="
+          echo "GITHUB_WORKFLOW: ${GITHUB_WORKFLOW:-}"
+          echo "GITHUB_RUN_ID: ${GITHUB_RUN_ID:-}"
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-}"
+          echo "RUNNER_OS: ${RUNNER_OS:-}"
+          echo "RUNNER_ARCH: ${RUNNER_ARCH:-}"
+          echo "JAVA_HOME: ${JAVA_HOME:-}"
+          echo "ANDROID_HOME: ${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT: ${ANDROID_SDK_ROOT:-}"
+          echo ""
+          echo "=== ENVIRONMENT VARIABLES (FILTERED) ==="
+          env | grep -E '^(ANDROID_|JAVA_|GRADLE_|NODE_|NPM_|GITHUB_|RUNNER_|CI)' | sort || true
+          echo ""
+          echo "=== TOOLCHAIN VERSIONS ==="
+          node -v
+          npm -v
+          java -version
+          gradle --version || true
+
+      - name: Print Android Directory File Structure & Configs
+        run: |
+          echo "=== WORKSPACE ROOT FILES ==="
+          ls -la
+          echo ""
+          echo "=== ANDROID DIRECTORY STRUCTURE ==="
+          find android -maxdepth 6 -print | sort
+          echo ""
+          echo "=== ANDROID GRADLE CONFIGURATION ==="
+          cat android/settings.gradle
+          echo "---"
+          cat android/gradle.properties
+          echo "---"
+          cat android/app/build.gradle
