@@ -16,6 +16,8 @@ import {
   LayoutGrid,
   List,
   Play,
+  Pause,
+  RotateCcw,
   Square,
   Music,
 } from 'lucide-react';
@@ -47,7 +49,18 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
     return diskAudioPlayerService.subscribe(setDiskState);
   }, []);
 
-  const isPlayingAsmaaAudio = diskState.isPlaying && diskState.track?.type === 'asmaa_allah';
+  const isAsmaaTrack = diskState.track?.type === 'asmaa_allah';
+  const isPlayingAsmaa = isAsmaaTrack && diskState.isPlaying;
+  const isPausedAsmaa = isAsmaaTrack && !diskState.isPlaying && diskState.currentTime > 0;
+  const asmaaDuration = isAsmaaTrack && diskState.duration > 0 ? diskState.duration : 205.4;
+  const asmaaCurrentTime = isAsmaaTrack ? diskState.currentTime : 0;
+
+  const formatAudioTime = (sec: number) => {
+    if (isNaN(sec) || sec < 0) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   if (!isOpen) return null;
 
@@ -187,48 +200,139 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
         {/* Search & Category Pills in Index Mode */}
         {!selectedName && (
           <>
-            {/* Full Asmaa Allah Audio Player Banner */}
-            <div className="max-w-2xl mx-auto w-full mb-2 bg-gradient-to-r from-[#104B40] via-[#145548] to-[#0D3E35] text-white p-3 rounded-2xl shadow-sm flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5 text-amber-300" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-xs sm:text-sm font-black font-cairo text-white truncate">
-                      استمع لنشيد وتلاوة أسماء الله الحسنى الـ 99
-                    </h4>
-                    <span className="text-[9px] font-bold bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full">
-                      صوت نقي
-                    </span>
+            {/* Full Asmaa Allah Audio Player Banner with Complete Controls */}
+            <div className="max-w-2xl mx-auto w-full mb-3 bg-gradient-to-r from-[#104B40] via-[#145548] to-[#0D3E35] text-white p-3 sm:p-4 rounded-2xl shadow-sm border border-emerald-700/40">
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform ${
+                      isPlayingAsmaa
+                        ? 'bg-amber-400 text-emerald-950 scale-105 shadow-md ring-2 ring-amber-300'
+                        : 'bg-amber-400/20 text-amber-300'
+                    }`}
+                  >
+                    <Sparkles className={`w-5 h-5 ${isPlayingAsmaa ? 'animate-spin' : ''}`} />
                   </div>
-                  <p className="text-[11px] text-white/80 font-sans truncate">
-                    «نسألك يا من هو الله الذي لا إله إلا هو الرحمن الرحيم...»
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="text-xs sm:text-sm font-black font-cairo text-white truncate">
+                        تلاوة ونشيد أسماء الله الحسنى الـ 99
+                      </h4>
+                      <span className="text-[9px] font-bold bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full">
+                        صوت نقي (205 ث)
+                      </span>
+                      {isPlayingAsmaa && (
+                        <span className="text-[9px] font-bold bg-emerald-500/30 text-emerald-200 px-1.5 py-0.5 rounded-full animate-pulse">
+                          يعمل بالخلفية
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-white/80 font-sans truncate">
+                      «نسألك يا من هو الله الذي لا إله إلا هو الرحمن الرحيم...»
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right controls: Play/Pause/Resume, Restart, Stop */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Play / Pause / Resume */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isPlayingAsmaa) {
+                        diskAudioPlayerService.pause();
+                      } else if (isPausedAsmaa) {
+                        diskAudioPlayerService.resume();
+                      } else {
+                        diskAudioPlayerService.playAsmaaAllah();
+                      }
+                    }}
+                    className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-xs ${
+                      isPlayingAsmaa
+                        ? 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
+                        : isPausedAsmaa
+                        ? 'bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black'
+                        : 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
+                    }`}
+                    title={isPlayingAsmaa ? 'إيقاف مؤقت' : isPausedAsmaa ? 'استئناف' : 'تشغيل'}
+                  >
+                    {isPlayingAsmaa ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                        <span className="hidden sm:inline">إيقاف مؤقت</span>
+                      </>
+                    ) : isPausedAsmaa ? (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span className="hidden sm:inline">استئناف</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>تشغيل</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Restart from beginning (visible if track is active or paused) */}
+                  {isAsmaaTrack && (
+                    <button
+                      type="button"
+                      onClick={() => diskAudioPlayerService.restart()}
+                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                      title="إعادة التشغيل من البداية"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">من البداية</span>
+                    </button>
+                  )}
+
+                  {/* Stop button (visible if active or paused) */}
+                  {isAsmaaTrack && (
+                    <button
+                      type="button"
+                      onClick={() => diskAudioPlayerService.stop()}
+                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                      title="إيقاف تام"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span className="hidden sm:inline">إيقاف</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => diskAudioPlayerService.playAsmaaAllah()}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-transform active:scale-95 cursor-pointer shadow-xs ${
-                  isPlayingAsmaaAudio
-                    ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                    : 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
-                }`}
-              >
-                {isPlayingAsmaaAudio ? (
-                  <>
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    <span>إيقاف النشيد</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>تشغيل النشيد</span>
-                  </>
-                )}
-              </button>
+              {/* Scrubber Progress Slider and Time */}
+              <div className="pt-2 border-t border-white/15">
+                <div className="flex items-center justify-between text-[10px] text-white/80 font-mono font-bold mb-1 px-0.5">
+                  <span>{formatAudioTime(asmaaCurrentTime)}</span>
+                  <span className="text-[10px] text-amber-200/90 font-sans font-medium">
+                    {isPlayingAsmaa
+                      ? 'جاري الاستماع • استمرارية الصوت بالخلفية'
+                      : isPausedAsmaa
+                      ? 'متوقف مؤقتاً'
+                      : 'انقر على تشغيل للاستماع'}
+                  </span>
+                  <span>{formatAudioTime(asmaaDuration)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.floor(asmaaDuration) || 205}
+                  step={1}
+                  value={Math.floor(asmaaCurrentTime)}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isAsmaaTrack) {
+                      diskAudioPlayerService.playAsmaaAllah();
+                      setTimeout(() => diskAudioPlayerService.seekTo(val), 150);
+                    } else {
+                      diskAudioPlayerService.seekTo(val);
+                    }
+                  }}
+                  className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                />
+              </div>
             </div>
 
             <div className="max-w-2xl mx-auto w-full relative mb-2">

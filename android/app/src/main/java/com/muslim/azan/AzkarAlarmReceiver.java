@@ -47,6 +47,16 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             prefs.edit().putString(lastFiredKey, today).apply();
         }
 
+        // Deduplication: prevent duplicate firing of Prayer Azan on the same calendar day
+        if ("prayer_azan".equals(section) && prayerName != null) {
+            String lastFiredAzanKey = "last_fired_azan_" + prayerName + "_" + today;
+            if (prefs.getBoolean(lastFiredAzanKey, false)) {
+                Log.d(TAG, prayerName + " azan has already fired today (" + today + "). Skipping duplicate trigger.");
+                return;
+            }
+            prefs.edit().putBoolean(lastFiredAzanKey, true).apply();
+        }
+
         // Deduplication: ensure Salawat does not fire in bursts (minimum 45s cooldown)
         if ("salawat".equals(section)) {
             long lastSalawatMs = prefs.getLong("last_salawat_trigger_ms", 0);
@@ -58,45 +68,6 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             prefs.edit().putLong("last_salawat_trigger_ms", nowMs).apply();
         }
 
-        // Only repeating sections (e.g. Salawat) re-arm the next exact alarm (never Morning/Evening Azkar)
-        if (repeatIntervalMs > 0 && "salawat".equals(section)) {
-            try {
-                android.app.AlarmManager am = (android.app.AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-                if (am != null) {
-                    long nextTrigger = System.currentTimeMillis() + repeatIntervalMs;
-                    Intent nextIntent = new Intent(context, AzkarAlarmReceiver.class);
-                    nextIntent.setAction("com.muslim.azan.ACTION_TRIGGER_REMINDER");
-                    nextIntent.putExtras(intent); // Retain all parameters
-
-                    int nextRequestCode = (section + "_" + nextTrigger).hashCode();
-                    android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(
-                            context,
-                            nextRequestCode,
-                            nextIntent,
-                            android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
-                    );
-
-                    boolean canExact = true;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        canExact = am.canScheduleExactAlarms();
-                    }
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (canExact) {
-                            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextTrigger, pi);
-                        } else {
-                            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextTrigger, pi);
-                        }
-                    } else {
-                        am.setExact(android.app.AlarmManager.RTC_WAKEUP, nextTrigger, pi);
-                    }
-                    Log.d(TAG, "Successfully re-armed next repeating alarm for " + section + " at " + nextTrigger);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to re-arm next repeating alarm", e);
-            }
-        }
-
         Intent serviceIntent = new Intent(context, AzkarAudioService.class);
         serviceIntent.putExtra("section", section);
         serviceIntent.putExtra("title", title);
@@ -106,9 +77,9 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         serviceIntent.putExtra("cityName", cityName);
         serviceIntent.putExtra("iqamaDurationMinutes", iqamaDurationMinutes);
         serviceIntent.putExtra("autoPlay", autoPlay);
-        serviceIntent.putExtra("floatingWindowEnabled", floatingWindowEnabled);
-        serviceIntent.putExtra("lockScreenEnabled", lockScreenEnabled);
-        serviceIntent.putExtra("wakeScreenEnabled", wakeScreenEnabled);
+        serviceIntent.putExtra("floatingWindowEnabled", false);
+        serviceIntent.putExtra("lockScreenEnabled", false);
+        serviceIntent.putExtra("wakeScreenEnabled", false);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(serviceIntent);

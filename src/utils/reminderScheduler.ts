@@ -359,7 +359,7 @@ class ReminderScheduler {
     referenceDate: Date
   ): ScheduledSlot[] {
     const results: ScheduledSlot[] = [];
-    const daysToCheck = [0, 1]; // Today and tomorrow
+    const daysToCheck = [0, 1, 2, 3, 4, 5, 6]; // Full 7 days continuously
 
     daysToCheck.forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
@@ -388,15 +388,17 @@ class ReminderScheduler {
 
       // Morning and Evening Azkar trigger strictly once per day at their designated start time
       if (section === 'morningAzkar' || section === 'eveningAzkar' || config.repeatType === 'once') {
-        results.push({
-          section,
-          title,
-          body,
-          triggerTime: startDate,
-          audioTrackId: config.audioFile,
-          autoPlay: true,
-          repeatIntervalMs: 0,
-        });
+        if (startDate.getTime() >= referenceDate.getTime() - 60000) {
+          results.push({
+            section,
+            title,
+            body,
+            triggerTime: startDate,
+            audioTrackId: config.audioFile,
+            autoPlay: true,
+            repeatIntervalMs: 0,
+          });
+        }
       } else {
         // Repeating interval (e.g. Salawat every 1 min, 5 min, 15 min, 1 hour, etc.)
         const stepMs =
@@ -442,7 +444,7 @@ class ReminderScheduler {
     referenceDate: Date
   ): ScheduledSlot[] {
     const results: ScheduledSlot[] = [];
-    const daysToCheck = [0, 1];
+    const daysToCheck = [0, 1, 2, 3, 4, 5, 6];
 
     daysToCheck.forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
@@ -476,7 +478,7 @@ class ReminderScheduler {
     const results: ScheduledSlot[] = [];
     if (!this.currentCity) return results;
 
-    const daysToCheck = [0, 1];
+    const daysToCheck = [0, 1, 2, 3, 4, 5, 6];
 
     daysToCheck.forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
@@ -517,7 +519,7 @@ class ReminderScheduler {
     const leadMins = this.settings.prePrayerAlert?.minutesBeforePrayer || 15;
     const leadMs = leadMins * 60 * 1000;
 
-    [0, 1].forEach((dayOffset) => {
+    [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
       baseDate.setDate(baseDate.getDate() + dayOffset);
       const prayers = calculatePrayerTimes(this.currentCity!, baseDate);
@@ -547,7 +549,7 @@ class ReminderScheduler {
     const results: ScheduledSlot[] = [];
     if (!this.currentCity) return results;
 
-    [0, 1].forEach((dayOffset) => {
+    [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
       baseDate.setDate(baseDate.getDate() + dayOffset);
       const nightThirds = calculateNightThirds(this.currentCity!, baseDate);
@@ -791,48 +793,60 @@ class ReminderScheduler {
   public syncWithAndroidBridge(slots: ScheduledSlot[] = this.calculateUpcomingSlots()) {
     if (typeof window === 'undefined') return;
     const bridge = window as unknown as {
-      AndroidBridge?: { scheduleAlarm: (json: string) => void };
-      Android?: { scheduleAlarm: (json: string) => void };
+      AndroidBridge?: {
+        scheduleAlarm?: (json: string) => void;
+        syncNativePrayerConfig?: (json: string) => void;
+      };
+      Android?: {
+        scheduleAlarm?: (json: string) => void;
+        syncNativePrayerConfig?: (json: string) => void;
+      };
     };
     const targetBridge = bridge.AndroidBridge || bridge.Android;
     if (targetBridge && typeof targetBridge.scheduleAlarm === 'function') {
       try {
-        const payload: Array<Record<string, unknown>> = slots.slice(0, 60).map((s) => ({
+        const payload: Array<Record<string, unknown>> = slots.slice(0, 250).map((s) => ({
           section: s.section,
           title: s.title,
           body: s.body,
           triggerEpochMs: s.triggerTime.getTime(),
           audioTrackId: s.audioTrackId,
           autoPlay: s.autoPlay,
+          floatingWindowEnabled: false,
+          lockScreenEnabled: false,
+          wakeScreenEnabled: false,
           repeatIntervalMs: s.repeatIntervalMs || 0,
         }));
 
-        // Also schedule actual Prayer Azan times for today and tomorrow
-        if (this.currentCity) {
-          let extRaw: Record<string, unknown> = {};
-          let savedAzanVoice = 'makkah';
-          let savedFajrVoice = 'abdulbasit';
-          let prayerAzanVoices: Record<string, string> = {};
-          try {
-            const rawStr = localStorage.getItem('moazen_extended_setup_settings_v1');
-            if (rawStr) extRaw = JSON.parse(rawStr);
-            const profStr = localStorage.getItem('azan_user_profile');
-            if (profStr) {
-              const prof = JSON.parse(profStr);
-              if (prof.azanVoice) savedAzanVoice = prof.azanVoice;
-              if (prof.fajrAzanVoice) savedFajrVoice = prof.fajrAzanVoice;
-              if (prof.prayerAzanVoices) prayerAzanVoices = prof.prayerAzanVoices;
-            }
-          } catch {
-            // ignore
-          }
-          const prayerAlerts = (extRaw.prayerAlerts as Record<string, boolean>) || {};
-          const floatingWindowEnabled = extRaw.floatingAzanWindowEnabled !== false;
-          const lockScreenEnabled = extRaw.lockScreenAzanEnabled !== false;
-          const wakeScreenEnabled = extRaw.wakeScreenOnAzanEnabled !== false;
-          const azanSoundEnabled = extRaw.azanSoundEnabled !== false;
+        let savedAzanVoice = 'makkah';
+        let savedFajrVoice = 'abdulbasit_fajr';
+        let prayerAzanVoices: Record<string, string> = {};
+        let extRaw: Record<string, unknown> = {};
+        let userCalcMethod = 'umm_al_qura';
+        let userAsrMethod = 'standard';
 
-          [0, 1].forEach((dayOffset) => {
+        try {
+          const rawStr = localStorage.getItem('moazen_extended_setup_settings_v1');
+          if (rawStr) extRaw = JSON.parse(rawStr);
+          const profStr = localStorage.getItem('azan_user_profile');
+          if (profStr) {
+            const prof = JSON.parse(profStr);
+            if (prof.azanVoice) savedAzanVoice = prof.azanVoice;
+            if (prof.fajrAzanVoice) savedFajrVoice = prof.fajrAzanVoice;
+            if (prof.prayerAzanVoices) prayerAzanVoices = prof.prayerAzanVoices;
+            if (prof.calculationMethod) userCalcMethod = prof.calculationMethod;
+            if (prof.asrJuristicMethod) userAsrMethod = prof.asrJuristicMethod;
+          }
+        } catch {
+          // ignore
+        }
+
+        const prayerAlerts = (extRaw.prayerAlerts as Record<string, boolean>) || {};
+        const azanSoundEnabled = extRaw.azanSoundEnabled !== false;
+
+        // Schedule actual Prayer Azan times for full 7 days continuously
+        if (this.currentCity) {
+          [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
             const d = new Date();
             d.setDate(d.getDate() + dayOffset);
             const prayers = calculatePrayerTimes(this.currentCity!, d);
@@ -845,7 +859,7 @@ class ReminderScheduler {
               const customVoice = prayerAzanVoices[p.key];
               const trackId = customVoice || (p.key === 'fajr' ? savedFajrVoice : savedAzanVoice);
 
-              // 15-Minute Pre-Prayer Alert Slot with Quranic Audio: «إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا»
+              // 15-Minute Pre-Prayer Alert Slot: purely background audio & notification
               const fifteenMinsBeforeEpoch = p.timestamp.getTime() - 15 * 60 * 1000;
               if (fifteenMinsBeforeEpoch > Date.now()) {
                 payload.push({
@@ -858,15 +872,14 @@ class ReminderScheduler {
                   triggerEpochMs: fifteenMinsBeforeEpoch,
                   audioTrackId: 'pre_prayer_15m',
                   autoPlay: true,
-                  floatingWindowEnabled: true,
-                  lockScreenEnabled,
-                  wakeScreenEnabled,
+                  floatingWindowEnabled: false,
+                  lockScreenEnabled: false,
+                  wakeScreenEnabled: false,
                   repeatIntervalMs: 0,
                 });
               }
 
-
-              // Prayer Azan Slot
+              // Prayer Azan Slot: background audio with standard notification (no lockscreen popup)
               payload.push({
                 section: 'prayer_azan',
                 prayerKey: p.key,
@@ -878,16 +891,47 @@ class ReminderScheduler {
                 triggerEpochMs: p.timestamp.getTime(),
                 audioTrackId: trackId,
                 autoPlay: azanSoundEnabled,
-                floatingWindowEnabled,
-                lockScreenEnabled,
-                wakeScreenEnabled,
+                floatingWindowEnabled: false,
+                lockScreenEnabled: false,
+                wakeScreenEnabled: false,
                 repeatIntervalMs: 0,
               });
             });
           });
         }
 
+        // Send 7-day schedule to Android AlarmManager
         targetBridge.scheduleAlarm(JSON.stringify(payload));
+
+        // Also permanently sync base config with Android so BootReceiver can recalculate autonomously
+        if (typeof targetBridge.syncNativePrayerConfig === 'function') {
+          const configPayload = {
+            city_latitude: this.currentCity?.latitude || 21.4225,
+            city_longitude: this.currentCity?.longitude || 39.8262,
+            city_name: this.currentCity?.name || 'مكة المكرمة',
+            calc_method: userCalcMethod,
+            asr_method: userAsrMethod,
+            azan_voice: savedAzanVoice,
+            fajr_voice: savedFajrVoice,
+            azanSoundEnabled,
+            pre_prayer_alert_enabled: this.settings.prePrayerAlert?.enabled !== false,
+            salawat_enabled: this.settings.salawat.enabled,
+            salawat_time: this.settings.salawat.startTime || '08:00',
+            salawat_repeat_type: this.settings.salawat.repeatType || 'repeat',
+            salawat_repeat_interval: this.settings.salawat.repeatInterval || 15,
+            salawat_repeat_unit: this.settings.salawat.repeatUnit || 'minutes',
+            salawat_audio: this.settings.salawat.audioFile || 'salawat_1',
+            morning_azkar_enabled: this.settings.morningAzkar.enabled,
+            morning_azkar_time: this.settings.morningAzkar.startTime || '06:30',
+            morning_azkar_audio: this.settings.morningAzkar.audioFile || 'azkar_sabah',
+            evening_azkar_enabled: this.settings.eveningAzkar.enabled,
+            evening_azkar_time: this.settings.eveningAzkar.startTime || '17:00',
+            evening_azkar_audio: this.settings.eveningAzkar.audioFile || 'azkar_massa',
+            musaharati_enabled: this.settings.musaharati.enabled,
+            musaharati_time: this.settings.musaharati.time || '03:30',
+          };
+          targetBridge.syncNativePrayerConfig(JSON.stringify(configPayload));
+        }
       } catch (err) {
         console.warn('AndroidBridge sync error:', err);
       }

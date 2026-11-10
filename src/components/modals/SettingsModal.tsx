@@ -1700,16 +1700,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       )}
                     </div>
 
-                    {/* Group 2: Salawat on the Prophet */}
+                    {/* Group 2: Salawat on the Prophet ﷺ (Fixed and Comprehensive) */}
                     <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azkar_salawat')}
                         className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
                       >
-                        <span className="text-xs font-black text-gray-900">
-                          تذكير الصلاة على النبي ﷺ دورياً
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-black text-gray-900 truncate">
+                            تذكير الصلاة على النبي ﷺ (تكرار دوري أو موعد يومي)
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              reminderSettings.salawat.enabled
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {reminderSettings.salawat.enabled
+                              ? reminderSettings.salawat.repeatType === 'once'
+                                ? `يومياً ${reminderSettings.salawat.startTime || '08:00'}`
+                                : `كل ${reminderSettings.salawat.repeatInterval} ${
+                                    reminderSettings.salawat.repeatUnit === 'hours'
+                                      ? 'ساعة'
+                                      : 'دقيقة'
+                                  }`
+                              : 'معطّل'}
+                          </span>
+                        </div>
                         <ChevronDown
                           className={`w-4 h-4 text-gray-500 transition-transform ${
                             expandedGroup === 'azkar_salawat' ? 'rotate-180 text-[#104B40]' : ''
@@ -1717,11 +1736,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         />
                       </button>
                       {expandedGroup === 'azkar_salawat' && (
-                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
-                          <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
-                            <span className="text-xs font-bold text-gray-900">
-                              تفعيل التذكير الصوتي:
-                            </span>
+                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-3.5">
+                          {/* 1. Master Toggle */}
+                          <div className="flex items-center justify-between pb-2 border-b border-gray-200/80 bg-white p-2.5 rounded-xl border">
+                            <div>
+                              <span className="text-xs font-bold text-gray-900 block">
+                                تفعيل التذكير الصوتي بالصلاة على النبي ﷺ
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-sans block">
+                                يعمل في الخلفية بصوت هادئ وإشعار قياسي دون إيقاظ شاشة الهاتف
+                              </span>
+                            </div>
                             <input
                               type="checkbox"
                               checked={reminderSettings.salawat.enabled}
@@ -1731,81 +1756,338 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   salawat: { ...prev.salawat, enabled: e.target.checked },
                                 }))
                               }
-                              className="w-4 h-4 accent-[#104B40]"
+                              className="w-5 h-5 accent-[#104B40] rounded cursor-pointer"
                             />
                           </div>
 
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-700">تكرار التذكير كل:</span>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min={1}
-                                max={240}
-                                value={reminderSettings.salawat.repeatInterval}
-                                onChange={(e) =>
-                                  handleUpdateReminder((prev) => ({
-                                    ...prev,
-                                    salawat: {
-                                      ...prev.salawat,
-                                      repeatInterval: Math.max(1, Number(e.target.value) || 15),
-                                    },
-                                  }))
-                                }
-                                className="w-14 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold text-center font-mono"
-                              />
-                              <select
-                                value={reminderSettings.salawat.repeatUnit}
-                                onChange={(e) =>
-                                  handleUpdateReminder((prev) => ({
-                                    ...prev,
-                                    salawat: {
-                                      ...prev.salawat,
-                                      repeatUnit: e.target.value as RepeatUnit,
-                                    },
-                                  }))
-                                }
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-bold"
-                              >
-                                <option value="minutes">دقيقة</option>
-                                <option value="hours">ساعة</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1 pt-1">
-                            {SALAWAT_AUDIO_OPTIONS.map((opt) => (
-                              <div
-                                key={opt.id}
+                          {/* 2. Mode Selector: Once Daily vs Periodic Repeating */}
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-gray-700 block">
+                              نمط التذكير:
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
                                 onClick={() =>
                                   handleUpdateReminder((prev) => ({
                                     ...prev,
-                                    salawat: { ...prev.salawat, audioFile: opt.filePath },
+                                    salawat: { ...prev.salawat, repeatType: 'repeat' },
                                   }))
                                 }
-                                className={`p-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer ${
-                                  reminderSettings.salawat.audioFile === opt.filePath
-                                    ? 'bg-emerald-50 border-[#104B40] font-bold text-[#104B40]'
-                                    : 'bg-white border-gray-100 text-gray-700'
+                                className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                                  reminderSettings.salawat.repeatType !== 'once'
+                                    ? 'bg-emerald-50/80 border-[#104B40] text-[#104B40] ring-1 ring-[#104B40]'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                                 }`}
                               >
-                                <span>{opt.title}</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAuditionReminderAudio(opt.id, opt.filePath, 'salawat');
-                                  }}
-                                  className="p-1 rounded bg-gray-100 hover:bg-gray-200"
-                                >
-                                  {playingReminderTrack === opt.id ? (
-                                    <Square className="w-3.5 h-3.5 text-rose-600 fill-current" />
-                                  ) : (
-                                    <Play className="w-3.5 h-3.5 text-[#104B40] fill-current" />
-                                  )}
-                                </button>
+                                <span>تكرار دوري مستمر</span>
+                                <span className="text-[10px] font-normal opacity-80">
+                                  كل فترة زمنية (دقيقة / ساعة)
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateReminder((prev) => ({
+                                    ...prev,
+                                    salawat: { ...prev.salawat, repeatType: 'once' },
+                                  }))
+                                }
+                                className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                                  reminderSettings.salawat.repeatType === 'once'
+                                    ? 'bg-emerald-50/80 border-[#104B40] text-[#104B40] ring-1 ring-[#104B40]'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span>موعد يومي محدد</span>
+                                <span className="text-[10px] font-normal opacity-80">
+                                  مرة واحدة يومياً في ساعة ثابتة
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 3. Time Pickers based on chosen mode */}
+                          {reminderSettings.salawat.repeatType === 'once' ? (
+                            /* Mode: Once Daily Fixed Time */
+                            <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-gray-900">
+                                  وقت التنبيه اليومي الثابت:
+                                </span>
+                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                  {(() => {
+                                    const timeStr = reminderSettings.salawat.startTime || '08:00';
+                                    const [h, m] = timeStr.split(':').map(Number);
+                                    const h12 = h % 12 === 0 ? 12 : h % 12;
+                                    const period = h >= 12 ? 'مساءً (م)' : 'صباحاً (ص)';
+                                    const paddedM = (m || 0) < 10 ? `0${m || 0}` : `${m || 0}`;
+                                    return `${h12}:${paddedM} ${period}`;
+                                  })()}
+                                </span>
                               </div>
-                            ))}
+
+                              {/* Accurate Hour & Minute pickers */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <div className="flex-1">
+                                  <label className="text-[10px] text-gray-500 block mb-0.5">
+                                    الساعة (00 - 23)
+                                  </label>
+                                  <select
+                                    value={
+                                      (reminderSettings.salawat.startTime || '08:00').split(':')[0]
+                                    }
+                                    onChange={(e) => {
+                                      const currentM =
+                                        (reminderSettings.salawat.startTime || '08:00').split(
+                                          ':'
+                                        )[1] || '00';
+                                      const newH = e.target.value.padStart(2, '0');
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          startTime: `${newH}:${currentM}`,
+                                        },
+                                      }));
+                                    }}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold text-center"
+                                  >
+                                    {Array.from({ length: 24 }).map((_, i) => {
+                                      const val = i.toString().padStart(2, '0');
+                                      const h12 = i % 12 === 0 ? 12 : i % 12;
+                                      const period = i >= 12 ? 'م' : 'ص';
+                                      return (
+                                        <option key={val} value={val}>
+                                          {val}:00 ({h12} {period})
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+
+                                <div className="flex-1">
+                                  <label className="text-[10px] text-gray-500 block mb-0.5">
+                                    الدقيقة (00 - 59)
+                                  </label>
+                                  <select
+                                    value={
+                                      (reminderSettings.salawat.startTime || '08:00').split(':')[1] ||
+                                      '00'
+                                    }
+                                    onChange={(e) => {
+                                      const currentH =
+                                        (reminderSettings.salawat.startTime || '08:00').split(
+                                          ':'
+                                        )[0] || '08';
+                                      const newM = e.target.value.padStart(2, '0');
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          startTime: `${currentH}:${newM}`,
+                                        },
+                                      }));
+                                    }}
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold text-center"
+                                  >
+                                    {Array.from({ length: 60 }).map((_, i) => {
+                                      const val = i.toString().padStart(2, '0');
+                                      return (
+                                        <option key={val} value={val}>
+                                          :{val} دقيقة
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+
+                                <div className="shrink-0 pt-4">
+                                  <input
+                                    type="time"
+                                    value={reminderSettings.salawat.startTime || '08:00'}
+                                    onChange={(e) =>
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          startTime: e.target.value || '08:00',
+                                        },
+                                      }))
+                                    }
+                                    className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold cursor-pointer"
+                                    title="اختيار الوقت السريع"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Mode: Periodic Repeating */
+                            <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-3">
+                              {/* Interval config */}
+                              <div className="flex items-center justify-between text-xs">
+                                <div>
+                                  <span className="font-bold text-gray-900 block">
+                                    تكرار التذكير كل:
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 block">
+                                    حدد الفارق الزمني بين كل تذكير
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={240}
+                                    value={reminderSettings.salawat.repeatInterval || 15}
+                                    onChange={(e) =>
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          repeatInterval: Math.max(1, Number(e.target.value) || 15),
+                                        },
+                                      }))
+                                    }
+                                    className="w-16 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold text-center font-mono"
+                                  />
+                                  <select
+                                    value={reminderSettings.salawat.repeatUnit || 'minutes'}
+                                    onChange={(e) =>
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          repeatUnit: e.target.value as RepeatUnit,
+                                        },
+                                      }))
+                                    }
+                                    className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-bold"
+                                  >
+                                    <option value="minutes">دقيقة</option>
+                                    <option value="hours">ساعة</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Start Time & End Time */}
+                              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-600 block mb-1">
+                                    يبدأ التذكير من:
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={reminderSettings.salawat.startTime || '08:00'}
+                                    onChange={(e) =>
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          startTime: e.target.value || '08:00',
+                                        },
+                                      }))
+                                    }
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-600 block mb-1">
+                                    ينتهي التذكير عند:
+                                  </label>
+                                  <input
+                                    type="time"
+                                    value={reminderSettings.salawat.endTime || '22:00'}
+                                    onChange={(e) =>
+                                      handleUpdateReminder((prev) => ({
+                                        ...prev,
+                                        salawat: {
+                                          ...prev.salawat,
+                                          endTime: e.target.value || '22:00',
+                                        },
+                                      }))
+                                    }
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4. Audio Selection (Fixed ID/Path match & Clean cards) */}
+                          <div className="space-y-1.5 pt-1">
+                            <label className="text-[11px] font-bold text-gray-700 block">
+                              صيغة التسجيل الصوتي للصلاة على النبي ﷺ:
+                            </label>
+                            {SALAWAT_AUDIO_OPTIONS.map((opt) => {
+                              const isSelected =
+                                reminderSettings.salawat.audioFile === opt.id ||
+                                reminderSettings.salawat.audioFile === opt.filePath;
+                              return (
+                                <div
+                                  key={opt.id}
+                                  onClick={() =>
+                                    handleUpdateReminder((prev) => ({
+                                      ...prev,
+                                      salawat: { ...prev.salawat, audioFile: opt.id },
+                                    }))
+                                  }
+                                  className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-emerald-50/80 border-[#104B40] font-bold text-[#104B40] ring-1 ring-[#104B40]'
+                                      : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div
+                                      className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                        isSelected
+                                          ? 'border-[#104B40] bg-[#104B40]'
+                                          : 'border-gray-300 bg-white'
+                                      }`}
+                                    >
+                                      {isSelected && (
+                                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="block font-black text-gray-900 truncate">
+                                        {opt.title}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500 block truncate font-sans">
+                                        {opt.description}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAuditionReminderAudio(opt.id, opt.filePath, 'salawat');
+                                    }}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                                      playingReminderTrack === opt.id
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                    }`}
+                                  >
+                                    {playingReminderTrack === opt.id ? (
+                                      <>
+                                        <Square className="w-3.5 h-3.5 text-rose-600 fill-current" />
+                                        <span className="text-[10px]">إيقاف</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="w-3.5 h-3.5 text-[#104B40] fill-current" />
+                                        <span className="text-[10px]">استماع</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

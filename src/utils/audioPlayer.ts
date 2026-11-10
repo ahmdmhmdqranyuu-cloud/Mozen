@@ -330,6 +330,17 @@ class SoundService {
   private audioContext: AudioContext | null = null;
   private isSynthesizing = false;
 
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('AUDIO_PLAYBACK_START', (e: Event) => {
+        const custom = e as CustomEvent<{ source?: string }>;
+        if (custom.detail?.source === 'disk') {
+          this.stopAudio();
+        }
+      });
+    }
+  }
+
   private getAudioContext(): AudioContext | null {
     if (!this.audioContext) {
       try {
@@ -700,6 +711,11 @@ class SoundService {
     }
 
     this.stopAudio();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'soundService' } })
+      );
+    }
     this.currentCategory = category;
     this.currentVoiceId = trackId;
 

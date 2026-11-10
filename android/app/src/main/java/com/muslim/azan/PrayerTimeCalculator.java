@@ -55,6 +55,21 @@ public class PrayerTimeCalculator {
             double timezoneOffsetHours,
             int dayOfYear
     ) {
+        return calculateDailyPrayers(latitude, longitude, timezoneOffsetHours, dayOfYear, "umm_al_qura", "standard");
+    }
+
+    /**
+     * Calculates daily prayer times supporting calculation methods (Umm al-Qura, Egyptian Authority, MWL, ISNA, Karachi)
+     * and Asr juristic school (Standard / Shafi'i shadow=1 vs Hanafi shadow=2).
+     */
+    public static DailyPrayerTimes calculateDailyPrayers(
+            double latitude,
+            double longitude,
+            double timezoneOffsetHours,
+            int dayOfYear,
+            String calculationMethod,
+            String asrMethod
+    ) {
         int clampedDay = Math.max(1, Math.min(366, dayOfYear));
 
         // Solar declination approximation in degrees
@@ -70,19 +85,68 @@ public class PrayerTimeCalculator {
         double solarNoonMinutes = 720.0 - (4.0 * longitude) - eqTimeMinutes + (timezoneOffsetHours * 60.0);
         int dhuhr = (int) Math.round(solarNoonMinutes + 2.0); // 2 min safety margin after zenith
 
-        // Hour angle helper in minutes for a given sun altitude angle below horizon
+        // Determine calculation parameters based on calculationMethod
+        double fajrAngle = -18.5; // default Umm al-Qura
+        double ishaAngle = -17.5;
+        boolean ishaFixedInterval = false;
+        int ishaFixedMinutes = 90;
+
+        String method = calculationMethod != null ? calculationMethod.toLowerCase() : "";
+        if (method.contains("egypt")) {
+            fajrAngle = -19.5;
+            ishaAngle = -17.5;
+        } else if (method.contains("mwl") || method.contains("muslim_world_league")) {
+            fajrAngle = -18.0;
+            ishaAngle = -17.0;
+        } else if (method.contains("isna") || method.contains("north_america")) {
+            fajrAngle = -15.0;
+            ishaAngle = -15.0;
+        } else if (method.contains("karachi")) {
+            fajrAngle = -18.0;
+            ishaAngle = -18.0;
+        } else if (method.contains("dubai") || method.contains("gulf")) {
+            fajrAngle = -18.2;
+            ishaAngle = -18.2;
+        } else {
+            // Umm al-Qura: Fajr 18.5 degrees, Isha is 90 mins after Maghrib
+            fajrAngle = -18.5;
+            ishaFixedInterval = true;
+            ishaFixedMinutes = 90;
+        }
+
+        // Hour angle helper in minutes for sunrise and maghrib
         int sunrise = (int) Math.round(solarNoonMinutes - computeHourAngleMinutes(latRad, declinationRad, -0.833));
         int maghrib = (int) Math.round(solarNoonMinutes + computeHourAngleMinutes(latRad, declinationRad, -0.833) + 2.0);
-        int fajr = (int) Math.round(solarNoonMinutes - computeHourAngleMinutes(latRad, declinationRad, -18.5));
-        int isha = (int) Math.round(solarNoonMinutes + computeHourAngleMinutes(latRad, declinationRad, -17.5));
+        int fajr = (int) Math.round(solarNoonMinutes - computeHourAngleMinutes(latRad, declinationRad, fajrAngle));
 
-        // Asr (Shafi'i shadow factor = 1)
+        int isha;
+        if (ishaFixedInterval) {
+            isha = maghrib + ishaFixedMinutes;
+        } else {
+            isha = (int) Math.round(solarNoonMinutes + computeHourAngleMinutes(latRad, declinationRad, ishaAngle));
+        }
+
+        // Asr: standard (shadow factor = 1) vs hanafi (shadow factor = 2)
+        double shadowFactor = (asrMethod != null && asrMethod.toLowerCase().contains("hanafi")) ? 2.0 : 1.0;
         double zenithDiffRad = Math.abs(latRad - declinationRad);
-        double asrAltitudeRad = Math.atan(1.0 / (1.0 + Math.tan(zenithDiffRad)));
+        double asrAltitudeRad = Math.atan(1.0 / (shadowFactor + Math.tan(zenithDiffRad)));
         double asrAltitudeDeg = Math.toDegrees(asrAltitudeRad);
         int asr = (int) Math.round(solarNoonMinutes + computeHourAngleMinutes(latRad, declinationRad, asrAltitudeDeg));
 
         return new DailyPrayerTimes(fajr, sunrise, dhuhr, asr, maghrib, isha);
+    }
+
+    /**
+     * Resolves exact epoch in milliseconds for a given day Calendar and minutes from midnight.
+     */
+    public static long calculatePrayerEpochMs(java.util.Calendar dayCalendar, int minutesFromMidnight) {
+        java.util.Calendar cal = (java.util.Calendar) dayCalendar.clone();
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+        cal.add(java.util.Calendar.MINUTE, minutesFromMidnight);
+        return cal.getTimeInMillis();
     }
 
     private static double computeHourAngleMinutes(double latRad, double decRad, double altitudeDeg) {

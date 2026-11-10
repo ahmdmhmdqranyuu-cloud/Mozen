@@ -83,12 +83,9 @@ public class AlarmScheduler {
                         obj.optInt("iqamaDurationMinutes", 15));
                 intent.putExtra("autoPlay",
                         obj.optBoolean("autoPlay", true));
-                intent.putExtra("floatingWindowEnabled",
-                        obj.optBoolean("floatingWindowEnabled", true));
-                intent.putExtra("lockScreenEnabled",
-                        obj.optBoolean("lockScreenEnabled", true));
-                intent.putExtra("wakeScreenEnabled",
-                        obj.optBoolean("wakeScreenEnabled", true));
+                intent.putExtra("floatingWindowEnabled", false);
+                intent.putExtra("lockScreenEnabled", false);
+                intent.putExtra("wakeScreenEnabled", false);
                 intent.putExtra("repeatIntervalMs",
                         obj.optLong("repeatIntervalMs", 0));
 
@@ -100,30 +97,41 @@ public class AlarmScheduler {
                                 | PendingIntent.FLAG_IMMUTABLE
                 );
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (canExact) {
-                        alarmManager.setExactAndAllowWhileIdle(
-                                AlarmManager.RTC_WAKEUP,
-                                triggerEpochMs,
-                                pendingIntent
-                        );
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        if (canExact) {
+                            try {
+                                alarmManager.setExactAndAllowWhileIdle(
+                                        AlarmManager.RTC_WAKEUP,
+                                        triggerEpochMs,
+                                        pendingIntent
+                                );
+                            } catch (SecurityException se) {
+                                Log.w(TAG, "Exact alarm permission revoked, falling back to inexact while idle", se);
+                                alarmManager.setAndAllowWhileIdle(
+                                        AlarmManager.RTC_WAKEUP,
+                                        triggerEpochMs,
+                                        pendingIntent
+                                );
+                            }
+                        } else {
+                            alarmManager.setAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerEpochMs,
+                                    pendingIntent
+                            );
+                        }
                     } else {
-                        alarmManager.setAndAllowWhileIdle(
+                        alarmManager.setExact(
                                 AlarmManager.RTC_WAKEUP,
                                 triggerEpochMs,
                                 pendingIntent
                         );
                     }
-                } else {
-                    alarmManager.setExact(
-                            AlarmManager.RTC_WAKEUP,
-                            triggerEpochMs,
-                            pendingIntent
-                    );
+                    Log.d(TAG, "Scheduled: " + section + " at " + triggerEpochMs);
+                } catch (Exception ex) {
+                    Log.e(TAG, "Failed scheduling alarm for " + section + " at " + triggerEpochMs, ex);
                 }
-
-                Log.d(TAG, "Scheduled: " + section
-                        + " at " + triggerEpochMs);
             }
 
             // Cancel only alarms from the previous app schedule

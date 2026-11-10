@@ -97,6 +97,8 @@ export interface NativeAndroidPermissionsBridge {
   openAppDetailsSettings?: () => void;
   getPermissionsStatusJson?: () => string;
   syncAzanDisplayConfig?: (jsonString: string) => void;
+  syncNativePrayerConfig?: (jsonString: string) => void;
+  scheduleAlarm?: (jsonString: string) => void;
   showFloatingAzanOverlay?: (
     prayerName: string,
     cityName: string,

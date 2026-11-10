@@ -133,26 +133,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyLockScreenAndWakeFlags() {
-        SharedPreferences prefs = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
-        boolean lockScreenEnabled = prefs.getBoolean("lockScreenAzanEnabled", true);
-        boolean wakeScreenEnabled = prefs.getBoolean("wakeScreenOnAzanEnabled", true);
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(lockScreenEnabled);
-            setTurnScreenOn(wakeScreenEnabled);
-            if (lockScreenEnabled) {
-                KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-                if (km != null) {
-                    km.requestDismissKeyguard(this, null);
-                }
-            }
-        } else {
-            int flags = 0;
-            if (lockScreenEnabled) flags |= WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
-            if (wakeScreenEnabled) flags |= WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON;
-            if (flags != 0) {
-                getWindow().addFlags(flags);
-            }
+            setShowWhenLocked(false);
+            setTurnScreenOn(false);
         }
     }
 
@@ -237,13 +220,60 @@ public class MainActivity extends AppCompatActivity {
                 JSONObject obj = new JSONObject(jsonString);
                 SharedPreferences prefs = activity.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
                 prefs.edit()
-                        .putBoolean("floatingAzanWindowEnabled", obj.optBoolean("floatingAzanWindowEnabled", true))
-                        .putBoolean("lockScreenAzanEnabled", obj.optBoolean("lockScreenAzanEnabled", true))
-                        .putBoolean("wakeScreenOnAzanEnabled", obj.optBoolean("wakeScreenOnAzanEnabled", true))
+                        .putBoolean("floatingAzanWindowEnabled", obj.optBoolean("floatingAzanWindowEnabled", false))
+                        .putBoolean("lockScreenAzanEnabled", obj.optBoolean("lockScreenAzanEnabled", false))
+                        .putBoolean("wakeScreenOnAzanEnabled", obj.optBoolean("wakeScreenOnAzanEnabled", false))
                         .putBoolean("azanSoundEnabled", obj.optBoolean("azanSoundEnabled", true))
                         .apply();
                 activity.runOnUiThread(MainActivity.this::applyLockScreenAndWakeFlags);
             } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public void syncNativePrayerConfig(String jsonString) {
+            try {
+                JSONObject obj = new JSONObject(jsonString);
+                SharedPreferences prefs = activity.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = prefs.edit();
+
+                if (obj.has("city_latitude")) editor.putString("city_latitude", String.valueOf(obj.optDouble("city_latitude", 21.4225)));
+                if (obj.has("city_longitude")) editor.putString("city_longitude", String.valueOf(obj.optDouble("city_longitude", 39.8262)));
+                if (obj.has("city_name")) editor.putString("city_name", obj.optString("city_name", "مكة المكرمة"));
+                if (obj.has("calc_method")) editor.putString("calc_method", obj.optString("calc_method", "umm_al_qura"));
+                if (obj.has("asr_method")) editor.putString("asr_method", obj.optString("asr_method", "standard"));
+                if (obj.has("azan_voice")) editor.putString("azan_voice", obj.optString("azan_voice", "makkah"));
+                if (obj.has("fajr_voice")) editor.putString("fajr_voice", obj.optString("fajr_voice", "abdulbasit_fajr"));
+                if (obj.has("azanSoundEnabled")) editor.putBoolean("azanSoundEnabled", obj.optBoolean("azanSoundEnabled", true));
+                if (obj.has("pre_prayer_alert_enabled")) editor.putBoolean("pre_prayer_alert_enabled", obj.optBoolean("pre_prayer_alert_enabled", true));
+
+                // Salawat parameters
+                if (obj.has("salawat_enabled")) editor.putBoolean("salawat_enabled", obj.optBoolean("salawat_enabled", true));
+                if (obj.has("salawat_time")) editor.putString("salawat_time", obj.optString("salawat_time", "08:00"));
+                if (obj.has("salawat_repeat_type")) editor.putString("salawat_repeat_type", obj.optString("salawat_repeat_type", "repeat"));
+                if (obj.has("salawat_repeat_interval")) editor.putInt("salawat_repeat_interval", obj.optInt("salawat_repeat_interval", 15));
+                if (obj.has("salawat_repeat_unit")) editor.putString("salawat_repeat_unit", obj.optString("salawat_repeat_unit", "minutes"));
+                if (obj.has("salawat_audio")) editor.putString("salawat_audio", obj.optString("salawat_audio", "salawat_1"));
+
+                // Morning / Evening Azkar parameters
+                if (obj.has("morning_azkar_enabled")) editor.putBoolean("morning_azkar_enabled", obj.optBoolean("morning_azkar_enabled", true));
+                if (obj.has("morning_azkar_time")) editor.putString("morning_azkar_time", obj.optString("morning_azkar_time", "06:30"));
+                if (obj.has("morning_azkar_audio")) editor.putString("morning_azkar_audio", obj.optString("morning_azkar_audio", "azkar_sabah"));
+                if (obj.has("evening_azkar_enabled")) editor.putBoolean("evening_azkar_enabled", obj.optBoolean("evening_azkar_enabled", true));
+                if (obj.has("evening_azkar_time")) editor.putString("evening_azkar_time", obj.optString("evening_azkar_time", "17:00"));
+                if (obj.has("evening_azkar_audio")) editor.putString("evening_azkar_audio", obj.optString("evening_azkar_audio", "azkar_massa"));
+
+                // Ramadan / Musaharati
+                if (obj.has("musaharati_enabled")) editor.putBoolean("musaharati_enabled", obj.optBoolean("musaharati_enabled", false));
+                if (obj.has("musaharati_time")) editor.putString("musaharati_time", obj.optString("musaharati_time", "03:30"));
+                if (obj.has("musaharati_audio")) editor.putString("musaharati_audio", obj.optString("musaharati_audio", "musaharati_1"));
+
+                editor.apply();
+
+                // Autonomously recalculate full 7-day schedule with newly applied settings
+                BootReceiver.recalculateAndScheduleAll(activity);
+            } catch (Exception e) {
+                Log.e("MainActivity", "Failed syncing native prayer config", e);
+            }
         }
 
         @JavascriptInterface

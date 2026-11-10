@@ -120,39 +120,20 @@ public class AzkarAudioService extends Service {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         String audioTrackId = intent.getStringExtra("audioTrackId");
-        String prayerName = intent.getStringExtra("prayerName");
-        String cityName = intent.getStringExtra("cityName");
-        int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true) && prefSound;
-        boolean floatingWindowEnabled = intent.getBooleanExtra("floatingWindowEnabled", true) && prefFloating;
-        boolean lockScreenEnabled = intent.getBooleanExtra("lockScreenEnabled", true) && prefLockScreen;
-        boolean wakeScreenEnabled = intent.getBooleanExtra("wakeScreenEnabled", true) && prefWakeScreen;
 
-        if (title == null) title = "حان الآن موعد الأذان";
-        if (body == null) body = "الله أكبر • حي على الصلاة";
+        if (title == null || title.isEmpty()) title = "حان الآن موعد الأذان";
+        if (body == null || body.isEmpty()) body = "الله أكبر • حي على الصلاة";
 
-        // 1. Wake up device screen if wakeScreenEnabled is true (Requirement 3)
-        if (wakeScreenEnabled) {
-            wakeUpDeviceScreen();
-        }
-
-        // 2. Start Foreground with Full Screen Intent for Lock Screen if lockScreenEnabled is true
-        Notification notification = buildNotification(title, body, lockScreenEnabled);
+        // Display standard high-priority notification (strictly in notification shade, NO full screen intent)
+        Notification notification = buildNotification(title, body);
         startForeground(NOTIFICATION_ID, notification);
 
-        // 3. Show Draggable Floating Azan Window over other apps if SYSTEM_ALERT_WINDOW is granted
-        if ("prayer_azan".equals(section) && floatingWindowEnabled) {
-            showDraggableFloatingWindow(
-                    prayerName != null ? prayerName : "الصلاة",
-                    cityName != null ? cityName : "",
-                    iqamaDurationMinutes
-            );
-        }
-
-        // 4. Play Azan or Reminder Audio
-        if (autoPlay && audioTrackId != null) {
-            playAudioTrack(audioTrackId, "prayer_azan".equals(section) && floatingWindowEnabled);
-        } else if (!floatingWindowEnabled) {
+        // Play Azan or Reminder Audio in background until completion
+        if (autoPlay && audioTrackId != null && !audioTrackId.isEmpty()) {
+            playAudioTrack(audioTrackId);
+        } else {
+            stopForeground(true);
             stopSelf();
         }
 
@@ -441,18 +422,34 @@ public class AzkarAudioService extends Service {
         }
     }
 
-    private void playAudioTrack(String trackId, boolean keepAliveForOverlay) {
+    private void playAudioTrack(String trackId) {
         stopCurrentAudio();
 
         String assetPath = mapTrackIdToAssetPath(trackId);
         try {
+            // Request audio focus to ensure clean audio priority
+            android.media.AudioManager audioManager = (android.media.AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    android.media.AudioFocusRequest focusRequest = new android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                            .setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                    .build())
+                            .build();
+                    audioManager.requestAudioFocus(focusRequest);
+                } else {
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+                }
+            }
+
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build());
 
-            // Acquire CPU wake lock to ensure uninterrupted playback
+            // Acquire CPU wake lock to ensure uninterrupted playback when device screen is turned off
             if (cpuWakeLock != null && !cpuWakeLock.isHeld()) {
                 cpuWakeLock.acquire(5 * 60 * 1000L);
             }
@@ -477,21 +474,17 @@ public class AzkarAudioService extends Service {
             }
 
             mediaPlayer.setOnCompletionListener(mp -> {
-                Log.d(TAG, "Audio playback completed.");
+                Log.d(TAG, "Audio playback completed gracefully.");
                 stopCurrentAudio();
-                if (!keepAliveForOverlay && floatingView == null) {
-                    stopForeground(true);
-                    stopSelf();
-                }
+                stopForeground(true);
+                stopSelf();
             });
 
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
                 stopCurrentAudio();
-                if (!keepAliveForOverlay && floatingView == null) {
-                    stopForeground(true);
-                    stopSelf();
-                }
+                stopForeground(true);
+                stopSelf();
                 return true;
             });
 
@@ -500,16 +493,18 @@ public class AzkarAudioService extends Service {
             Log.d(TAG, "Started audio playback successfully for: " + assetPath);
         } catch (Exception e) {
             Log.e(TAG, "Failed to load audio asset: " + assetPath, e);
-            if (!keepAliveForOverlay && floatingView == null) {
-                stopForeground(true);
-                stopSelf();
-            }
+            stopCurrentAudio();
+            stopForeground(true);
+            stopSelf();
         }
     }
 
     private String mapTrackIdToAssetPath(String trackId) {
-        if (trackId == null) return "dist/audio/makkah.mp3";
+        if (trackId == null || trackId.isEmpty()) return "dist/audio/makkah.mp3";
         String clean = trackId.startsWith("azan_") ? trackId.substring(5) : trackId;
+        if (clean.startsWith("/audio/")) clean = clean.substring(7);
+        if (clean.endsWith(".mp3")) clean = clean.substring(0, clean.length() - 4);
+
         if ("makkah".equals(clean)) return "dist/audio/makkah.mp3";
         if ("fajr".equals(clean)) return "dist/audio/fajr.mp3";
         if ("cairo".equals(clean)) return "dist/audio/cairo.mp3";
@@ -537,25 +532,34 @@ public class AzkarAudioService extends Service {
         if ("qiyam_last_third".equals(clean)) return "dist/audio/qiyam_last_third.mp3";
         if ("ruqyah_shariah".equals(clean)) return "dist/audio/ruqyah_shariah.mp3";
         if ("madinah_fajr".equals(clean)) return "dist/audio/madinah.mp3";
+        if ("asmaa_allah".equals(clean) || "asmaa_allah_al_husna".equals(clean) || "asmaa_allah_al_husna_full".equals(clean)) {
+            return "dist/audio/asmaa_allah_al_husna.mp3";
+        }
         return "dist/audio/" + clean + ".mp3";
     }
-
 
     private void stopCurrentAudio() {
         if (mediaPlayer != null) {
             try {
                 if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.reset();
                 mediaPlayer.release();
             } catch (Exception ignored) {}
             mediaPlayer = null;
         }
     }
 
-    private Notification buildNotification(String title, String body, boolean useFullScreenLockIntent) {
+    private Notification buildNotification(String title, String body) {
         Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Intent muteIntent = new Intent(this, AzkarAudioService.class);
+        muteIntent.setAction(ACTION_MUTE_AUDIO_ONLY);
+        PendingIntent mutePendingIntent = PendingIntent.getService(
+                this, 1, muteIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -563,14 +567,11 @@ public class AzkarAudioService extends Service {
                 .setContentText(body)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .addAction(android.R.drawable.ic_media_pause, "كتم الصوت", mutePendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true);
-
-        if (useFullScreenLockIntent) {
-            builder.setFullScreenIntent(pendingIntent, true);
-        }
 
         return builder.build();
     }

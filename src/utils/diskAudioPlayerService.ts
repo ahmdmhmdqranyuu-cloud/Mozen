@@ -47,9 +47,12 @@ export const ASMAA_ALLAH_TRACK: DiskAudioTrack = {
   artworkUrl: '/assets/settings_icons/icon_profile.jpg',
 };
 
+const ASMAA_FALLBACK_URL = '/assets/aistudio/Hisham_Abbas_-_Asmaa_Allah_Al_Hosna__Lyrics_______________-__________________________48k__73f3bd99.mp3';
+
 class DiskAudioPlayerService {
   private audio: HTMLAudioElement | null = null;
   private listeners: Set<Listener> = new Set();
+  private hasTriedFallback: boolean = false;
 
   private state: DiskPlayerState = {
     track: null,
@@ -60,6 +63,18 @@ class DiskAudioPlayerService {
     isExpanded: false,
     playbackRate: 1.0,
   };
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('AUDIO_PLAYBACK_START', (e: Event) => {
+        const custom = e as CustomEvent<{ source?: string }>;
+        if (custom.detail?.source === 'soundService') {
+          // Pause disk player when Azan or another sound begins
+          this.pause();
+        }
+      });
+    }
+  }
 
   public getState(): DiskPlayerState {
     return { ...this.state };
@@ -107,8 +122,19 @@ class DiskAudioPlayerService {
     this.playTrack(ASMAA_ALLAH_TRACK);
   }
 
-  public playTrack(track: DiskAudioTrack): void {
+  public playTrack(track: DiskAudioTrack, isFallbackAttempt = false): void {
+    if (!isFallbackAttempt) {
+      this.hasTriedFallback = false;
+    }
+
     this.cleanup();
+
+    // Broadcast that disk player is starting to pause any other audio
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'disk' } })
+      );
+    }
 
     this.updateState({
       track,
@@ -116,11 +142,15 @@ class DiskAudioPlayerService {
       isPlaying: false,
       currentTime: 0,
       duration: 0,
-      isExpanded: false, // starts in compact disk mode as requested
+      isExpanded: false,
     });
 
     try {
-      const audio = new Audio(track.audioUrl);
+      const urlToUse = isFallbackAttempt && track.type === 'asmaa_allah'
+        ? ASMAA_FALLBACK_URL
+        : track.audioUrl;
+
+      const audio = new Audio(urlToUse);
       audio.preload = 'auto';
       audio.playbackRate = this.state.playbackRate;
       this.audio = audio;
@@ -163,7 +193,13 @@ class DiskAudioPlayerService {
       };
 
       audio.onerror = (e) => {
-        console.warn('Disk player error:', e);
+        console.warn('Disk player error on path:', urlToUse, e);
+        if (!this.hasTriedFallback && track.type === 'asmaa_allah') {
+          this.hasTriedFallback = true;
+          console.log('Retrying Asmaa Allah audio with secondary asset fallback...');
+          this.playTrack(track, true);
+          return;
+        }
         if (this.audio === audio) {
           this.updateState({ isLoading: false, isPlaying: false });
         }
@@ -184,6 +220,42 @@ class DiskAudioPlayerService {
     }
   }
 
+  public pause(): void {
+    if (this.audio && !this.audio.paused) {
+      this.audio.pause();
+      this.updateState({ isPlaying: false });
+    }
+  }
+
+  public resume(): void {
+    if (this.audio && this.audio.paused) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'disk' } })
+        );
+      }
+      this.audio.play().catch(console.warn);
+      this.updateState({ isPlaying: true });
+    } else if (this.state.track) {
+      this.playTrack(this.state.track);
+    }
+  }
+
+  public restart(): void {
+    if (this.audio) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'disk' } })
+        );
+      }
+      this.audio.currentTime = 0;
+      this.audio.play().catch(console.warn);
+      this.updateState({ currentTime: 0, isPlaying: true });
+    } else if (this.state.track) {
+      this.playTrack(this.state.track);
+    }
+  }
+
   public togglePlayPause(): void {
     if (!this.audio) {
       if (this.state.track) {
@@ -193,9 +265,9 @@ class DiskAudioPlayerService {
     }
 
     if (this.audio.paused) {
-      this.audio.play().catch(console.warn);
+      this.resume();
     } else {
-      this.audio.pause();
+      this.pause();
     }
   }
 

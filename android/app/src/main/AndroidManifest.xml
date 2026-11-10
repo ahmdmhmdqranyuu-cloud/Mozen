@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Essential Permissions for Background Alarm, Lock Screen, Overlay & Sound Scheduling -->
+    <!-- Essential Permissions for Background Alarm, Sound Scheduling, and Native Media Playback -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -14,7 +12,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
@@ -29,8 +26,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection"
             android:launchMode="singleTop">
             <intent-filter>
@@ -49,7 +44,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- BroadcastReceiver to reschedule all Prayer Azan & Azkar alarms upon device restart, time change, or timezone change -->
+        <!-- BroadcastReceiver to recalculate prayer times and reschedule all alarms upon reboot, time, date, or timezone change -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
@@ -61,6 +56,7 @@
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
         </receiver>
 
