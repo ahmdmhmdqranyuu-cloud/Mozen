@@ -11,23 +11,37 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Handles scheduling of Exact Alarms for Prayer Azan & Reminders with full Android 8-14+ compatibility.
- * Automatically falls back to setAndAllowWhileIdle if SCHEDULE_EXACT_ALARM is not yet granted.
+ * Prevents old alarm accumulation by canceling previous app alarms not present in the new schedule,
+ * safely saves active schedule in SharedPreferences for reboot recovery,
+ * and maintains full compatibility with AzkarAlarmReceiver, BootReceiver, and MainActivity.
  */
 public class AlarmScheduler {
     private static final String TAG = "AlarmScheduler";
+    private static final String ACTION =
+            "com.muslim.azan.ACTION_TRIGGER_REMINDER";
+    private static final String PREFS = "azan_reminders_prefs";
+    private static final String SCHEDULE_KEY = "active_schedule_json";
 
-    public static void rescheduleFromJson(Context context, String jsonArrayString) {
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) return;
+    public static synchronized void rescheduleFromJson(
+            Context context, String jsonArrayString) {
+
+        AlarmManager alarmManager =
+                (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
+        if (alarmManager == null || jsonArrayString == null) return;
 
         try {
-            // Save schedule in SharedPreferences for reboot recovery
-            SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
-            prefs.edit().putString("active_schedule_json", jsonArrayString).apply();
+            // Validate the new schedule before changing existing alarms.
+            JSONArray newArray = new JSONArray(jsonArrayString);
+            SharedPreferences prefs =
+                    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
 
-            JSONArray array = new JSONArray(jsonArrayString);
+            String oldJson = prefs.getString(SCHEDULE_KEY, null);
             long now = System.currentTimeMillis();
 
             boolean canExact = true;
@@ -35,48 +49,55 @@ public class AlarmScheduler {
                 canExact = alarmManager.canScheduleExactAlarms();
             }
 
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject obj = array.getJSONObject(i);
-                String section = obj.optString("section");
-                String title = obj.optString("title");
-                String body = obj.optString("body");
-                String audioTrackId = obj.optString("audioTrackId");
-                String prayerName = obj.optString("prayerName", "الصلاة");
-                String cityName = obj.optString("cityName", "مدينتك");
-                int iqamaDurationMinutes = obj.optInt("iqamaDurationMinutes", 15);
-                boolean autoPlay = obj.optBoolean("autoPlay", true);
-                boolean floatingWindowEnabled = obj.optBoolean("floatingWindowEnabled", true);
-                boolean lockScreenEnabled = obj.optBoolean("lockScreenEnabled", true);
-                boolean wakeScreenEnabled = obj.optBoolean("wakeScreenEnabled", true);
-                long repeatIntervalMs = obj.optLong("repeatIntervalMs", 0);
-                long triggerEpochMs = obj.optLong("triggerEpochMs");
+            Set<String> newAlarmIds = new HashSet<>();
 
-                if (triggerEpochMs <= now) {
-                    continue; // Skip past triggers
+            // Schedule all future alarms in the new list first.
+            for (int i = 0; i < newArray.length(); i++) {
+                JSONObject obj = newArray.getJSONObject(i);
+
+                String section = obj.optString("section", "");
+                long triggerEpochMs = obj.optLong("triggerEpochMs", 0);
+
+                if (section.isEmpty() || triggerEpochMs <= now) {
+                    continue;
                 }
 
-                Intent intent = new Intent(context, AzkarAlarmReceiver.class);
-                intent.setAction("com.muslim.azan.ACTION_TRIGGER_REMINDER");
-                intent.putExtra("section", section);
-                intent.putExtra("title", title);
-                intent.putExtra("body", body);
-                intent.putExtra("audioTrackId", audioTrackId);
-                intent.putExtra("prayerName", prayerName);
-                intent.putExtra("cityName", cityName);
-                intent.putExtra("iqamaDurationMinutes", iqamaDurationMinutes);
-                intent.putExtra("autoPlay", autoPlay);
-                intent.putExtra("floatingWindowEnabled", floatingWindowEnabled);
-                intent.putExtra("lockScreenEnabled", lockScreenEnabled);
-                intent.putExtra("wakeScreenEnabled", wakeScreenEnabled);
-                intent.putExtra("repeatIntervalMs", repeatIntervalMs);
+                int requestCode =
+                        (section + "_" + triggerEpochMs).hashCode();
 
-                // Robust collision-free request code for distinct pending intents
-                int requestCode = (section + "_" + triggerEpochMs).hashCode();
+                newAlarmIds.add(section + "_" + triggerEpochMs);
+
+                Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+                intent.setAction(ACTION);
+
+                intent.putExtra("section", section);
+                intent.putExtra("title", obj.optString("title", ""));
+                intent.putExtra("body", obj.optString("body", ""));
+                intent.putExtra("audioTrackId",
+                        obj.optString("audioTrackId", ""));
+                intent.putExtra("prayerName",
+                        obj.optString("prayerName", "الصلاة"));
+                intent.putExtra("cityName",
+                        obj.optString("cityName", "مدينتك"));
+                intent.putExtra("iqamaDurationMinutes",
+                        obj.optInt("iqamaDurationMinutes", 15));
+                intent.putExtra("autoPlay",
+                        obj.optBoolean("autoPlay", true));
+                intent.putExtra("floatingWindowEnabled",
+                        obj.optBoolean("floatingWindowEnabled", true));
+                intent.putExtra("lockScreenEnabled",
+                        obj.optBoolean("lockScreenEnabled", true));
+                intent.putExtra("wakeScreenEnabled",
+                        obj.optBoolean("wakeScreenEnabled", true));
+                intent.putExtra("repeatIntervalMs",
+                        obj.optLong("repeatIntervalMs", 0));
+
                 PendingIntent pendingIntent = PendingIntent.getBroadcast(
                         context,
                         requestCode,
                         intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                                | PendingIntent.FLAG_IMMUTABLE
                 );
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -101,10 +122,83 @@ public class AlarmScheduler {
                     );
                 }
 
-                Log.d(TAG, "Scheduled alarm for: " + section + " (" + prayerName + ") at " + triggerEpochMs);
+                Log.d(TAG, "Scheduled: " + section
+                        + " at " + triggerEpochMs);
             }
+
+            // Cancel only alarms from the previous app schedule
+            // that are not present in the new schedule.
+            if (oldJson != null) {
+                try {
+                    JSONArray oldArray = new JSONArray(oldJson);
+
+                    for (int i = 0; i < oldArray.length(); i++) {
+                        JSONObject oldObj = oldArray.getJSONObject(i);
+
+                        String oldSection =
+                                oldObj.optString("section", "");
+                        long oldTrigger =
+                                oldObj.optLong("triggerEpochMs", 0);
+
+                        if (oldSection.isEmpty() || oldTrigger <= 0) {
+                            continue;
+                        }
+
+                        String oldId = oldSection + "_" + oldTrigger;
+
+                        if (!newAlarmIds.contains(oldId)) {
+                            cancelAlarm(
+                                    context,
+                                    alarmManager,
+                                    oldSection,
+                                    oldTrigger
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Could not clean old schedule", e);
+                }
+            }
+
+            // Save only after processing the new schedule.
+            prefs.edit()
+                    .putString(SCHEDULE_KEY, jsonArrayString)
+                    .apply();
+
+            Log.d(TAG, "Schedule updated successfully. Alarms: "
+                    + newAlarmIds.size());
+
         } catch (Exception e) {
-            Log.e(TAG, "Failed to parse and schedule alarms", e);
+            Log.e(TAG, "Failed to update alarm schedule", e);
+        }
+    }
+
+    private static void cancelAlarm(
+            Context context,
+            AlarmManager alarmManager,
+            String section,
+            long triggerEpochMs) {
+
+        int requestCode =
+                (section + "_" + triggerEpochMs).hashCode();
+
+        Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+        intent.setAction(ACTION);
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_NO_CREATE
+                        | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        if (pendingIntent != null) {
+            alarmManager.cancel(pendingIntent);
+            pendingIntent.cancel();
+
+            Log.d(TAG, "Cancelled old alarm: "
+                    + section + " at " + triggerEpochMs);
         }
     }
 }
