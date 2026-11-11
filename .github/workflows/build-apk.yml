@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android Native App (APK & AAB)
 
 on:
   push:
@@ -12,8 +12,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
-    name: Build Installable Android APK (Debug & Release)
+  build-android:
+    name: Build Native Android APK & AAB (Debug & Release)
     runs-on: ubuntu-latest
 
     steps:
@@ -25,47 +25,71 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK Components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew android/gradlew
-
-      - name: Print Build Environment & Android Directory Structure
         run: |
-          env | grep -E '^(ANDROID_|JAVA_|GRADLE_|GITHUB_|RUNNER_|CI)' | sort || true
-          find android -maxdepth 4 -print | sort
+          chmod +x gradlew android/gradlew || true
 
-      - name: Run Android JUnit Tests & Build Both APKs (Debug & Release)
+      - name: Configure Release Signing Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          mkdir -p "$HOME/.android"
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            echo "Release keystore secret detected. Decoding keystore..."
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
-            export KEYSTORE_FILE="$PWD/android/app/release-keystore.jks"
+            echo "Decoding release keystore from GitHub Secrets..."
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/release.keystore"
+            echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD:-android}" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=${KEY_ALIAS:-androiddebugkey}" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${KEY_PASSWORD:-android}" >> "$GITHUB_ENV"
           else
-            echo "No release keystore secret provided. Creating fallback keystore for signed Release APK..."
-            mkdir -p "$HOME/.android"
-            keytool -genkey -v -keystore "$HOME/.android/release.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Release,O=Android,C=US" -noprompt 2>/dev/null || true
-            export KEYSTORE_FILE="$HOME/.android/release.keystore"
-            export KEYSTORE_PASSWORD="android"
-            export KEY_ALIAS="androiddebugkey"
-            export KEY_PASSWORD="android"
+            echo "Creating deterministic signing keystore for automated release builds..."
+            keytool -genkey -v -keystore "$HOME/.android/release.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=AlMoazen Release,O=AlMoazen,C=SA" -noprompt 2>/dev/null || true
+            echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
           fi
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease --build-cache --stacktrace
 
-      - name: Upload Debug APK to Artifacts
+      - name: Run JUnit Tests & Build Native Android APK & AAB
+        run: |
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease --stacktrace
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: AlMoazen-debug-apk
+          name: AlMoazen-Debug-APK
           path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
 
-      - name: Upload Release APK to Artifacts
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: AlMoazen-release-apk
+          name: AlMoazen-Release-APK
           path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
+
+      - name: Upload Release Android App Bundle (AAB for Google Play)
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: AlMoazen-Release-AAB
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

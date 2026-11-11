@@ -24,7 +24,10 @@ import {
   ArrowRight,
   SlidersHorizontal,
   FolderOpen,
+  Save,
+  AlertTriangle,
 } from 'lucide-react';
+import { TimeSliderPicker } from '../common/TimeSliderPicker';
 import {
   CALCULATION_METHODS,
   ASR_METHODS,
@@ -173,6 +176,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState(user.name || 'أحمد محمد');
+  const [saveStatusBanner, setSaveStatusBanner] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const worldCountries = useMemo(() => getWorldCountries(), []);
   const filteredCities = useMemo(
@@ -209,6 +216,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setToastMessage(msg);
     setAzkarSaveToast(true);
     setTimeout(() => setAzkarSaveToast(false), 2200);
+  };
+
+  const handleSaveCurrentSection = (sectionId: string) => {
+    try {
+      // 1. Flush reminder settings
+      reminderScheduler.updateSettings((prev) => ({ ...prev, ...reminderSettings }));
+      reminderScheduler.rescheduleAll();
+
+      // 2. Persist user preferences to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moazen_user_settings', JSON.stringify(user));
+      }
+
+      // 3. Trigger native Android Bridge sync if available
+      const winBridge = typeof window !== 'undefined'
+        ? (window as unknown as { AndroidPrayerBridge?: { syncNativePrayerConfig?: (s: string) => void } }).AndroidPrayerBridge
+        : null;
+
+      if (winBridge && typeof winBridge.syncNativePrayerConfig === 'function') {
+        const payload = {
+          city_latitude: user.city?.latitude || 21.4225,
+          city_longitude: user.city?.longitude || 39.8262,
+          city_name: user.city?.name || 'مكة المكرمة',
+          calc_method: user.calculationMethod || 'umm_al_qura',
+          asr_method: user.asrMethod || 'standard',
+          azan_voice: user.azanVoice || 'abdulbasit',
+          fajr_voice: user.fajrAzanVoice || 'abdulbasit_fajr',
+          azanSoundEnabled: user.autoPlayAzan !== false,
+          pre_prayer_alert_enabled: reminderSettings.prePrayerAlert?.enabled !== false,
+          salawat_enabled: reminderSettings.salawat.enabled,
+          salawat_time: reminderSettings.salawat.startTime || '08:00',
+          salawat_repeat_type: reminderSettings.salawat.repeatType || 'repeat',
+          salawat_repeat_interval: reminderSettings.salawat.repeatInterval || 15,
+          salawat_repeat_unit: reminderSettings.salawat.repeatUnit || 'minutes',
+          salawat_audio: reminderSettings.salawat.audioFile || 'salawat_1',
+          morning_azkar_enabled: reminderSettings.morningAzkar.enabled,
+          morning_azkar_time: reminderSettings.morningAzkar.startTime || '06:30',
+          evening_azkar_enabled: reminderSettings.eveningAzkar.enabled,
+          evening_azkar_time: reminderSettings.eveningAzkar.startTime || '17:00',
+        };
+        winBridge.syncNativePrayerConfig(JSON.stringify(payload));
+      }
+
+      const widgetTitle = widgetsList.find((w) => w.id === sectionId)?.title || 'هذا القسم';
+      setSaveStatusBanner({
+        type: 'success',
+        message: `✓ تم حفظ جميع تعديلات «${widgetTitle}» وتطبيق الجدولة الدائمة في الخلفية بنجاح!`,
+      });
+      showToast(`✓ تم حفظ تعديلات ${widgetTitle} بنجاح`);
+      setTimeout(() => setSaveStatusBanner(null), 4500);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      setSaveStatusBanner({
+        type: 'error',
+        message: '✕ حدث خطأ غير متوقع أثناء حفظ التعديلات. يرجى إعادة المحاولة.',
+      });
+      setTimeout(() => setSaveStatusBanner(null), 4500);
+    }
   };
 
   const handleSelectLanguage = (lang: AppLanguage) => {
@@ -1611,32 +1676,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'azkar_sabah_massa' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
-                          {/* Morning */}
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Sun className="w-4 h-4 text-amber-500" />
-                              <div>
-                                <h5 className="text-xs font-bold text-gray-900">أذكار الصباح</h5>
-                                <span className="text-[10px] text-gray-500 font-sans">
-                                  تصل مرة واحدة في موعدها
-                                </span>
+                          {/* Morning Azkar */}
+                          <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Sun className="w-4 h-4 text-amber-500" />
+                                <div>
+                                  <h5 className="text-xs font-black text-gray-900">أذكار الصباح المباركة</h5>
+                                  <span className="text-[10px] text-gray-500 font-sans">
+                                    تصل مرة واحدة يومياً في موعدها المحدد
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="time"
-                                value={reminderSettings.morningAzkar.startTime}
-                                onChange={(e) =>
-                                  handleUpdateReminder((prev) => ({
-                                    ...prev,
-                                    morningAzkar: {
-                                      ...prev.morningAzkar,
-                                      startTime: e.target.value,
-                                    },
-                                  }))
-                                }
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
-                              />
                               <input
                                 type="checkbox"
                                 checked={reminderSettings.morningAzkar.enabled}
@@ -1649,37 +1700,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     },
                                   }))
                                 }
-                                className="w-4 h-4 accent-[#104B40]"
+                                className="w-5 h-5 accent-[#104B40] rounded cursor-pointer"
                               />
                             </div>
-                          </div>
-
-                          {/* Evening */}
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Moon className="w-4 h-4 text-[#104B40]" />
-                              <div>
-                                <h5 className="text-xs font-bold text-gray-900">أذكار المساء</h5>
-                                <span className="text-[10px] text-gray-500 font-sans">
-                                  تصل مرة واحدة في موعدها
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="time"
-                                value={reminderSettings.eveningAzkar.startTime}
-                                onChange={(e) =>
+                            {reminderSettings.morningAzkar.enabled && (
+                              <TimeSliderPicker
+                                label="موعد أذكار الصباح"
+                                sublabel="حرك المنزلق لضبط الساعة والدقيقة بدقة"
+                                value={reminderSettings.morningAzkar.startTime || '06:30'}
+                                onChange={(newTime) =>
                                   handleUpdateReminder((prev) => ({
                                     ...prev,
-                                    eveningAzkar: {
-                                      ...prev.eveningAzkar,
-                                      startTime: e.target.value,
+                                    morningAzkar: {
+                                      ...prev.morningAzkar,
+                                      startTime: newTime,
                                     },
                                   }))
                                 }
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
                               />
+                            )}
+                          </div>
+
+                          {/* Evening Azkar */}
+                          <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Moon className="w-4 h-4 text-[#104B40]" />
+                                <div>
+                                  <h5 className="text-xs font-black text-gray-900">أذكار المساء المباركة</h5>
+                                  <span className="text-[10px] text-gray-500 font-sans">
+                                    تصل مرة واحدة يومياً في موعدها المحدد
+                                  </span>
+                                </div>
+                              </div>
                               <input
                                 type="checkbox"
                                 checked={reminderSettings.eveningAzkar.enabled}
@@ -1692,9 +1745,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     },
                                   }))
                                 }
-                                className="w-4 h-4 accent-[#104B40]"
+                                className="w-5 h-5 accent-[#104B40] rounded cursor-pointer"
                               />
                             </div>
+                            {reminderSettings.eveningAzkar.enabled && (
+                              <TimeSliderPicker
+                                label="موعد أذكار المساء"
+                                sublabel="حرك المنزلق لضبط الساعة والدقيقة بدقة"
+                                value={reminderSettings.eveningAzkar.startTime || '17:00'}
+                                onChange={(newTime) =>
+                                  handleUpdateReminder((prev) => ({
+                                    ...prev,
+                                    eveningAzkar: {
+                                      ...prev.eveningAzkar,
+                                      startTime: newTime,
+                                    },
+                                  }))
+                                }
+                              />
+                            )}
                           </div>
                         </div>
                       )}
@@ -1811,122 +1880,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           {/* 3. Time Pickers based on chosen mode */}
                           {reminderSettings.salawat.repeatType === 'once' ? (
                             /* Mode: Once Daily Fixed Time */
-                            <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-gray-900">
-                                  وقت التنبيه اليومي الثابت:
-                                </span>
-                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                  {(() => {
-                                    const timeStr = reminderSettings.salawat.startTime || '08:00';
-                                    const [h, m] = timeStr.split(':').map(Number);
-                                    const h12 = h % 12 === 0 ? 12 : h % 12;
-                                    const period = h >= 12 ? 'مساءً (م)' : 'صباحاً (ص)';
-                                    const paddedM = (m || 0) < 10 ? `0${m || 0}` : `${m || 0}`;
-                                    return `${h12}:${paddedM} ${period}`;
-                                  })()}
-                                </span>
-                              </div>
-
-                              {/* Accurate Hour & Minute pickers */}
-                              <div className="flex items-center gap-2 pt-1">
-                                <div className="flex-1">
-                                  <label className="text-[10px] text-gray-500 block mb-0.5">
-                                    الساعة (00 - 23)
-                                  </label>
-                                  <select
-                                    value={
-                                      (reminderSettings.salawat.startTime || '08:00').split(':')[0]
-                                    }
-                                    onChange={(e) => {
-                                      const currentM =
-                                        (reminderSettings.salawat.startTime || '08:00').split(
-                                          ':'
-                                        )[1] || '00';
-                                      const newH = e.target.value.padStart(2, '0');
-                                      handleUpdateReminder((prev) => ({
-                                        ...prev,
-                                        salawat: {
-                                          ...prev.salawat,
-                                          startTime: `${newH}:${currentM}`,
-                                        },
-                                      }));
-                                    }}
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold text-center"
-                                  >
-                                    {Array.from({ length: 24 }).map((_, i) => {
-                                      const val = i.toString().padStart(2, '0');
-                                      const h12 = i % 12 === 0 ? 12 : i % 12;
-                                      const period = i >= 12 ? 'م' : 'ص';
-                                      return (
-                                        <option key={val} value={val}>
-                                          {val}:00 ({h12} {period})
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                </div>
-
-                                <div className="flex-1">
-                                  <label className="text-[10px] text-gray-500 block mb-0.5">
-                                    الدقيقة (00 - 59)
-                                  </label>
-                                  <select
-                                    value={
-                                      (reminderSettings.salawat.startTime || '08:00').split(':')[1] ||
-                                      '00'
-                                    }
-                                    onChange={(e) => {
-                                      const currentH =
-                                        (reminderSettings.salawat.startTime || '08:00').split(
-                                          ':'
-                                        )[0] || '08';
-                                      const newM = e.target.value.padStart(2, '0');
-                                      handleUpdateReminder((prev) => ({
-                                        ...prev,
-                                        salawat: {
-                                          ...prev.salawat,
-                                          startTime: `${currentH}:${newM}`,
-                                        },
-                                      }));
-                                    }}
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold text-center"
-                                  >
-                                    {Array.from({ length: 60 }).map((_, i) => {
-                                      const val = i.toString().padStart(2, '0');
-                                      return (
-                                        <option key={val} value={val}>
-                                          :{val} دقيقة
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                </div>
-
-                                <div className="shrink-0 pt-4">
-                                  <input
-                                    type="time"
-                                    value={reminderSettings.salawat.startTime || '08:00'}
-                                    onChange={(e) =>
-                                      handleUpdateReminder((prev) => ({
-                                        ...prev,
-                                        salawat: {
-                                          ...prev.salawat,
-                                          startTime: e.target.value || '08:00',
-                                        },
-                                      }))
-                                    }
-                                    className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono font-bold cursor-pointer"
-                                    title="اختيار الوقت السريع"
-                                  />
-                                </div>
-                              </div>
-                            </div>
+                            <TimeSliderPicker
+                              label="موعد التنبيه اليومي الثابت بالصلاة على النبي ﷺ"
+                              sublabel="حرك المنزلق لاختيار الساعة والدقيقة (تنبيه هادئ بالخلفية)"
+                              value={reminderSettings.salawat.startTime || '08:00'}
+                              onChange={(newTime) =>
+                                handleUpdateReminder((prev) => ({
+                                  ...prev,
+                                  salawat: {
+                                    ...prev.salawat,
+                                    startTime: newTime,
+                                  },
+                                }))
+                              }
+                            />
                           ) : (
                             /* Mode: Periodic Repeating */
-                            <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-3">
+                            <div className="space-y-3">
                               {/* Interval config */}
-                              <div className="flex items-center justify-between text-xs">
+                              <div className="p-3 bg-white rounded-xl border border-gray-200 flex items-center justify-between text-xs">
                                 <div>
                                   <span className="font-bold text-gray-900 block">
                                     تكرار التذكير كل:
@@ -1971,47 +1943,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </div>
                               </div>
 
-                              {/* Start Time & End Time */}
-                              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-600 block mb-1">
-                                    يبدأ التذكير من:
-                                  </label>
-                                  <input
-                                    type="time"
-                                    value={reminderSettings.salawat.startTime || '08:00'}
-                                    onChange={(e) =>
-                                      handleUpdateReminder((prev) => ({
-                                        ...prev,
-                                        salawat: {
-                                          ...prev.salawat,
-                                          startTime: e.target.value || '08:00',
-                                        },
-                                      }))
-                                    }
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-600 block mb-1">
-                                    ينتهي التذكير عند:
-                                  </label>
-                                  <input
-                                    type="time"
-                                    value={reminderSettings.salawat.endTime || '22:00'}
-                                    onChange={(e) =>
-                                      handleUpdateReminder((prev) => ({
-                                        ...prev,
-                                        salawat: {
-                                          ...prev.salawat,
-                                          endTime: e.target.value || '22:00',
-                                        },
-                                      }))
-                                    }
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center"
-                                  />
-                                </div>
-                              </div>
+                              {/* Start Time & End Time with TimeSliderPicker */}
+                              <TimeSliderPicker
+                                label="يبدأ التذكير الدوري من الساعة"
+                                sublabel="بداية نافذة التذكيرات اليومية"
+                                value={reminderSettings.salawat.startTime || '08:00'}
+                                onChange={(newTime) =>
+                                  handleUpdateReminder((prev) => ({
+                                    ...prev,
+                                    salawat: {
+                                      ...prev.salawat,
+                                      startTime: newTime,
+                                    },
+                                  }))
+                                }
+                              />
+
+                              <TimeSliderPicker
+                                label="ينتهي التذكير الدوري عند الساعة"
+                                sublabel="نهاية نافذة التذكيرات اليومية"
+                                value={reminderSettings.salawat.endTime || '22:00'}
+                                onChange={(newTime) =>
+                                  handleUpdateReminder((prev) => ({
+                                    ...prev,
+                                    salawat: {
+                                      ...prev.salawat,
+                                      endTime: newTime,
+                                    },
+                                  }))
+                                }
+                              />
                             </div>
                           )}
 
@@ -2352,9 +2313,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </select>
                           </div>
 
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 space-y-2">
-                            <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
-                              <h5 className="text-xs font-bold text-gray-900">صوت المسحراتي</h5>
+                          <div className="bg-white rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                              <div>
+                                <h5 className="text-xs font-black text-gray-900">صوت ونداء المسحراتي</h5>
+                                <span className="text-[10px] text-gray-500 font-sans block">
+                                  إيقاظ رمضاني عذب بالدف والتسبيح قبل الإمساك
+                                </span>
+                              </div>
                               <input
                                 type="checkbox"
                                 checked={reminderSettings.musaharati.enabled}
@@ -2364,23 +2330,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     musaharati: { ...prev.musaharati, enabled: e.target.checked },
                                   }))
                                 }
-                                className="w-4 h-4 accent-[#104B40]"
+                                className="w-5 h-5 accent-[#104B40] rounded cursor-pointer"
                               />
                             </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span>موعد تنبيه السحور:</span>
-                              <input
-                                type="time"
-                                value={reminderSettings.musaharati.time}
-                                onChange={(e) =>
+                            {reminderSettings.musaharati.enabled && (
+                              <TimeSliderPicker
+                                label="موعد نداء المسحراتي"
+                                sublabel="حرك المنزلق لضبط وقت إيقاظ السحور"
+                                value={reminderSettings.musaharati.time || '03:30'}
+                                onChange={(newTime) =>
                                   handleUpdateReminder((prev) => ({
                                     ...prev,
-                                    musaharati: { ...prev.musaharati, time: e.target.value },
+                                    musaharati: { ...prev.musaharati, time: newTime },
                                   }))
                                 }
-                                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs font-mono font-bold"
                               />
-                            </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2498,6 +2463,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Save Feedback Banner if triggered */}
+                {saveStatusBanner && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fadeIn shadow-sm border ${
+                      saveStatusBanner.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                        : 'bg-rose-50 text-rose-900 border-rose-300'
+                    }`}
+                  >
+                    {saveStatusBanner.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
+                    )}
+                    <span>{saveStatusBanner.message}</span>
+                  </div>
+                )}
+
+                {/* Explicit "حفظ التعديلات" (Save Changes) Action Button */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveCurrentSection(activeWidgetId)}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#104B40] via-[#145548] to-[#0D3E35] text-amber-100 hover:text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 border border-amber-300/40"
+                  >
+                    <Save className="w-4 h-4 text-amber-300" />
+                    <span>حفظ التعديلات في قسم {currentActiveWidget?.title || 'الإعدادات'}</span>
+                  </button>
+                </div>
 
                 {/* Back to Overview button at bottom of subpage */}
                 <button

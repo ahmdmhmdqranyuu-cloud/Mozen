@@ -170,6 +170,7 @@ export interface UserProfile {
   city: CityLocation;
   calculationMethod: string;
   asrJuristicMethod?: 'standard' | 'hanafi';
+  asrMethod?: 'standard' | 'hanafi';
   manualPrayerAdjustments?: Record<PrayerKey, number>;
   lastReadSurah: number;
   lastReadAyah: number;

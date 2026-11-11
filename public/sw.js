@@ -1,7 +1,9 @@
 // Service Worker for المؤذن الإسلامي (Android & iOS Offline-First Application)
 // Pre-caches all sections, audio files (including Iqama 1, 2, 3), icons, images, and Quran data for 100% offline operation
 
-const CACHE_NAME = 'moazen-islamic-app-v8';
+const CACHE_NAME = 'moazen-islamic-app-v9';
+const MAP_CACHE_NAME = 'moazen-map-tiles-v1';
+const MAX_CACHED_TILES = 500;
 const OFFLINE_ASSETS = [
   '/',
   '/index.html',
@@ -118,7 +120,51 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const url = new URL(event.request.url);
+  // Intercept and cache Map Tiles (OpenStreetMap, Carto, Stamen, etc.)
+  const isMapTile =
+    url.hostname.includes('tile.openstreetmap.org') ||
+    url.hostname.includes('basemaps.cartocdn.com') ||
+    url.hostname.includes('tile.stamen.com') ||
+    url.hostname.includes('tile.openstreetmap.fr') ||
+    (url.pathname.includes('/tile/') || /\/\d+\/\d+\/\d+\.png$/.test(url.pathname));
+
+  if (isMapTile) {
+    event.respondWith(
+      caches.open(MAP_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        if (cached) {
+          if (navigator.onLine) {
+            fetch(event.request)
+              .then((netResp) => {
+                if (netResp && netResp.status === 200) {
+                  cache.put(event.request, netResp.clone());
+                }
+              })
+              .catch(() => {});
+          }
+          return cached;
+        }
+
+        try {
+          const netResp = await fetch(event.request);
+          if (netResp && netResp.status === 200) {
+            cache.keys().then((keys) => {
+              if (keys.length >= MAX_CACHED_TILES) {
+                for (let i = 0; i < 50; i++) {
+                  if (keys[i]) cache.delete(keys[i]);
+                }
+              }
+            });
+            cache.put(event.request, netResp.clone());
+          }
+          return netResp;
+        } catch {
+          return new Response('', { status: 408, statusText: 'Offline map tile not in cache' });
+        }
+      })
+    );
+    return;
+  }
 
   // Only handle same-origin requests or font stylesheets
   if (url.origin !== self.location.origin && !url.hostname.includes('fonts.g')) {

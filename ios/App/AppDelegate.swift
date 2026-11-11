@@ -2,7 +2,6 @@ import UIKit
 import UserNotifications
 import AVFoundation
 
-@main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     var window: UIWindow?

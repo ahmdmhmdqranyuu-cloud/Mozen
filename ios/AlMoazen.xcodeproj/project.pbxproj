@@ -1,0 +1,300 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A100000129B7F10000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000001 /* AppDelegate.swift */; };
+		A100000129B7F10000000002 /* AlMoazenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000002 /* AlMoazenApp.swift */; };
+		A100000129B7F10000000003 /* PrayerNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000003 /* PrayerNotificationManager.swift */; };
+		A100000129B7F10000000004 /* PrayerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000004 /* PrayerModels.swift */; };
+		A100000129B7F10000000005 /* QuranModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000005 /* QuranModels.swift */; };
+		A100000129B7F10000000006 /* AzkarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000006 /* AzkarModels.swift */; };
+		A100000129B7F10000000007 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000007 /* AudioPlayerManager.swift */; };
+		A100000129B7F10000000008 /* LocationAndCompassManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000008 /* LocationAndCompassManager.swift */; };
+		A100000129B7F10000000009 /* MediaStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000009 /* MediaStorageManager.swift */; };
+		A100000129B7F10000000010 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000010 /* MainTabView.swift */; };
+		A100000129B7F10000000011 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000011 /* HomeView.swift */; };
+		A100000129B7F10000000012 /* PrayerTimesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000012 /* PrayerTimesView.swift */; };
+		A100000129B7F10000000013 /* QuranView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000013 /* QuranView.swift */; };
+		A100000129B7F10000000014 /* AzkarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000014 /* AzkarView.swift */; };
+		A100000129B7F10000000015 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000015 /* SettingsView.swift */; };
+		A100000129B7F10000000016 /* FloatingAudioBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000016 /* FloatingAudioBarView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A100000229B7F10000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A100000229B7F10000000002 /* AlMoazenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlMoazenApp.swift; sourceTree = "<group>"; };
+		A100000229B7F10000000003 /* PrayerNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrayerNotificationManager.swift; sourceTree = "<group>"; };
+		A100000229B7F10000000004 /* PrayerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models/PrayerModels.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000005 /* QuranModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models/QuranModels.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000006 /* AzkarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models/AzkarModels.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000007 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/AudioPlayerManager.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000008 /* LocationAndCompassManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/LocationAndCompassManager.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000009 /* MediaStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/MediaStorageManager.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000010 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/MainTabView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000011 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/HomeView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000012 /* PrayerTimesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/PrayerTimesView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000013 /* QuranView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/QuranView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000014 /* AzkarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/AzkarView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000015 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SettingsView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000016 /* FloatingAudioBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/FloatingAudioBarView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000017 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A100000329B7F10000000001 /* AlMoazen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlMoazen.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A100000429B7F10000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A100000529B7F10000000001 = {
+			isa = PBXGroup;
+			children = (
+				A100000629B7F10000000001 /* App */,
+				A100000729B7F10000000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A100000629B7F10000000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A100000229B7F10000000002 /* AlMoazenApp.swift */,
+				A100000229B7F10000000001 /* AppDelegate.swift */,
+				A100000229B7F10000000003 /* PrayerNotificationManager.swift */,
+				A100000229B7F10000000004 /* PrayerModels.swift */,
+				A100000229B7F10000000005 /* QuranModels.swift */,
+				A100000229B7F10000000006 /* AzkarModels.swift */,
+				A100000229B7F10000000007 /* AudioPlayerManager.swift */,
+				A100000229B7F10000000008 /* LocationAndCompassManager.swift */,
+				A100000229B7F10000000009 /* MediaStorageManager.swift */,
+				A100000229B7F10000000010 /* MainTabView.swift */,
+				A100000229B7F10000000011 /* HomeView.swift */,
+				A100000229B7F10000000012 /* PrayerTimesView.swift */,
+				A100000229B7F10000000013 /* QuranView.swift */,
+				A100000229B7F10000000014 /* AzkarView.swift */,
+				A100000229B7F10000000015 /* SettingsView.swift */,
+				A100000229B7F10000000016 /* FloatingAudioBarView.swift */,
+				A100000229B7F10000000017 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A100000729B7F10000000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A100000329B7F10000000001 /* AlMoazen.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A100000829B7F10000000001 /* AlMoazen */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A100000929B7F10000000001 /* Build configuration list for PBXNativeTarget "AlMoazen" */;
+			buildPhases = (
+				A100001029B7F10000000001 /* Sources */,
+				A100000429B7F10000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AlMoazen;
+			productName = AlMoazen;
+			productReference = A100000329B7F10000000001 /* AlMoazen.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A100001129B7F10000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					A100000829B7F10000000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A100001229B7F10000000001 /* Build configuration list for PBXProject "AlMoazen" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ar;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				ar,
+				Base,
+			);
+			mainGroup = A100000529B7F10000000001;
+			productRefGroup = A100000729B7F10000000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A100000829B7F10000000001 /* AlMoazen */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A100001029B7F10000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000129B7F10000000001 /* AppDelegate.swift in Sources */,
+				A100000129B7F10000000002 /* AlMoazenApp.swift in Sources */,
+				A100000129B7F10000000003 /* PrayerNotificationManager.swift in Sources */,
+				A100000129B7F10000000004 /* PrayerModels.swift in Sources */,
+				A100000129B7F10000000005 /* QuranModels.swift in Sources */,
+				A100000129B7F10000000006 /* AzkarModels.swift in Sources */,
+				A100000129B7F10000000007 /* AudioPlayerManager.swift in Sources */,
+				A100000129B7F10000000008 /* LocationAndCompassManager.swift in Sources */,
+				A100000129B7F10000000009 /* MediaStorageManager.swift in Sources */,
+				A100000129B7F10000000010 /* MainTabView.swift in Sources */,
+				A100000129B7F10000000011 /* HomeView.swift in Sources */,
+				A100000129B7F10000000012 /* PrayerTimesView.swift in Sources */,
+				A100000129B7F10000000013 /* QuranView.swift in Sources */,
+				A100000129B7F10000000014 /* AzkarView.swift in Sources */,
+				A100000129B7F10000000015 /* SettingsView.swift in Sources */,
+				A100000129B7F10000000016 /* FloatingAudioBarView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A100001329B7F10000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A100001329B7F10000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A100001429B7F10000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.muslim.azan;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A100001429B7F10000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.muslim.azan;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A100000929B7F10000000001 /* Build configuration list for PBXNativeTarget "AlMoazen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A100001429B7F10000000001 /* Debug */,
+				A100001429B7F10000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A100001229B7F10000000001 /* Build configuration list for PBXProject "AlMoazen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A100001329B7F10000000001 /* Debug */,
+				A100001329B7F10000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = A100001129B7F10000000001 /* Project object */;
+}

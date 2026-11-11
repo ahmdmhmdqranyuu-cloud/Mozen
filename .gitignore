@@ -6,8 +6,29 @@
 *.log
 .env*
 !.env.example
+
+# Temporary media storage and artifacts
+.tempmediaStorage/
+**/.tempmediaStorage/
+
+# Android Build & SDK files
+/.android-sdk/
+.android-sdk/
 android/.gradle/
 android/app/build/
 android/build/
 android/local.properties
 android/app/*.jks
+android/app/*.keystore
+*.jks
+*.keystore
+*.apk
+*.aab
+
+# iOS Build files
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+*.ipa
+
