@@ -23,6 +23,19 @@
 		A100000129B7F10000000014 /* AzkarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000014 /* AzkarView.swift */; };
 		A100000129B7F10000000015 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000015 /* SettingsView.swift */; };
 		A100000129B7F10000000016 /* FloatingAudioBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000016 /* FloatingAudioBarView.swift */; };
+		A100000129B7F10000000018 /* PrayerTimeCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000018 /* PrayerTimeCalculator.swift */; };
+		A100000129B7F10000000019 /* QiblaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000019 /* QiblaView.swift */; };
+		A100000129B7F10000000020 /* TasbihView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000020 /* TasbihView.swift */; };
+		A100000129B7F10000000021 /* HadithView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000021 /* HadithView.swift */; };
+		A100000129B7F10000000022 /* DuasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000022 /* DuasView.swift */; };
+		A100000129B7F10000000023 /* RamadanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000023 /* RamadanView.swift */; };
+		A100000129B7F10000000024 /* SeerahView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000024 /* SeerahView.swift */; };
+		A100000129B7F10000000025 /* ProphetsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000025 /* ProphetsView.swift */; };
+		A100000129B7F10000000026 /* ZakatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000026 /* ZakatView.swift */; };
+		A100000129B7F10000000027 /* QuizView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000027 /* QuizView.swift */; };
+		A100000129B7F10000000028 /* HajjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000028 /* HajjView.swift */; };
+		A100000129B7F10000000029 /* WallpapersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000029 /* WallpapersView.swift */; };
+		A100000129B7F10000000030 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000229B7F10000000030 /* ProfileView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +55,19 @@
 		A100000229B7F10000000014 /* AzkarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/AzkarView.swift"; sourceTree = "<group>"; };
 		A100000229B7F10000000015 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SettingsView.swift"; sourceTree = "<group>"; };
 		A100000229B7F10000000016 /* FloatingAudioBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/FloatingAudioBarView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000018 /* PrayerTimeCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/PrayerTimeCalculator.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000019 /* QiblaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/QiblaView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000020 /* TasbihView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TasbihView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000021 /* HadithView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/HadithView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000022 /* DuasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/DuasView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000023 /* RamadanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/RamadanView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000024 /* SeerahView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/SeerahView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000025 /* ProphetsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ProphetsView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000026 /* ZakatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ZakatView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000027 /* QuizView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/QuizView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000028 /* HajjView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/HajjView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000029 /* WallpapersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/WallpapersView.swift"; sourceTree = "<group>"; };
+		A100000229B7F10000000030 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ProfileView.swift"; sourceTree = "<group>"; };
 		A100000229B7F10000000017 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A100000329B7F10000000001 /* AlMoazen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlMoazen.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -84,6 +110,19 @@
 				A100000229B7F10000000014 /* AzkarView.swift */,
 				A100000229B7F10000000015 /* SettingsView.swift */,
 				A100000229B7F10000000016 /* FloatingAudioBarView.swift */,
+				A100000229B7F10000000018 /* PrayerTimeCalculator.swift */,
+				A100000229B7F10000000019 /* QiblaView.swift */,
+				A100000229B7F10000000020 /* TasbihView.swift */,
+				A100000229B7F10000000021 /* HadithView.swift */,
+				A100000229B7F10000000022 /* DuasView.swift */,
+				A100000229B7F10000000023 /* RamadanView.swift */,
+				A100000229B7F10000000024 /* SeerahView.swift */,
+				A100000229B7F10000000025 /* ProphetsView.swift */,
+				A100000229B7F10000000026 /* ZakatView.swift */,
+				A100000229B7F10000000027 /* QuizView.swift */,
+				A100000229B7F10000000028 /* HajjView.swift */,
+				A100000229B7F10000000029 /* WallpapersView.swift */,
+				A100000229B7F10000000030 /* ProfileView.swift */,
 				A100000229B7F10000000017 /* Info.plist */,
 			);
 			path = App;
@@ -170,6 +209,19 @@
 				A100000129B7F10000000014 /* AzkarView.swift in Sources */,
 				A100000129B7F10000000015 /* SettingsView.swift in Sources */,
 				A100000129B7F10000000016 /* FloatingAudioBarView.swift in Sources */,
+				A100000129B7F10000000018 /* PrayerTimeCalculator.swift in Sources */,
+				A100000129B7F10000000019 /* QiblaView.swift in Sources */,
+				A100000129B7F10000000020 /* TasbihView.swift in Sources */,
+				A100000129B7F10000000021 /* HadithView.swift in Sources */,
+				A100000129B7F10000000022 /* DuasView.swift in Sources */,
+				A100000129B7F10000000023 /* RamadanView.swift in Sources */,
+				A100000129B7F10000000024 /* SeerahView.swift in Sources */,
+				A100000129B7F10000000025 /* ProphetsView.swift in Sources */,
+				A100000129B7F10000000026 /* ZakatView.swift in Sources */,
+				A100000129B7F10000000027 /* QuizView.swift in Sources */,
+				A100000129B7F10000000028 /* HajjView.swift in Sources */,
+				A100000129B7F10000000029 /* WallpapersView.swift in Sources */,
+				A100000129B7F10000000030 /* ProfileView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -140,6 +140,37 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() }
                                 )
                             }
+                            composable(Screen.Prophets.route) {
+                                ProphetsScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Zakat.route) {
+                                ZakatScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Quiz.route) {
+                                QuizScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Hajj.route) {
+                                HajjScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Wallpapers.route) {
+                                WallpapersScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Profile.route) {
+                                ProfileScreen(
+                                    prefs = prefs,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     prefs = prefs,

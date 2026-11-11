@@ -73,7 +73,12 @@ fun HomeScreen(
         GridItem("الأدعية", Icons.Default.VolunteerActivism, Screen.Duas),
         GridItem("رمضان", Icons.Default.NightsStay, Screen.Ramadan, "مبارك"),
         GridItem("السيرة", Icons.Default.HistoryEdu, Screen.Seerah),
-        GridItem("أسماء الله", Icons.Default.Favorite, Screen.Settings),
+        GridItem("الأنبياء", Icons.Default.AutoStories, Screen.Prophets),
+        GridItem("الزكاة", Icons.Default.Calculate, Screen.Zakat),
+        GridItem("المسابقات", Icons.Default.Quiz, Screen.Quiz),
+        GridItem("الحج والعمرة", Icons.Default.Mosque, Screen.Hajj),
+        GridItem("الخلفيات", Icons.Default.Wallpaper, Screen.Wallpapers),
+        GridItem("ملفي الشخصي", Icons.Default.Person, Screen.Profile),
         GridItem("الإعدادات", Icons.Default.Settings, Screen.Settings)
     )
 
