@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.PowerManager;
 import android.util.Log;
 
 /**
@@ -68,6 +69,13 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             prefs.edit().putLong("last_salawat_trigger_ms", nowMs).apply();
         }
 
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wakeLock = null;
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AlMoazen::AlarmReceiverWakeLock");
+            wakeLock.acquire(15000L); // 15s to hand off to AzkarAudioService
+        }
+
         Intent serviceIntent = new Intent(context, AzkarAudioService.class);
         serviceIntent.putExtra("section", section);
         serviceIntent.putExtra("title", title);
@@ -81,10 +89,76 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         serviceIntent.putExtra("lockScreenEnabled", false);
         serviceIntent.putExtra("wakeScreenEnabled", false);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent);
-        } else {
-            context.startService(serviceIntent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent);
+            } else {
+                context.startService(serviceIntent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground service from receiver, posting fallback notification", e);
+            postFallbackNotification(context, title, body);
+        } finally {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                try {
+                    wakeLock.release();
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // Rolling schedule maintenance: Ensure 7-day schedule never runs dry
+        final Context appContext = context.getApplicationContext();
+        new Thread(() -> {
+            try {
+                long lastRecalc = prefs.getLong("last_recalculated_epoch_ms", 0);
+                long now = System.currentTimeMillis();
+                if (now - lastRecalc > 24 * 3600 * 1000L) {
+                    Log.d(TAG, "Rolling 7-day schedule recalculation triggered by alarm receiver");
+                    BootReceiver.recalculateAndScheduleAll(appContext);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error in rolling schedule maintenance", e);
+            }
+        }).start();
+    }
+
+    private void postFallbackNotification(Context context, String title, String body) {
+        try {
+            android.app.NotificationManager manager = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return;
+
+            String channelId = "islamic_azan_playback_channel";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                        channelId,
+                        "تنبيهات الأذان والأذكار",
+                        android.app.NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.enableVibration(true);
+                manager.createNotificationChannel(channel);
+            }
+
+            Intent openAppIntent = new Intent(context, MainActivity.class);
+            openAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            android.app.PendingIntent pendingOpenIntent = android.app.PendingIntent.getActivity(
+                    context,
+                    0,
+                    openAppIntent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? android.app.PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+
+            androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                    .setContentTitle(title != null ? title : "تطبيق المؤذن")
+                    .setContentText(body != null ? body : "حان موعد الصلاة والأذكار")
+                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingOpenIntent);
+
+            manager.notify(1002, builder.build());
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed posting fallback notification", ex);
         }
     }
 }

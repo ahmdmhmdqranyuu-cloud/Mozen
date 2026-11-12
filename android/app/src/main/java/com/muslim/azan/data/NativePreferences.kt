@@ -174,4 +174,12 @@ class NativePreferences(context: Context) {
         latitude = city.latitude
         longitude = city.longitude
     }
+
+    var canScheduleExactAlarms: Boolean
+        get() = prefs.getBoolean("can_schedule_exact_alarms", true)
+        set(value) = prefs.edit().putBoolean("can_schedule_exact_alarms", value).apply()
+
+    var isIgnoringBatteryOptimizations: Boolean
+        get() = prefs.getBoolean("is_ignoring_battery_optimizations", true)
+        set(value) = prefs.edit().putBoolean("is_ignoring_battery_optimizations", value).apply()
 }

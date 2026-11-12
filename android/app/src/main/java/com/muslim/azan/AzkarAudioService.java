@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
@@ -21,13 +22,15 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Standard Android Foreground Service:
  * - Plays Azan, Iqama, and Azkar audio safely in the background upon AlarmManager triggers.
  * - Displays a clear, standard notification in the status bar notification shade.
- * - Does NOT display intrusive floating windows over other apps or force open screens.
+ * - Supports Android 14, 15, and 16 with FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK.
  * - Manages audio focus, releases CPU WakeLock cleanly upon completion, and prevents overlapping audio.
  */
 public class AzkarAudioService extends Service implements MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener {
@@ -47,6 +50,14 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+
+        // Immediately start foreground on creation to comply with Android 12-16 requirements
+        Notification initialNotification = buildNotification("تطبيق المؤذن", "جاري تشغيل تنبيه الأذان والأذكار...");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, initialNotification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIFICATION_ID, initialNotification);
+        }
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (powerManager != null) {
@@ -106,9 +117,18 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         SharedPreferences prefs = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
         boolean soundEnabled = prefs.getBoolean("azanSoundEnabled", true);
 
-        // Start Foreground with normal notification in notification shade
+        // Update Foreground with normal notification in notification shade
         Notification notification = buildNotification(title, body);
-        startForeground(NOTIFICATION_ID, notification);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
+
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.notify(NOTIFICATION_ID, notification);
+        }
 
         if (autoPlay && soundEnabled) {
             playAudioSafely(audioTrackId, section);
@@ -136,9 +156,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             mediaPlayer.setAudioAttributes(
                     new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
             );
+            mediaPlayer.setVolume(1.0f, 1.0f);
 
             // 1. Try to open from Assets (audio/...)
             boolean assetLoaded = false;
@@ -157,7 +178,41 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 } catch (Exception ignored) {}
             }
 
-            // 2. If not in assets, check permanent local app files directory
+            // 2. Fallback: Copy from assets input stream to cache if openFd failed due to compression
+            if (!assetLoaded) {
+                try {
+                    InputStream is = null;
+                    try {
+                        is = getAssets().open("audio/" + resolvedFileName);
+                    } catch (Exception e1) {
+                        try {
+                            is = getAssets().open(resolvedFileName);
+                        } catch (Exception ignored) {}
+                    }
+
+                    if (is != null) {
+                        File tempFile = new File(getCacheDir(), "azan_" + resolvedFileName);
+                        FileOutputStream fos = new FileOutputStream(tempFile);
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = is.read(buffer)) != -1) {
+                            fos.write(buffer, 0, bytesRead);
+                        }
+                        fos.flush();
+                        fos.close();
+                        is.close();
+
+                        if (tempFile.exists() && tempFile.length() > 0) {
+                            mediaPlayer.setDataSource(tempFile.getAbsolutePath());
+                            assetLoaded = true;
+                        }
+                    }
+                } catch (Exception streamEx) {
+                    Log.w(TAG, "Asset stream extraction failed for " + resolvedFileName, streamEx);
+                }
+            }
+
+            // 3. If not in assets, check permanent local app files directory
             if (!assetLoaded) {
                 File localFile = new File(getFilesDir(), "audio/" + resolvedFileName);
                 if (localFile.exists()) {

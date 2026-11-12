@@ -48,6 +48,7 @@ public class AlarmScheduler {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 canExact = alarmManager.canScheduleExactAlarms();
             }
+            prefs.edit().putBoolean("can_schedule_exact_alarms", canExact).apply();
 
             Set<String> newAlarmIds = new HashSet<>();
 

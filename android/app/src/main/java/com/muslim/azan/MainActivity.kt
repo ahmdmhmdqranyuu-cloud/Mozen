@@ -205,6 +205,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Autonomously ensure the 7-day schedule is rolling and up-to-date
+        BootReceiver.recalculateAndScheduleAll(this)
+        checkBackgroundCapabilities()
+    }
+
+    private fun checkBackgroundCapabilities() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(android.app.AlarmManager::class.java)
+            val canScheduleExact = alarmManager?.canScheduleExactAlarms() ?: true
+            prefs.canScheduleExactAlarms = canScheduleExact
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(android.os.PowerManager::class.java)
+            val isIgnoringBattery = powerManager?.isIgnoringBatteryOptimizations(packageName) ?: true
+            prefs.isIgnoringBatteryOptimizations = isIgnoringBattery
+        }
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
             val stopIntent = Intent(this, AzkarAudioService::class.java).apply {
