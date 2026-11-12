@@ -295,7 +295,7 @@ private suspend fun generateWallpaperBitmap(context: Context, wp: WallpaperItem)
     val gradient = LinearGradient(
         0f, 0f, 0f, height.toFloat(),
         wp.primaryColorHex.toInt(),
-        Color(0xFF061510).hashCode(),
+        0xFF061510.toInt(),
         Shader.TileMode.CLAMP
     )
     val bgPaint = Paint().apply {
@@ -316,7 +316,7 @@ private suspend fun generateWallpaperBitmap(context: Context, wp: WallpaperItem)
 
     // Calligraphy / Verse Text
     val textPaint = Paint().apply {
-        color = Color.White.hashCode()
+        color = android.graphics.Color.WHITE
         textSize = 54f
         isAntiAlias = true
         textAlign = Paint.Align.CENTER

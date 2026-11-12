@@ -26,6 +26,8 @@ import com.muslim.azan.model.Ayah
 import com.muslim.azan.model.Surah
 import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +40,7 @@ fun QuranScreen(
     var searchQuery by remember { mutableStateOf("") }
     var currentAyahs by remember { mutableStateOf<List<Ayah>>(emptyList()) }
     var selectedReciterIndex by remember { mutableStateOf(0) }
+    var showReciterDialog by remember { mutableStateOf(false) }
 
     val filteredSurahs = remember(searchQuery) {
         if (searchQuery.isBlank()) {
@@ -51,7 +54,9 @@ fun QuranScreen(
 
     LaunchedEffect(selectedSurah) {
         selectedSurah?.let { surah ->
-            currentAyahs = NativeDataManager.loadAyahsForSurah(context, surah.number)
+            currentAyahs = withContext(Dispatchers.IO) {
+                NativeDataManager.loadAyahsForSurah(context, surah.number)
+            }
             prefs.lastReadSurah = surah.number
         }
     }
@@ -66,20 +71,34 @@ fun QuranScreen(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = TextPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = TextPrimary)
+                    }
+                    Text(
+                        text = "المصحف الشريف كاملاً",
+                        color = TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(
-                    text = "المصحف الشريف كاملاً",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+
+                TextButton(onClick = { showReciterDialog = true }) {
+                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "القارئ",
+                        color = GoldAccent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
                 value = searchQuery,
@@ -291,5 +310,59 @@ fun QuranScreen(
                 }
             }
         }
+    }
+
+    if (showReciterDialog) {
+        AlertDialog(
+            onDismissRequest = { showReciterDialog = false },
+            containerColor = EmeraldSurface,
+            title = {
+                Text(
+                    text = "اختر القارئ للتلاوة",
+                    color = GoldAccent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NativeDataManager.reciters.forEachIndexed { index, reciter ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedReciterIndex == index) GoldDark else EmeraldSurfaceLight)
+                                .clickable {
+                                    selectedReciterIndex = index
+                                    showReciterDialog = false
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = reciter.nameArabic,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (selectedReciterIndex == index) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = GoldAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReciterDialog = false }) {
+                    Text("إغلاق", color = GoldAccent)
+                }
+            }
+        )
     }
 }

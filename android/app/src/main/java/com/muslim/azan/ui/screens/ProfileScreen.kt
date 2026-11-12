@@ -50,7 +50,7 @@ fun ProfileScreen(
 
     val completedCount = listOf(fajrDone, dhuhrDone, asrDone, maghribDone, ishaDone).count { it }
     val lastSurah = remember(prefs.lastReadSurah) {
-        NativeDataManager.getSurahs().find { it.number == prefs.lastReadSurah }?.nameAr ?: "سورة الفاتحة"
+        NativeDataManager.surahs.find { it.number == prefs.lastReadSurah }?.nameArabic ?: "الفاتحة"
     }
 
     Scaffold(
@@ -144,7 +144,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         LinearProgressIndicator(
-                            progress = completedCount / 5f,
+                            progress = { completedCount / 5f },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)

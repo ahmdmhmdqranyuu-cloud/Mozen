@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -16,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -28,21 +30,28 @@ import com.muslim.azan.ui.components.BottomNavBar
 import com.muslim.azan.ui.components.FloatingAudioBar
 import com.muslim.azan.ui.navigation.Screen
 import com.muslim.azan.ui.screens.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: NativePreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
         prefs = NativePreferences(this)
 
         // Request runtime permissions gracefully on start
         requestInitialPermissions()
 
-        // Autonomously ensure the 7-day schedule is fresh and up-to-date
-        BootReceiver.recalculateAndScheduleAll(this)
+        // Autonomously ensure the schedule is fresh on IO thread without blocking UI startup
+        lifecycleScope.launch(Dispatchers.IO) {
+            BootReceiver.recalculateAndScheduleAll(applicationContext)
+        }
 
         setContent {
             AlMoazenTheme {
@@ -54,9 +63,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(EmeraldDeep),
+                    containerColor = EmeraldDeep,
                     contentWindowInsets = WindowInsets.safeDrawing,
                     bottomBar = {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .background(EmeraldDeep)
+                                .navigationBarsPadding()
+                        ) {
                             // Persistent Floating Audio bar for Quran & Azkar
                             FloatingAudioBar()
 
@@ -210,9 +224,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Autonomously ensure the 7-day schedule is rolling and up-to-date
-        BootReceiver.recalculateAndScheduleAll(this)
         checkBackgroundCapabilities()
+        lifecycleScope.launch(Dispatchers.IO) {
+            BootReceiver.recalculateAndScheduleAll(applicationContext)
+        }
     }
 
     private fun checkBackgroundCapabilities() {

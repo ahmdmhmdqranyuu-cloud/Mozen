@@ -217,36 +217,71 @@ object NativeDataManager {
         NameOfAllah(10, "الْمُتَكَبِّرُ", "المتفرد بالعظمة والكبرياء المطلق")
     )
 
+    @Volatile
+    private var cachedQuranArray: JSONArray? = null
+
+    @Volatile
+    private var cachedTafseerByKey: JSONObject? = null
+
     fun loadAyahsForSurah(context: Context, surahNumber: Int): List<Ayah> {
         val list = mutableListOf<Ayah>()
         try {
-            val isStream: InputStream = context.assets.open("data/quran_uthmani.json")
-            val text = isStream.bufferedReader().use { it.readText() }
-            val root = JSONObject(text)
-            val surahsArray = root.optJSONArray("surahs")
-            if (surahsArray != null) {
-                for (i in 0 until surahsArray.length()) {
-                    val sObj = surahsArray.getJSONObject(i)
-                    if (sObj.optInt("number") == surahNumber) {
-                        val ayahsArr = sObj.optJSONArray("ayahs") ?: JSONArray()
-                        for (j in 0 until ayahsArr.length()) {
-                            val aObj = ayahsArr.getJSONObject(j)
-                            list.add(
-                                Ayah(
-                                    number = aObj.optInt("number"),
-                                    numberInSurah = aObj.optInt("numberInSurah", j + 1),
-                                    textArabic = aObj.optString("text"),
-                                    translation = aObj.optString("translation", ""),
-                                    tafseer = aObj.optString("tafseer", "")
-                                )
-                            )
-                        }
-                        break
+            val surahsArray = cachedQuranArray ?: synchronized(this) {
+                cachedQuranArray ?: run {
+                    val text = context.assets.open("data/quran_uthmani.json")
+                        .bufferedReader()
+                        .use { it.readText() }
+                    val trimmed = text.trim()
+                    val arr = if (trimmed.startsWith("[")) {
+                        JSONArray(trimmed)
+                    } else {
+                        JSONObject(trimmed).optJSONArray("surahs") ?: JSONArray()
+                    }
+                    cachedQuranArray = arr
+                    arr
+                }
+            }
+
+            val tafseerMap = cachedTafseerByKey ?: synchronized(this) {
+                cachedTafseerByKey ?: run {
+                    try {
+                        val tText = context.assets.open("data/quran_tafseer_muyassar.json")
+                            .bufferedReader()
+                            .use { it.readText() }
+                        val tRoot = JSONObject(tText)
+                        val byKey = tRoot.optJSONObject("byKey") ?: JSONObject()
+                        cachedTafseerByKey = byKey
+                        byKey
+                    } catch (ignored: Exception) {
+                        JSONObject()
                     }
                 }
             }
+
+            for (i in 0 until surahsArray.length()) {
+                val sObj = surahsArray.getJSONObject(i)
+                if (sObj.optInt("number") == surahNumber) {
+                    val ayahsArr = sObj.optJSONArray("ayahs") ?: JSONArray()
+                    for (j in 0 until ayahsArr.length()) {
+                        val aObj = ayahsArr.getJSONObject(j)
+                        val ayahInSurah = aObj.optInt("numberInSurah", j + 1)
+                        val tafseerKey = "$surahNumber:$ayahInSurah"
+                        val tafseerText = aObj.optString("tafseer", "")
+                            .ifEmpty { tafseerMap.optString(tafseerKey, "") }
+                        list.add(
+                            Ayah(
+                                number = aObj.optInt("number"),
+                                numberInSurah = ayahInSurah,
+                                textArabic = aObj.optString("text"),
+                                translation = aObj.optString("translation", ""),
+                                tafseer = tafseerText
+                            )
+                        )
+                    }
+                    break
+                }
+            }
         } catch (e: Exception) {
-            // Fallback for Al-Fatihah if asset stream parsing has difference
             if (surahNumber == 1) {
                 list.add(Ayah(1, 1, "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"))
                 list.add(Ayah(2, 2, "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"))

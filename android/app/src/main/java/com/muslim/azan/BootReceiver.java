@@ -13,17 +13,13 @@ import java.util.Calendar;
 import java.util.TimeZone;
 
 /**
- * Autonomously recalculates prayer times and reschedules all exact alarms for a full week (7 days)
+ * Autonomously recalculates prayer times and reschedules all exact alarms
  * whenever the device:
  * 1. Reboots (BOOT_COMPLETED, QUICKBOOT_POWERON)
  * 2. App is updated (MY_PACKAGE_REPLACED)
- * 3. Clock time is changed by the user or network (TIME_SET, TIME_CHANGED)
- * 4. Timezone is updated (TIMEZONE_CHANGED)
- * 5. Date is changed (DATE_CHANGED)
- * 6. Locale is changed (LOCALE_CHANGED)
- * 7. Or user updates city location / calculation settings.
- *
- * Uses the latest stored coordinates and calculation method rather than relying on a stale static schedule.
+ * 3. Clock time / timezone / date / locale changes
+ * 4. Exact alarm permission state changes (Android 12+)
+ * 5. User updates city location or calculation settings.
  */
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BootReceiver";
@@ -33,15 +29,27 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
         String action = intent.getAction();
+        Log.d(TAG, "Broadcast received: " + action + ". Recalculating schedule on background thread...");
 
-        Log.d(TAG, "Broadcast received: " + action + ". Autonomously recalculating 7-day schedule...");
-        recalculateAndScheduleAll(context);
+        final PendingResult pendingResult = goAsync();
+        final Context appContext = context.getApplicationContext();
+        new Thread(() -> {
+            try {
+                recalculateAndScheduleAll(appContext);
+            } finally {
+                if (pendingResult != null) {
+                    try {
+                        pendingResult.finish();
+                    } catch (Exception ignored) {}
+                }
+            }
+        }).start();
     }
 
     /**
      * Autonomously recalculates 7 days of upcoming prayer times, pre-prayer alerts,
-     * Salawat, Morning/Evening Azkar, and Ramadan alerts using the device's current date,
-     * time, timezone, and saved user preferences.
+     * Morning/Evening Azkar, and Ramadan alerts, plus next 48 hours of Salawat slots
+     * (keeping total concurrent alarms safely below Android's 500-alarm per-UID limit).
      */
     public static synchronized void recalculateAndScheduleAll(Context context) {
         if (context == null) return;
@@ -49,8 +57,7 @@ public class BootReceiver extends BroadcastReceiver {
         try {
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
 
-            // 1. Read location and calculation parameters
-            double lat = 21.4225; // Default Makkah
+            double lat = 21.4225;
             double lng = 39.8262;
             try {
                 String latStr = prefs.getString("city_latitude", "21.4225");
@@ -67,7 +74,6 @@ public class BootReceiver extends BroadcastReceiver {
             boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
             boolean prePrayerAlertEnabled = prefs.getBoolean("pre_prayer_alert_enabled", true);
 
-            // Reminders settings
             boolean salawatEnabled = prefs.getBoolean("salawat_enabled", true);
             String salawatTime = prefs.getString("salawat_time", "08:00");
             String salawatRepeatType = prefs.getString("salawat_repeat_type", "repeat");
@@ -90,15 +96,16 @@ public class BootReceiver extends BroadcastReceiver {
             long nowMs = System.currentTimeMillis();
             Calendar nowCal = Calendar.getInstance();
             TimeZone tz = nowCal.getTimeZone();
-            double tzOffsetHours = tz.getOffset(nowMs) / 3600000.0;
 
-            JSONArray scheduleArray = new JSONArray();
+            JSONArray priorityArray = new JSONArray();
+            JSONArray salawatArray = new JSONArray();
 
-            // 2. Compute full 7 days ahead (Day 0 to Day 6)
+            // 1. Schedule full 7 days for high-priority daily prayers, pre-prayer alerts, Azkar, and Musaharati
             for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
                 Calendar dayCal = (Calendar) nowCal.clone();
                 dayCal.add(Calendar.DAY_OF_YEAR, dayOffset);
                 int dayOfYear = dayCal.get(Calendar.DAY_OF_YEAR);
+                double tzOffsetHours = tz.getOffset(dayCal.getTimeInMillis()) / 3600000.0;
 
                 PrayerTimeCalculator.DailyPrayerTimes times = PrayerTimeCalculator.calculateDailyPrayers(
                         lat, lng, tzOffsetHours, dayOfYear, calcMethod, asrMethod
@@ -122,7 +129,6 @@ public class BootReceiver extends BroadcastReceiver {
                     long prayerEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, minutesFromMidnight);
                     String prayerVoice = "fajr".equals(pKey) ? fajrVoice : azanVoice;
 
-                    // 15-Minute Pre-Prayer Alert
                     if (prePrayerAlertEnabled) {
                         long prePrayerEpochMs = prayerEpochMs - 15 * 60 * 1000L;
                         if (prePrayerEpochMs > nowMs) {
@@ -136,14 +142,10 @@ public class BootReceiver extends BroadcastReceiver {
                             preObj.put("triggerEpochMs", prePrayerEpochMs);
                             preObj.put("audioTrackId", "pre_prayer_15m");
                             preObj.put("autoPlay", true);
-                            preObj.put("floatingWindowEnabled", false);
-                            preObj.put("lockScreenEnabled", false);
-                            preObj.put("wakeScreenEnabled", false);
-                            scheduleArray.put(preObj);
+                            priorityArray.put(preObj);
                         }
                     }
 
-                    // Main Prayer Azan Slot
                     if (prayerEpochMs > nowMs) {
                         JSONObject azanObj = new JSONObject();
                         azanObj.put("section", "prayer_azan");
@@ -155,14 +157,10 @@ public class BootReceiver extends BroadcastReceiver {
                         azanObj.put("triggerEpochMs", prayerEpochMs);
                         azanObj.put("audioTrackId", prayerVoice);
                         azanObj.put("autoPlay", azanSoundEnabled);
-                        azanObj.put("floatingWindowEnabled", false);
-                        azanObj.put("lockScreenEnabled", false);
-                        azanObj.put("wakeScreenEnabled", false);
-                        scheduleArray.put(azanObj);
+                        priorityArray.put(azanObj);
                     }
                 }
 
-                // Morning Azkar
                 if (morningAzkarEnabled) {
                     int morningMins = parseHHmm(morningAzkarTime, 6, 30);
                     long morningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, morningMins);
@@ -174,14 +172,10 @@ public class BootReceiver extends BroadcastReceiver {
                         mObj.put("triggerEpochMs", morningEpochMs);
                         mObj.put("audioTrackId", morningAzkarAudio);
                         mObj.put("autoPlay", true);
-                        mObj.put("floatingWindowEnabled", false);
-                        mObj.put("lockScreenEnabled", false);
-                        mObj.put("wakeScreenEnabled", false);
-                        scheduleArray.put(mObj);
+                        priorityArray.put(mObj);
                     }
                 }
 
-                // Evening Azkar
                 if (eveningAzkarEnabled) {
                     int eveningMins = parseHHmm(eveningAzkarTime, 17, 0);
                     long eveningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, eveningMins);
@@ -193,15 +187,27 @@ public class BootReceiver extends BroadcastReceiver {
                         eObj.put("triggerEpochMs", eveningEpochMs);
                         eObj.put("audioTrackId", eveningAzkarAudio);
                         eObj.put("autoPlay", true);
-                        eObj.put("floatingWindowEnabled", false);
-                        eObj.put("lockScreenEnabled", false);
-                        eObj.put("wakeScreenEnabled", false);
-                        scheduleArray.put(eObj);
+                        priorityArray.put(eObj);
                     }
                 }
 
-                // Salawat on the Prophet ﷺ
-                if (salawatEnabled) {
+                if (musaharatiEnabled) {
+                    int musaharatiMins = parseHHmm(musaharatiTime, 3, 30);
+                    long musaharatiEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, musaharatiMins);
+                    if (musaharatiEpochMs > nowMs) {
+                        JSONObject muObj = new JSONObject();
+                        muObj.put("section", "musaharati");
+                        muObj.put("title", "نداء المسحراتي المبارك");
+                        muObj.put("body", "اصحى يا نايم وحد الدايم.. تسحروا فإن في السحور بركة.");
+                        muObj.put("triggerEpochMs", musaharatiEpochMs);
+                        muObj.put("audioTrackId", musaharatiAudio);
+                        muObj.put("autoPlay", true);
+                        priorityArray.put(muObj);
+                    }
+                }
+
+                // 2. Schedule periodic Salawat only for today and tomorrow (max 60 slots) to stay well below 500 UID alarm limit
+                if (salawatEnabled && dayOffset < 2 && salawatArray.length() < 60) {
                     int salawatStartMins = parseHHmm(salawatTime, 8, 0);
                     long salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, salawatStartMins);
 
@@ -214,21 +220,16 @@ public class BootReceiver extends BroadcastReceiver {
                             sObj.put("triggerEpochMs", salawatStartEpochMs);
                             sObj.put("audioTrackId", salawatAudio);
                             sObj.put("autoPlay", true);
-                            sObj.put("floatingWindowEnabled", false);
-                            sObj.put("lockScreenEnabled", false);
-                            sObj.put("wakeScreenEnabled", false);
-                            scheduleArray.put(sObj);
+                            salawatArray.put(sObj);
                         }
                     } else {
-                        // Periodic repeat throughout the daytime (starting from salawatTime up to 22:00)
                         long stepMs = salawatInterval * ("hours".equalsIgnoreCase(salawatUnit) ? 3600000L : 60000L);
-                        if (stepMs < 60000L) stepMs = 60000L; // Minimum 1 minute interval
+                        if (stepMs < 60000L) stepMs = 60000L;
 
                         long salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, 22 * 60);
                         long currentSlotMs = salawatStartEpochMs;
 
-                        int iteration = 0;
-                        while (currentSlotMs <= salawatEndEpochMs && iteration < 120) {
+                        while (currentSlotMs <= salawatEndEpochMs && salawatArray.length() < 60) {
                             if (currentSlotMs > nowMs) {
                                 JSONObject sObj = new JSONObject();
                                 sObj.put("section", "salawat");
@@ -237,48 +238,33 @@ public class BootReceiver extends BroadcastReceiver {
                                 sObj.put("triggerEpochMs", currentSlotMs);
                                 sObj.put("audioTrackId", salawatAudio);
                                 sObj.put("autoPlay", true);
-                                sObj.put("floatingWindowEnabled", false);
-                                sObj.put("lockScreenEnabled", false);
-                                sObj.put("wakeScreenEnabled", false);
-                                scheduleArray.put(sObj);
+                                salawatArray.put(sObj);
                             }
                             currentSlotMs += stepMs;
-                            iteration++;
                         }
-                    }
-                }
-
-                // Musaharati
-                if (musaharatiEnabled) {
-                    int musaharatiMins = parseHHmm(musaharatiTime, 3, 30);
-                    long musaharatiEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, musaharatiMins);
-                    if (musaharatiEpochMs > nowMs) {
-                        JSONObject muObj = new JSONObject();
-                        muObj.put("section", "musaharati");
-                        muObj.put("title", "نداء المسحراتي المبارك");
-                        muObj.put("body", "اصحى يا نايم وحد الدايم.. تسحروا فإن في السحور بركة.");
-                        muObj.put("triggerEpochMs", musaharatiEpochMs);
-                        muObj.put("audioTrackId", musaharatiAudio);
-                        muObj.put("autoPlay", true);
-                        muObj.put("floatingWindowEnabled", false);
-                        muObj.put("lockScreenEnabled", false);
-                        muObj.put("wakeScreenEnabled", false);
-                        scheduleArray.put(muObj);
                     }
                 }
             }
 
-            Log.d(TAG, "Recalculation complete. Total scheduled slots for next 7 days: " + scheduleArray.length());
+            // Merge priority alarms first, then Salawat slots
+            JSONArray mergedSchedule = new JSONArray();
+            for (int i = 0; i < priorityArray.length(); i++) {
+                mergedSchedule.put(priorityArray.get(i));
+            }
+            for (int i = 0; i < salawatArray.length(); i++) {
+                mergedSchedule.put(salawatArray.get(i));
+            }
 
-            // 3. Delegate to AlarmScheduler with the freshly calculated schedule
-            AlarmScheduler.rescheduleFromJson(context, scheduleArray.toString());
+            Log.d(TAG, "Recalculation complete. Priority slots: " + priorityArray.length() + ", Salawat slots: " + salawatArray.length());
+
+            AlarmScheduler.rescheduleFromJson(context, mergedSchedule.toString());
 
             prefs.edit()
                     .putLong("last_recalculated_epoch_ms", nowMs)
                     .apply();
 
         } catch (Exception e) {
-            Log.e(TAG, "Failed autonomous recalculation of 7-day schedule", e);
+            Log.e(TAG, "Failed autonomous recalculation of schedule", e);
         }
     }
 

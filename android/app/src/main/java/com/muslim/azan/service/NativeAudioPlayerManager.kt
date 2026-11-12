@@ -69,18 +69,28 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             try {
                 val cleanPath = if (assetPath.startsWith("public/")) assetPath.removePrefix("public/") else assetPath
                 val afd: AssetFileDescriptor = context.assets.openFd(cleanPath)
-                player.setDataSource(afd.getFileDescriptor(), afd.startOffset, afd.length)
+                player.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 afd.close()
                 loaded = true
             } catch (e: Exception) {
-                // Try alternate audio prefix
                 val fallbackPath = "audio/" + File(assetPath).name
                 try {
                     val afd = context.assets.openFd(fallbackPath)
                     player.setDataSource(afd.getFileDescriptor(), afd.startOffset, afd.length)
                     afd.close()
                     loaded = true
-                } catch (ignored: Exception) {}
+                } catch (ignored: Exception) {
+                    try {
+                        val tempFile = File(context.cacheDir, "player_" + File(assetPath).name)
+                        context.assets.open(fallbackPath).use { input ->
+                            tempFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        if (tempFile.exists() && tempFile.length() > 0) {
+                            player.setDataSource(tempFile.absolutePath)
+                            loaded = true
+                        }
+                    } catch (ignored2: Exception) {}
+                }
             }
 
             if (loaded) {

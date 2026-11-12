@@ -28,13 +28,15 @@ jobs:
 
       - name: Accept Licenses & Install Android SDK Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager --install "cmdline-tools;latest" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" || true
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
-          chmod +x gradlew android/gradlew || true
+          chmod +x gradlew android/gradlew
 
-      - name: Run Android Unit Tests & Lint
+      - name: Run Android Unit Tests & Debug Build Check
         run: |
-          ./gradlew testDebugUnitTest --stacktrace
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace

@@ -1,9 +1,13 @@
 package com.muslim.azan.ui.screens
 
+import android.Manifest
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -23,14 +27,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.muslim.azan.AzkarAudioService
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.data.MediaFileManager
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -38,9 +50,58 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
 
     // Expanded states for the 10 sections
     var expandedSection by remember { mutableStateOf<Int?>(null) }
+    var permissionRefreshTick by remember { mutableIntStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permissionRefreshTick++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Reactive preference states
+    var selectedCityName by remember { mutableStateOf(prefs.cityName) }
+    var azanSoundEnabled by remember { mutableStateOf(prefs.azanSoundEnabled) }
+    var prePrayerAlertEnabled by remember { mutableStateOf(prefs.prePrayerAlertEnabled) }
+    var selectedAzanVoice by remember { mutableStateOf(prefs.azanVoice) }
+    var salawatEnabled by remember { mutableStateOf(prefs.salawatEnabled) }
+    var morningAzkarEnabled by remember { mutableStateOf(prefs.morningAzkarEnabled) }
+    var eveningAzkarEnabled by remember { mutableStateOf(prefs.eveningAzkarEnabled) }
+    var musaharatiEnabled by remember { mutableStateOf(prefs.musaharatiEnabled) }
+
+    val notificationsGranted = remember(expandedSection, permissionRefreshTick) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+    val exactAlarmsGranted = remember(expandedSection, permissionRefreshTick) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val am = context.getSystemService(AlarmManager::class.java)
+            am?.canScheduleExactAlarms() ?: prefs.canScheduleExactAlarms
+        } else {
+            true
+        }
+    }
+    val batteryUnrestricted = remember(expandedSection, permissionRefreshTick) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = context.getSystemService(PowerManager::class.java)
+            pm?.isIgnoringBatteryOptimizations(context.packageName) ?: prefs.isIgnoringBatteryOptimizations
+        } else {
+            true
+        }
+    }
 
     fun toggleSection(index: Int) {
         expandedSection = if (expandedSection == index) null else index
@@ -132,10 +193,46 @@ fun SettingsScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "لضمان تشغيل الأذان والأذكار بدقة متناهية في موعدها دون تأخير:",
+                        text = "لضمان تشغيل الأذان والأذكار في الخلفية وعلى الشاشة المقفلة (Android 15 & 16):",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("إذن الإشعارات:", color = TextPrimary, fontSize = 12.sp)
+                        Text(
+                            if (notificationsGranted) "مفعّل ✓" else "مطلوب التفعيل",
+                            color = if (notificationsGranted) SuccessGreen else ErrorRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("إذن المنبهات الدقيقة:", color = TextPrimary, fontSize = 12.sp)
+                        Text(
+                            if (exactAlarmsGranted) "مفعّل ✓" else "مطلوب التفعيل",
+                            color = if (exactAlarmsGranted) SuccessGreen else ErrorRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("استثناء توفير البطارية:", color = TextPrimary, fontSize = 12.sp)
+                        Text(
+                            if (batteryUnrestricted) "غير مقيد ✓" else "مقيد (يُنصح بالاستثناء)",
+                            color = if (batteryUnrestricted) SuccessGreen else GoldAccent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = { openAppNotificationSettings(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("إعدادات إشعارات التطبيق", color = TextPrimary)
+                    }
 
                     Button(
                         onClick = {
@@ -190,7 +287,7 @@ fun SettingsScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "المدينة الحالية: ${prefs.cityName}",
+                        text = "المدينة الحالية: $selectedCityName",
                         color = GoldAccent,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
@@ -202,15 +299,18 @@ fun SettingsScreen(
                         fontSize = 12.sp
                     )
 
-                    NativeDataManager.defaultCities.take(6).forEach { city ->
+                    NativeDataManager.defaultCities.take(8).forEach { city ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (prefs.cityName == city.nameAr) GoldDark else EmeraldSurfaceLight)
+                                .background(if (selectedCityName == city.nameAr) GoldDark else EmeraldSurfaceLight)
                                 .clickable {
                                     prefs.setCity(city)
-                                    BootReceiver.recalculateAndScheduleAll(context)
+                                    selectedCityName = city.nameAr
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                    }
                                     Toast.makeText(context, "تم تحديد ${city.nameAr} وإعادة جدولة الأذان", Toast.LENGTH_SHORT).show()
                                 }
                                 .padding(10.dp)
@@ -260,10 +360,13 @@ fun SettingsScreen(
                     ) {
                         Text("تشغيل صوت الأذان تلقائيًا:", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.azanSoundEnabled,
+                            checked = azanSoundEnabled,
                             onCheckedChange = {
+                                azanSoundEnabled = it
                                 prefs.azanSoundEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
@@ -276,13 +379,82 @@ fun SettingsScreen(
                     ) {
                         Text("تنبيه قبل الصلاة بـ 15 دقيقة:", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.prePrayerAlertEnabled,
+                            checked = prePrayerAlertEnabled,
                             onCheckedChange = {
+                                prePrayerAlertEnabled = it
                                 prefs.prePrayerAlertEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
+                    }
+
+                    Text("صوت المؤذن المختار:", color = GoldAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    val azanVoices = listOf(
+                        "makkah" to "أذان المسجد الحرام (مكة)",
+                        "madinah" to "أذان المسجد النبوي (المدينة)",
+                        "alaqsa" to "أذان المسجد الأقصى",
+                        "cairo" to "أذان القاهرة (الشيخ محمد رفعت/الشعشاعي)",
+                        "alafasy" to "الشيخ مشاري العفاسي"
+                    )
+                    azanVoices.forEach { (voiceKey, voiceLabel) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedAzanVoice == voiceKey) GoldDark else EmeraldSurfaceLight)
+                                .clickable {
+                                    selectedAzanVoice = voiceKey
+                                    prefs.azanVoice = voiceKey
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                    }
+                                    Toast.makeText(context, "تم اختيار: $voiceLabel", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(10.dp)
+                        ) {
+                            Text(text = voiceLabel, color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val testIntent = Intent(context, AzkarAudioService::class.java).apply {
+                                    putExtra("section", "prayer_azan")
+                                    putExtra("prayerName", "الاختبار")
+                                    putExtra("cityName", selectedCityName)
+                                    putExtra("audioTrackId", selectedAzanVoice)
+                                    putExtra("autoPlay", true)
+                                }
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    context.startForegroundService(testIntent)
+                                } else {
+                                    context.startService(testIntent)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("تجربة الأذان بالخلفية", color = EmeraldDeep, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                        Button(
+                            onClick = {
+                                val stopIntent = Intent(context, AzkarAudioService::class.java).apply {
+                                    action = AzkarAudioService.ACTION_STOP_AUDIO
+                                }
+                                context.startService(stopIntent)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("إيقاف الصوت", color = TextPrimary, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -304,10 +476,13 @@ fun SettingsScreen(
                     ) {
                         Text("تذكير الصلاة على النبي ﷺ الدوري:", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.salawatEnabled,
+                            checked = salawatEnabled,
                             onCheckedChange = {
+                                salawatEnabled = it
                                 prefs.salawatEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
@@ -320,10 +495,13 @@ fun SettingsScreen(
                     ) {
                         Text("أذكار الصباح (الساعة ${prefs.morningAzkarTime}):", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.morningAzkarEnabled,
+                            checked = morningAzkarEnabled,
                             onCheckedChange = {
+                                morningAzkarEnabled = it
                                 prefs.morningAzkarEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
@@ -336,10 +514,13 @@ fun SettingsScreen(
                     ) {
                         Text("أذكار المساء (الساعة ${prefs.eveningAzkarTime}):", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.eveningAzkarEnabled,
+                            checked = eveningAzkarEnabled,
                             onCheckedChange = {
+                                eveningAzkarEnabled = it
                                 prefs.eveningAzkarEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
@@ -364,10 +545,13 @@ fun SettingsScreen(
                     ) {
                         Text("تنبيه نداء المسحراتي قبل الفجر:", color = TextPrimary, fontSize = 13.sp)
                         Switch(
-                            checked = prefs.musaharatiEnabled,
+                            checked = musaharatiEnabled,
                             onCheckedChange = {
+                                musaharatiEnabled = it
                                 prefs.musaharatiEnabled = it
-                                BootReceiver.recalculateAndScheduleAll(context)
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = GoldAccent, checkedTrackColor = GoldDark)
                         )
@@ -402,7 +586,7 @@ fun SettingsScreen(
                 onToggle = { toggleSection(9) }
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = "تطبيق المؤذن - الإصدار 2.1.0 Native", color = GoldAccent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(text = "تطبيق المؤذن - الإصدار 2.2.0 Native", color = GoldAccent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text(text = "تطبيق إسلامي شامل صدقة جارية خالصة لوجه الله تعالى.", color = TextSecondary, fontSize = 12.sp)
                 }
             }
@@ -486,12 +670,29 @@ fun SettingsCollapsibleCard(
 
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(top = 14.dp)) {
-                    Divider(color = CardBorder, thickness = 1.dp)
+                    HorizontalDivider(color = CardBorder, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(14.dp))
                     content()
                 }
             }
         }
+    }
+}
+
+private fun openAppNotificationSettings(context: Context) {
+    try {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            }
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:" + context.packageName)
+            }
+        }
+        context.startActivity(intent)
+    } catch (ignored: Exception) {
+        openAppSettings(context)
     }
 }
 

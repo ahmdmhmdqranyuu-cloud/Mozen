@@ -30,7 +30,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion '1.5.8'
+        kotlinCompilerExtensionVersion '1.5.15'
     }
 
     kotlinOptions {
@@ -108,17 +108,16 @@ configurations.all {
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
 
     resolutionStrategy {
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.25'
 
         eachDependency { DependencyResolveDetails details ->
             if (details.requested.group == 'org.jetbrains.kotlin') {
-                details.useVersion '1.9.22'
                 if (details.requested.name == 'kotlin-stdlib-jdk7' || details.requested.name == 'kotlin-stdlib-jdk8') {
-                    details.useTarget("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+                    details.useTarget("org.jetbrains.kotlin:kotlin-stdlib:1.9.25")
                     details.because("Unified in kotlin-stdlib since Kotlin 1.8.0 to eliminate duplicate classes")
+                } else if (details.requested.name.startsWith('kotlin-stdlib') || details.requested.name.startsWith('kotlin-reflect')) {
+                    details.useVersion '1.9.25'
                 }
             }
         }
@@ -126,20 +125,20 @@ configurations.all {
 }
 
 dependencies {
-    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.22')
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.25')
     implementation 'org.jetbrains.kotlin:kotlin-stdlib'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
     // AndroidX Core & Lifecycle
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
-    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.activity:activity-compose:1.9.3'
 
     // Jetpack Compose BOM & UI Components
-    implementation platform('androidx.compose:compose-bom:2024.02.01')
+    implementation platform('androidx.compose:compose-bom:2024.06.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
@@ -151,17 +150,17 @@ dependencies {
     implementation 'androidx.media:media:1.7.0'
 
     // Location Services for Prayer Times & Qibla
-    implementation 'com.google.android.gms:play-services-location:21.1.0'
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
 
     // JSON Parsing & Data Storage
     implementation 'com.google.code.gson:gson:2.10.1'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation platform('androidx.compose:compose-bom:2024.02.01')
+    androidTestImplementation platform('androidx.compose:compose-bom:2024.06.00')
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 }

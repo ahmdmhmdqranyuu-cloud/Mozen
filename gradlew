@@ -36,15 +36,15 @@ if [ -z "$JAVA_HOME" ]; then
   fi
 fi
 
-# 3. Always use Gradle 8.7 (exact version compatible with Android Gradle Plugin 8.3.2)
-WRAPPER_DIST_DIR="${HOME}/.gradle/wrapper/dists/gradle-8.7"
-if [ ! -x "$WRAPPER_DIST_DIR/gradle-8.7/bin/gradle" ]; then
-  echo "Downloading Gradle 8.7..."
+# 3. Always use Gradle 8.11.1 (exact version compatible with Android Gradle Plugin 8.9.1)
+WRAPPER_DIST_DIR="${HOME}/.gradle/wrapper/dists/gradle-8.11.1"
+if [ ! -x "$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle" ]; then
+  echo "Downloading Gradle 8.11.1..."
   mkdir -p "$WRAPPER_DIST_DIR"
-  curl -sL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o "$WRAPPER_DIST_DIR/gradle-8.7-bin.zip"
-  unzip -q -o "$WRAPPER_DIST_DIR/gradle-8.7-bin.zip" -d "$WRAPPER_DIST_DIR"
+  curl -sL https://services.gradle.org/distributions/gradle-8.11.1-bin.zip -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip"
+  unzip -q -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip" -d "$WRAPPER_DIST_DIR"
 fi
-GRADLE_BIN="$WRAPPER_DIST_DIR/gradle-8.7/bin/gradle"
+GRADLE_BIN="$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle"
 
 # 4. If invoked as "./gradlew build", run testDebugUnitTest, assembleDebug and assembleRelease
 if [ "$#" -eq 1 ] && [ "$1" = "build" ]; then

@@ -14,11 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muslim.azan.BootReceiver
 import com.muslim.azan.PrayerTimeCalculator
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,6 +31,8 @@ fun PrayerTimesScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val cal = remember { Calendar.getInstance() }
     val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
     val tz = cal.timeZone
@@ -158,41 +164,40 @@ fun PrayerTimesScreen(
                         Icon(Icons.Default.ExpandMore, contentDescription = null, tint = GoldAccent)
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
+                    Text(text = "مذهب حساب صلاة العصر:", color = TextSecondary, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = "مذهب حساب صلاة العصر:", color = TextSecondary, fontSize = 13.sp)
-                        Row {
-                            FilterChip(
-                                selected = asrMethod == "standard",
-                                onClick = {
-                                    asrMethod = "standard"
-                                    prefs.asrMethod = "standard"
-                                },
-                                label = { Text("الجمهور (شافعي/مالكي/حنبلي)") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldDark,
-                                    selectedLabelColor = Color.White
-                                )
+                        FilterChip(
+                            selected = asrMethod == "standard",
+                            onClick = {
+                                asrMethod = "standard"
+                                prefs.asrMethod = "standard"
+                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
+                            },
+                            label = { Text("الجمهور (شافعي/مالكي/حنبلي)", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = GoldDark,
+                                selectedLabelColor = Color.White
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            FilterChip(
-                                selected = asrMethod == "hanafi",
-                                onClick = {
-                                    asrMethod = "hanafi"
-                                    prefs.asrMethod = "hanafi"
-                                },
-                                label = { Text("حنفي") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = GoldDark,
-                                    selectedLabelColor = Color.White
-                                )
+                        )
+                        FilterChip(
+                            selected = asrMethod == "hanafi",
+                            onClick = {
+                                asrMethod = "hanafi"
+                                prefs.asrMethod = "hanafi"
+                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
+                            },
+                            label = { Text("حنفي", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = GoldDark,
+                                selectedLabelColor = Color.White
                             )
-                        }
+                        )
                     }
                 }
             }
@@ -222,6 +227,7 @@ fun PrayerTimesScreen(
                                     calcMethod = key
                                     prefs.calculationMethod = key
                                     showCalcMethodDialog = false
+                                    scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
                                 }
                                 .padding(12.dp)
                         ) {

@@ -244,7 +244,7 @@ fun QuizScreen(onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(8.dp))
 
                     LinearProgressIndicator(
-                        progress = (currentIndex + 1).toFloat() / questions.size,
+                        progress = { (currentIndex + 1).toFloat() / questions.size },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)

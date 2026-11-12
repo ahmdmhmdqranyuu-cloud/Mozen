@@ -153,6 +153,9 @@ public class PrayerTimeCalculator {
         double altRad = Math.toRadians(altitudeDeg);
         double numerator = Math.sin(altRad) - (Math.sin(latRad) * Math.sin(decRad));
         double denominator = Math.cos(latRad) * Math.cos(decRad);
+        if (Math.abs(denominator) < 1e-6) {
+            denominator = denominator < 0 ? -1e-6 : 1e-6;
+        }
         double cosH = Math.max(-1.0, Math.min(1.0, numerator / denominator));
         double hourAngleDeg = Math.toDegrees(Math.acos(cosH));
         return hourAngleDeg * 4.0; // 4 minutes per degree of rotation

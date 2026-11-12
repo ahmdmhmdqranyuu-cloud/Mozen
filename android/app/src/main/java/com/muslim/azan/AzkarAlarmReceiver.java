@@ -1,22 +1,33 @@
 package com.muslim.azan;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import android.os.Build;
 import android.os.PowerManager;
 import android.util.Log;
 
+import androidx.core.app.NotificationCompat;
+
 /**
  * Triggered by Android AlarmManager even when the app is completely closed or screen is locked.
- * Starts AzkarAudioService to play Azan/reminder audio, wake the screen, show Lock-Screen Full Screen Intent,
- * and display the Floating Azan Window over other apps.
+ * Uses goAsync() to safely keep execution alive until AzkarAudioService starts and rolling
+ * 7-day / 48-hour schedules are maintained under Android 15 & 16 background limits.
  */
 public class AzkarAlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "AzkarAlarmReceiver";
+    private static final String FALLBACK_CHANNEL_ID = "islamic_azan_fallback_v2";
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (intent == null) return;
+
         String section = intent.getStringExtra("section");
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
@@ -25,55 +36,44 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         String cityName = intent.getStringExtra("cityName");
         int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
-        boolean floatingWindowEnabled = intent.getBooleanExtra("floatingWindowEnabled", true);
-        boolean lockScreenEnabled = intent.getBooleanExtra("lockScreenEnabled", true);
-        boolean wakeScreenEnabled = intent.getBooleanExtra("wakeScreenEnabled", true);
 
-        long repeatIntervalMs = intent.getLongExtra("repeatIntervalMs", 0);
+        long nowMs = System.currentTimeMillis();
+        Log.d(TAG, "Alarm triggered for section: " + section + ", prayer: " + prayerName);
 
-        Log.d(TAG, "Alarm triggered for section: " + section + ", prayer: " + prayerName + ", repeatIntervalMs: " + repeatIntervalMs);
+        SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
 
-        // Deduplication: prevent duplicate firing of Morning/Evening Azkar on the same calendar day
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
-        String today = sdf.format(new java.util.Date());
-        android.content.SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
-
-        if ("morningAzkar".equals(section) || "eveningAzkar".equals(section)) {
-            String lastFiredKey = "last_fired_" + section;
-            String lastDate = prefs.getString(lastFiredKey, null);
-            if (today.equals(lastDate)) {
-                Log.d(TAG, section + " has already fired today (" + today + "). Skipping duplicate trigger.");
-                return;
-            }
-            prefs.edit().putString(lastFiredKey, today).apply();
-        }
-
-        // Deduplication: prevent duplicate firing of Prayer Azan on the same calendar day
+        // Cooldown deduplication (prevents duplicate bursts while still allowing same-day user setting updates)
+        String dedupKey;
+        long cooldownMs;
         if ("prayer_azan".equals(section) && prayerName != null) {
-            String lastFiredAzanKey = "last_fired_azan_" + prayerName + "_" + today;
-            if (prefs.getBoolean(lastFiredAzanKey, false)) {
-                Log.d(TAG, prayerName + " azan has already fired today (" + today + "). Skipping duplicate trigger.");
-                return;
-            }
-            prefs.edit().putBoolean(lastFiredAzanKey, true).apply();
+            dedupKey = "last_trigger_azan_" + prayerName;
+            cooldownMs = 180_000L; // 3 minutes
+        } else if ("morningAzkar".equals(section) || "eveningAzkar".equals(section) || "musaharati".equals(section)) {
+            dedupKey = "last_trigger_" + section;
+            cooldownMs = 180_000L; // 3 minutes
+        } else if ("salawat".equals(section)) {
+            dedupKey = "last_salawat_trigger_ms";
+            cooldownMs = 45_000L; // 45 seconds
+        } else {
+            dedupKey = "last_trigger_" + (section != null ? section : "general") + "_" + (prayerName != null ? prayerName : "");
+            cooldownMs = 60_000L;
         }
 
-        // Deduplication: ensure Salawat does not fire in bursts (minimum 45s cooldown)
-        if ("salawat".equals(section)) {
-            long lastSalawatMs = prefs.getLong("last_salawat_trigger_ms", 0);
-            long nowMs = System.currentTimeMillis();
-            if (nowMs - lastSalawatMs < 45000L) {
-                Log.d(TAG, "Salawat triggered too rapidly. Skipping duplicate alert.");
-                return;
-            }
-            prefs.edit().putLong("last_salawat_trigger_ms", nowMs).apply();
+        long lastFiredMs = prefs.getLong(dedupKey, 0L);
+        if (nowMs - lastFiredMs < cooldownMs) {
+            Log.d(TAG, "Duplicate rapid trigger skipped for " + dedupKey);
+            return;
         }
+        prefs.edit().putLong(dedupKey, nowMs).apply();
 
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wakeLock = null;
+        final PowerManager.WakeLock wakeLock;
         if (pm != null) {
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AlMoazen::AlarmReceiverWakeLock");
-            wakeLock.acquire(15000L); // 15s to hand off to AzkarAudioService
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire(20_000L);
+        } else {
+            wakeLock = null;
         }
 
         Intent serviceIntent = new Intent(context, AzkarAudioService.class);
@@ -85,9 +85,6 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         serviceIntent.putExtra("cityName", cityName);
         serviceIntent.putExtra("iqamaDurationMinutes", iqamaDurationMinutes);
         serviceIntent.putExtra("autoPlay", autoPlay);
-        serviceIntent.putExtra("floatingWindowEnabled", false);
-        serviceIntent.putExtra("lockScreenEnabled", false);
-        serviceIntent.putExtra("wakeScreenEnabled", false);
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,67 +93,79 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                 context.startService(serviceIntent);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start foreground service from receiver, posting fallback notification", e);
-            postFallbackNotification(context, title, body);
-        } finally {
-            if (wakeLock != null && wakeLock.isHeld()) {
-                try {
-                    wakeLock.release();
-                } catch (Exception ignored) {}
-            }
+            Log.e(TAG, "Failed to start foreground service from receiver, posting fallback alarm notification", e);
+            postFallbackNotification(context, section, title, body);
         }
 
-        // Rolling schedule maintenance: Ensure 7-day schedule never runs dry
+        // Rolling schedule maintenance protected by goAsync() so Android 12-16 does not kill the thread prematurely
+        final PendingResult pendingResult = goAsync();
         final Context appContext = context.getApplicationContext();
         new Thread(() -> {
             try {
-                long lastRecalc = prefs.getLong("last_recalculated_epoch_ms", 0);
-                long now = System.currentTimeMillis();
-                if (now - lastRecalc > 24 * 3600 * 1000L) {
-                    Log.d(TAG, "Rolling 7-day schedule recalculation triggered by alarm receiver");
+                long lastRecalc = prefs.getLong("last_recalculated_epoch_ms", 0L);
+                if (nowMs - lastRecalc > 6 * 3600 * 1000L) {
+                    Log.d(TAG, "Rolling schedule recalculation triggered by alarm receiver");
                     BootReceiver.recalculateAndScheduleAll(appContext);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error in rolling schedule maintenance", e);
+            } finally {
+                if (wakeLock != null && wakeLock.isHeld()) {
+                    try {
+                        wakeLock.release();
+                    } catch (Exception ignored) {}
+                }
+                if (pendingResult != null) {
+                    try {
+                        pendingResult.finish();
+                    } catch (Exception ignored) {}
+                }
             }
         }).start();
     }
 
-    private void postFallbackNotification(Context context, String title, String body) {
+    private void postFallbackNotification(Context context, String section, String title, String body) {
         try {
-            android.app.NotificationManager manager = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager == null) return;
 
-            String channelId = "islamic_azan_playback_channel";
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                        channelId,
-                        "تنبيهات الأذان والأذكار",
-                        android.app.NotificationManager.IMPORTANCE_HIGH
+                NotificationChannel channel = new NotificationChannel(
+                        FALLBACK_CHANNEL_ID,
+                        "تنبيهات الأذان الاحتياطية",
+                        NotificationManager.IMPORTANCE_HIGH
                 );
                 channel.enableVibration(true);
+                channel.setSound(
+                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                        new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build()
+                );
                 manager.createNotificationChannel(channel);
             }
 
             Intent openAppIntent = new Intent(context, MainActivity.class);
             openAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            android.app.PendingIntent pendingOpenIntent = android.app.PendingIntent.getActivity(
+            PendingIntent pendingOpenIntent = PendingIntent.getActivity(
                     context,
                     0,
                     openAppIntent,
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? android.app.PendingIntent.FLAG_IMMUTABLE : 0)
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, channelId)
+            int notifId = 3000 + Math.abs((section != null ? section : "fallback").hashCode() % 100);
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, FALLBACK_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                    .setContentTitle(title != null ? title : "تطبيق المؤذن")
-                    .setContentText(body != null ? body : "حان موعد الصلاة والأذكار")
-                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
-                    .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
+                    .setContentTitle(title != null && !title.isEmpty() ? title : "تطبيق المؤذن")
+                    .setContentText(body != null && !body.isEmpty() ? body : "حان موعد الصلاة والأذكار")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
                     .setAutoCancel(true)
                     .setContentIntent(pendingOpenIntent);
 
-            manager.notify(1002, builder.build());
+            manager.notify(notifId, builder.build());
         } catch (Exception ex) {
             Log.e(TAG, "Failed posting fallback notification", ex);
         }

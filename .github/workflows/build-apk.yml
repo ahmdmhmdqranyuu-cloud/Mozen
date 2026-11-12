@@ -32,12 +32,14 @@ jobs:
 
       - name: Accept Licenses & Install Android SDK Components
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager --install "cmdline-tools;latest" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" || true
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
-          chmod +x gradlew android/gradlew || true
+          chmod +x gradlew android/gradlew
 
       - name: Configure Release Signing Keystore
         env:
@@ -55,11 +57,11 @@ jobs:
             echo "KEY_ALIAS=${KEY_ALIAS:-androiddebugkey}" >> "$GITHUB_ENV"
             echo "KEY_PASSWORD=${KEY_PASSWORD:-android}" >> "$GITHUB_ENV"
           else
-            echo "Creating deterministic signing keystore for automated release builds..."
+            echo "::warning::KEYSTORE_BASE64 secret is not configured. Using ephemeral CI signing keystore for test verification ONLY (do NOT publish CI-signed builds to Google Play)."
             keytool -genkey -v -keystore "$HOME/.android/release.keystore" \
               -storepass android -alias androiddebugkey -keypass android \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=AlMoazen Release,O=AlMoazen,C=SA" -noprompt 2>/dev/null || true
+              -dname "CN=AlMoazen CI,O=AlMoazen,C=SA" -noprompt
             echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
             echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
             echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
