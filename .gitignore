@@ -25,10 +25,4 @@ android/app/*.keystore
 *.apk
 *.aab
 
-# iOS Build files
-ios/build/
-ios/DerivedData/
-ios/*.xcworkspace/xcuserdata/
-ios/*.xcodeproj/xcuserdata/
-*.ipa
 

@@ -594,10 +594,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/30 pointer-events-none" />
 
               {/* Word «الإعدادات» centered inside the green cartouche rectangle in banner center */}
-              <div className="absolute bottom-2 sm:bottom-3.5 md:bottom-5 left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center justify-center w-[62%] sm:w-[50%] md:w-[44%] max-w-md text-center">
-                <span className="font-cairo font-black text-xl sm:text-2xl md:text-3xl text-amber-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] tracking-wider block truncate py-0.5 leading-none">
-                  {activeWidgetId && currentActiveWidget ? currentActiveWidget.title : 'الإعدادات'}
-                </span>
+              <div className="absolute bottom-2 sm:bottom-3.5 md:bottom-5 left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center justify-center w-[62%] sm:w-[50%] md:w-[44%] max-w-md h-8 sm:h-10 md:h-12 text-center">
+                {activeWidgetId && currentActiveWidget ? (
+                  <span className="font-cairo font-black text-xl sm:text-2xl md:text-3xl text-amber-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] tracking-wider block truncate py-0.5 leading-none">
+                    {currentActiveWidget.title}
+                  </span>
+                ) : (
+                  <span className="font-cairo font-black text-2xl sm:text-3xl md:text-4xl text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] tracking-wide block truncate leading-none">
+                    الإعدادات
+                  </span>
+                )}
               </div>
 
               {/* Quick close button in upper corner */}
@@ -667,11 +673,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {/* Widget Icon Container */}
-                          <div className="w-12 h-12 rounded-2xl bg-[#FAF8F5] border border-[#104B40]/15 shadow-2xs p-1 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <div className="w-14 h-14 rounded-2xl bg-[#FAF8F5] border border-[#104B40]/15 shadow-2xs p-1 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
                             <img
                               src={sec.iconImg}
                               alt={sec.title}
-                              className="w-full h-full object-contain rounded-xl"
+                              className="w-full h-full object-cover rounded-xl"
                             />
                           </div>
 
