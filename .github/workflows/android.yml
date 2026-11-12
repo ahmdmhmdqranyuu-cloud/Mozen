@@ -26,9 +26,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew android/gradlew || true
+      - name: Accept Licenses & Install Android SDK Components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager --install "cmdline-tools;latest" "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" || true
 
-      - name: Run Android Lint & Unit Tests
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x gradlew android/gradlew || true
+
+      - name: Run Android Unit Tests & Lint
         run: |
           ./gradlew testDebugUnitTest --stacktrace

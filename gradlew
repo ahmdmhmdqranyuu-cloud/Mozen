@@ -25,6 +25,17 @@ if [ -d "$ANDROID_SDK_PATH" ]; then
   printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910\n" > "$ANDROID_SDK_PATH/licenses/android-sdk-preview-license" 2>/dev/null || true
 fi
 
+# Auto-detect JAVA_HOME if not explicitly set
+if [ -z "$JAVA_HOME" ]; then
+  JAVA_CMD="$(which java 2>/dev/null || true)"
+  if [ -n "$JAVA_CMD" ]; then
+    JAVA_DIR="$(dirname "$(dirname "$(readlink -f "$JAVA_CMD" 2>/dev/null || echo "$JAVA_CMD")")")"
+    if [ -d "$JAVA_DIR" ]; then
+      export JAVA_HOME="$JAVA_DIR"
+    fi
+  fi
+fi
+
 # 3. Always use Gradle 8.7 (exact version compatible with Android Gradle Plugin 8.3.2)
 WRAPPER_DIST_DIR="${HOME}/.gradle/wrapper/dists/gradle-8.7"
 if [ ! -x "$WRAPPER_DIST_DIR/gradle-8.7/bin/gradle" ]; then

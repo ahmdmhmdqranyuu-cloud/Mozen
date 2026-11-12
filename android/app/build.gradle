@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.muslim.azan'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.muslim.azan"
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode 12
         versionName "2.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var prefs: NativePreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         prefs = NativePreferences(this)
 
@@ -52,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(EmeraldDeep),
+                    contentWindowInsets = WindowInsets.safeDrawing,
                     bottomBar = {
                         Column {
                             // Persistent Floating Audio bar for Quran & Azkar
