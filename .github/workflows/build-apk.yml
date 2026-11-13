@@ -105,12 +105,25 @@ jobs:
           printf '%s\n' "$DEBUG_BADGING" | head -n 5
           RELEASE_BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$RELEASE_APK")
           printf '%s\n' "$RELEASE_BADGING" | head -n 5
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$DEBUG_APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$DEBUG_APK"
           if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$RELEASE_APK"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$RELEASE_APK"
           fi
 
-      - name: Upload Debug APK
+      - name: Write Build & Install Instructions Summary
+        if: always()
+        run: |
+          {
+            echo "## نتائج بناء ملفات APK"
+            echo "- **AlMoazen-Debug-APK (\`app-debug.apk\`)**: موقّع وجاهز للتثبيت مباشرة على الهاتف."
+            if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
+              echo "- **AlMoazen-Release-APK (\`app-release.apk\`)**: موقّع بمفتاح الإصدار الحقيقي من GitHub Secrets وجاهز."
+            else
+              echo "- **Release APK**: لم يتم رفعه لأن أسرار التوقيع الحقيقية (\`KEYSTORE_BASE64\`, \`KEYSTORE_PASSWORD\`, \`KEY_ALIAS\`, \`KEY_PASSWORD\`) غير مضافة في GitHub Secrets، ولا يمكن تثبيت APK غير موقّع على الهاتف. ثبّت \`AlMoazen-Debug-APK\` للتجربة على الهاتف، واحذف أي نسخة قديمة مثبتة مسبقًا إذا كان توقيعها مختلفًا."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Debug APK (Signed & Installable)
         uses: actions/upload-artifact@v4
         if: success()
         with:
@@ -118,9 +131,9 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Upload Release APK
+      - name: Upload Release APK (Only when signed with real Secrets)
         uses: actions/upload-artifact@v4
-        if: success()
+        if: success() && env.RELEASE_SIGNED == 'true'
         with:
           name: AlMoazen-Release-APK
           path: android/app/build/outputs/apk/release/*.apk
