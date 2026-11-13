@@ -1,4 +1,4 @@
-name: Android CI Test & Verification
+name: Android CI Test & APK Verification
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   verify:
-    name: Verify Android Compilation and Unit Tests
+    name: Verify Android Unit Tests & Debug APK Build
     runs-on: ubuntu-latest
 
     steps:
@@ -23,24 +23,50 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Licenses & Install Android SDK Components
+      - name: Set up Android SDK 36 (Command-line Tools only, no legacy tools)
         run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            SDK_ROOT="$HOME/android-sdk"
+            mkdir -p "$SDK_ROOT"
+          fi
+          if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            curl -fsSL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline-tools.zip
+            unzip -q -o /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            mv /tmp/cmdline-tools-extract/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf /tmp/cmdline-tools.zip /tmp/cmdline-tools-extract
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           set +o pipefail
-          yes | sdkmanager --licenses >/dev/null
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses >/dev/null
           set -o pipefail
-          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
           chmod +x gradlew android/gradlew
 
-      - name: Run Android Unit Tests & Debug Build Check
+      - name: Run Android Unit Tests & Build Debug APK
         working-directory: android
         run: |
           ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Verify Debug APK Output & Signature
+        run: |
+          DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
+          if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
+            echo "Error: Debug APK was not generated."
+            exit 1
+          fi
+          ls -lh "$DEBUG_APK"
+          BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$DEBUG_APK")
+          printf '%s\n' "$BADGING" | head -n 5
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$DEBUG_APK"
 
       - name: Upload CI Debug APK
         uses: actions/upload-artifact@v4

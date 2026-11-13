@@ -1,4 +1,4 @@
-name: Build Android Native App (APK & AAB)
+name: Build Android Native App (APK Only)
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
 
 jobs:
   build-android:
-    name: Build Native Android APK & AAB (Debug & Release)
+    name: Build Native Android Debug & Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -27,51 +27,88 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Licenses & Install Android SDK Components
+      - name: Set up Android SDK 36 (Command-line Tools only, no legacy tools)
         run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            SDK_ROOT="$HOME/android-sdk"
+            mkdir -p "$SDK_ROOT"
+          fi
+          if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            curl -fsSL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline-tools.zip
+            unzip -q -o /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            mv /tmp/cmdline-tools-extract/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf /tmp/cmdline-tools.zip /tmp/cmdline-tools-extract
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           set +o pipefail
-          yes | sdkmanager --licenses >/dev/null
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses >/dev/null
           set -o pipefail
-          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
           chmod +x gradlew android/gradlew
 
-      - name: Configure Release Signing Keystore
+      - name: Configure Release Signing Keystore (from GitHub Secrets if provided)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          mkdir -p "$HOME/.android"
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            echo "Decoding release keystore from GitHub Secrets..."
+            if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+              echo "Error: KEYSTORE_BASE64 is set, so KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD secrets must all be provided."
+              exit 1
+            fi
+            mkdir -p "$HOME/.android"
             echo "$KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/release.keystore"
+            if [ ! -s "$HOME/.android/release.keystore" ]; then
+              echo "Error: Decoded release keystore is empty."
+              exit 1
+            fi
             echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
-            echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD:-android}" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=${KEY_ALIAS:-androiddebugkey}" >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=${KEY_PASSWORD:-android}" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "RELEASE_SIGNED=true" >> "$GITHUB_ENV"
           else
-            echo "::warning::KEYSTORE_BASE64 secret is not configured. Using ephemeral CI signing keystore for test verification ONLY (do NOT publish CI-signed builds to Google Play)."
-            keytool -genkey -v -keystore "$HOME/.android/release.keystore" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=AlMoazen CI,O=AlMoazen,C=SA" -noprompt
-            echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
-            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "::notice::KEYSTORE_BASE64 secret is not configured. Release APK will be built unsigned without generating a temporary/default keystore."
+            echo "RELEASE_SIGNED=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Run JUnit Tests & Build Native Android APK & AAB
+      - name: Run JUnit Tests & Build Native Android APK (Debug & Release)
         working-directory: android
         run: |
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease --stacktrace
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease --stacktrace
+
+      - name: Verify Debug & Release APK Outputs
+        run: |
+          DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
+          RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
+          if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
+            echo "Error: Debug APK was not generated."
+            exit 1
+          fi
+          if [ -z "$RELEASE_APK" ] || [ ! -s "$RELEASE_APK" ]; then
+            echo "Error: Release APK was not generated."
+            exit 1
+          fi
+          ls -lh "$DEBUG_APK" "$RELEASE_APK"
+          DEBUG_BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$DEBUG_APK")
+          printf '%s\n' "$DEBUG_BADGING" | head -n 5
+          RELEASE_BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$RELEASE_APK")
+          printf '%s\n' "$RELEASE_BADGING" | head -n 5
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$DEBUG_APK"
+          if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$RELEASE_APK"
+          fi
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -87,12 +124,4 @@ jobs:
         with:
           name: AlMoazen-Release-APK
           path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-
-      - name: Upload Release Android App Bundle (AAB for Google Play)
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: AlMoazen-Release-AAB
-          path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error

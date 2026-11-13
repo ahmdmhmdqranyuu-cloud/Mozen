@@ -51,9 +51,9 @@ if [ ! -x "$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle" ]; then
 fi
 GRADLE_BIN="$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle"
 
-# 4. If invoked as "./gradlew build", run testDebugUnitTest, assembleDebug and assembleRelease
+# 4. If invoked as "./gradlew build", run testDebugUnitTest, assembleDebug and assembleRelease (APK only)
 if [ "$#" -eq 1 ] && [ "$1" = "build" ]; then
-  set -- testDebugUnitTest assembleDebug assembleRelease bundleRelease --stacktrace
+  set -- testDebugUnitTest assembleDebug assembleRelease --stacktrace
 fi
 
 exec "$GRADLE_BIN" -p "$SCRIPT_DIR/android" --no-daemon "$@"
