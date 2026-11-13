@@ -45,8 +45,9 @@ WRAPPER_DIST_DIR="${HOME}/.gradle/wrapper/dists/gradle-8.11.1"
 if [ ! -x "$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle" ]; then
   echo "Downloading Gradle 8.11.1..."
   mkdir -p "$WRAPPER_DIST_DIR"
-  curl -fsSL --retry 3 https://services.gradle.org/distributions/gradle-8.11.1-bin.zip -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip"
-  unzip -q -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip" -d "$WRAPPER_DIST_DIR"
+  curl -fsSL --retry 3 https://services.gradle.org/distributions/gradle-8.11.1-bin.zip -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip.tmp"
+  unzip -q -o "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip.tmp" -d "$WRAPPER_DIST_DIR"
+  rm -f "$WRAPPER_DIST_DIR/gradle-8.11.1-bin.zip.tmp"
 fi
 GRADLE_BIN="$WRAPPER_DIST_DIR/gradle-8.11.1/bin/gradle"
 

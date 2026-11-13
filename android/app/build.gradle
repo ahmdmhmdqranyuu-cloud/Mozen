@@ -21,7 +21,7 @@ android {
 
     sourceSets {
         main {
-            assets.srcDirs = ['src/main/assets', '../../public']
+            assets.srcDirs = ['src/main/assets']
         }
     }
 
