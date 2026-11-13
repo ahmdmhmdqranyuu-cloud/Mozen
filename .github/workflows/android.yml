@@ -31,12 +31,21 @@ jobs:
           set +o pipefail
           yes | sdkmanager --licenses >/dev/null
           set -o pipefail
-          sdkmanager --install "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
           chmod +x gradlew android/gradlew
 
       - name: Run Android Unit Tests & Debug Build Check
+        working-directory: android
         run: |
           ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Upload CI Debug APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: AlMoazen-CI-Debug-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
