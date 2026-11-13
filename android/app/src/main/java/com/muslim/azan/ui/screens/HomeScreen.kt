@@ -4,9 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,12 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.muslim.azan.PrayerTimeCalculator
-import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.navigation.Screen
@@ -42,19 +41,51 @@ fun HomeScreen(
     prefs: NativePreferences,
     onNavigate: (Screen) -> Unit
 ) {
-    val cal = remember { Calendar.getInstance() }
-    val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-    val tz = cal.timeZone
-    val tzOffsetHours = tz.getOffset(System.currentTimeMillis()) / 3600000.0
+    var refreshTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
-    val prayers = remember(prefs.latitude, prefs.longitude, prefs.calculationMethod, prefs.asrMethod) {
+    val cityTimezoneId = prefs.cityTimezoneId
+    val cal = remember(cityTimezoneId, refreshTick) {
+        val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
+        Calendar.getInstance(tz)
+    }
+    val tzOffsetHours = remember(cityTimezoneId, refreshTick) {
+        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis)
+    }
+
+    val prayers = remember(
+        prefs.latitude,
+        prefs.longitude,
+        cityTimezoneId,
+        prefs.calculationMethod,
+        prefs.asrMethod,
+        prefs.fajrOffsetMinutes,
+        prefs.dhuhrOffsetMinutes,
+        prefs.asrOffsetMinutes,
+        prefs.maghribOffsetMinutes,
+        prefs.ishaOffsetMinutes,
+        refreshTick
+    ) {
         PrayerTimeCalculator.calculateDailyPrayers(
+            cal,
             prefs.latitude,
             prefs.longitude,
             tzOffsetHours,
-            dayOfYear,
             prefs.calculationMethod,
             prefs.asrMethod
+        ).withOffsets(
+            prefs.fajrOffsetMinutes,
+            prefs.dhuhrOffsetMinutes,
+            prefs.asrOffsetMinutes,
+            prefs.maghribOffsetMinutes,
+            prefs.ishaOffsetMinutes
         )
     }
 
@@ -257,7 +288,6 @@ fun HomeScreen(
                                 }
                             }
                         }
-                        // Fill empty weight if last row has less items
                         for (i in 0 until (3 - rowItems.size)) {
                             Spacer(modifier = Modifier.weight(1f))
                         }

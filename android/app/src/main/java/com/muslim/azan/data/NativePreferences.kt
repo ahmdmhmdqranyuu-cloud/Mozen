@@ -169,10 +169,47 @@ class NativePreferences(context: Context) {
         prefs.edit().putString("quran_bookmarks_list", arr.toString()).apply()
     }
 
+    var cityTimezoneId: String
+        get() = prefs.getString("city_timezone_id", "Asia/Riyadh") ?: "Asia/Riyadh"
+        set(value) = prefs.edit().putString("city_timezone_id", value).apply()
+
+    var fajrOffsetMinutes: Int
+        get() = prefs.getInt("offset_fajr", 0)
+        set(value) = prefs.edit().putInt("offset_fajr", value.coerceIn(-30, 30)).apply()
+
+    var dhuhrOffsetMinutes: Int
+        get() = prefs.getInt("offset_dhuhr", 0)
+        set(value) = prefs.edit().putInt("offset_dhuhr", value.coerceIn(-30, 30)).apply()
+
+    var asrOffsetMinutes: Int
+        get() = prefs.getInt("offset_asr", 0)
+        set(value) = prefs.edit().putInt("offset_asr", value.coerceIn(-30, 30)).apply()
+
+    var maghribOffsetMinutes: Int
+        get() = prefs.getInt("offset_maghrib", 0)
+        set(value) = prefs.edit().putInt("offset_maghrib", value.coerceIn(-30, 30)).apply()
+
+    var ishaOffsetMinutes: Int
+        get() = prefs.getInt("offset_isha", 0)
+        set(value) = prefs.edit().putInt("offset_isha", value.coerceIn(-30, 30)).apply()
+
     fun setCity(city: CityLocation) {
         cityName = city.nameAr
         latitude = city.latitude
         longitude = city.longitude
+        if (city.timezoneId.isNotEmpty()) {
+            cityTimezoneId = city.timezoneId
+        }
+        if (city.recommendedCalcMethod.isNotEmpty()) {
+            calculationMethod = city.recommendedCalcMethod
+        }
+    }
+
+    fun setGpsLocation(nameAr: String, lat: Double, lng: Double, timezoneId: String) {
+        cityName = nameAr
+        latitude = lat
+        longitude = lng
+        cityTimezoneId = timezoneId
     }
 
     var canScheduleExactAlarms: Boolean
@@ -182,4 +219,8 @@ class NativePreferences(context: Context) {
     var isIgnoringBatteryOptimizations: Boolean
         get() = prefs.getBoolean("is_ignoring_battery_optimizations", true)
         set(value) = prefs.edit().putBoolean("is_ignoring_battery_optimizations", value).apply()
+
+    var suppressSpecialPermissionsPrompt: Boolean
+        get() = prefs.getBoolean("suppress_special_permissions_prompt", false)
+        set(value) = prefs.edit().putBoolean("suppress_special_permissions_prompt", value).apply()
 }

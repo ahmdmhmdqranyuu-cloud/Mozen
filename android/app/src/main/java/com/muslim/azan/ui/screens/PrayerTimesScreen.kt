@@ -1,5 +1,9 @@
 package com.muslim.azan.ui.screens
 
+import android.Manifest
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,17 +17,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.PrayerTimeCalculator
 import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,23 +39,38 @@ fun PrayerTimesScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cal = remember { Calendar.getInstance() }
-    val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
-    val tz = cal.timeZone
-    val tzOffsetHours = tz.getOffset(System.currentTimeMillis()) / 3600000.0
 
+    var cityName by remember { mutableStateOf(prefs.cityName) }
+    var lat by remember { mutableDoubleStateOf(prefs.latitude) }
+    var lng by remember { mutableDoubleStateOf(prefs.longitude) }
+    var cityTimezoneId by remember { mutableStateOf(prefs.cityTimezoneId) }
     var calcMethod by remember { mutableStateOf(prefs.calculationMethod) }
     var asrMethod by remember { mutableStateOf(prefs.asrMethod) }
 
-    val times = remember(prefs.latitude, prefs.longitude, calcMethod, asrMethod) {
+    var fajrOff by remember { mutableIntStateOf(prefs.fajrOffsetMinutes) }
+    var dhuhrOff by remember { mutableIntStateOf(prefs.dhuhrOffsetMinutes) }
+    var asrOff by remember { mutableIntStateOf(prefs.asrOffsetMinutes) }
+    var maghribOff by remember { mutableIntStateOf(prefs.maghribOffsetMinutes) }
+    var ishaOff by remember { mutableIntStateOf(prefs.ishaOffsetMinutes) }
+    var isDetectingGps by remember { mutableStateOf(false) }
+
+    val cal = remember(cityTimezoneId) {
+        val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
+        Calendar.getInstance(tz)
+    }
+    val tzOffsetHours = remember(cityTimezoneId) {
+        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis)
+    }
+
+    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
         PrayerTimeCalculator.calculateDailyPrayers(
-            prefs.latitude,
-            prefs.longitude,
+            cal,
+            lat,
+            lng,
             tzOffsetHours,
-            dayOfYear,
             calcMethod,
             asrMethod
-        )
+        ).withOffsets(fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff)
     }
 
     val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
@@ -58,6 +79,36 @@ fun PrayerTimesScreen(
     }
 
     var showCalcMethodDialog by remember { mutableStateOf(false) }
+
+    fun triggerGpsDetection() {
+        isDetectingGps = true
+        scope.launch {
+            val result = SystemPermissionHelper.detectAndSaveGpsLocation(context, prefs)
+            isDetectingGps = false
+            result.onSuccess { detectedName ->
+                cityName = prefs.cityName
+                lat = prefs.latitude
+                lng = prefs.longitude
+                cityTimezoneId = prefs.cityTimezoneId
+                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                Toast.makeText(context, "تم تحديد الموقع: $detectedName", Toast.LENGTH_SHORT).show()
+            }.onFailure { err ->
+                Toast.makeText(context, err.message ?: "تعذر تحديد الموقع عبر GPS", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            triggerGpsDetection()
+        } else {
+            Toast.makeText(context, "يرجى السماح بصلاحية الموقع لتحديد الإحداثيات تلقائيًا", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -96,7 +147,7 @@ fun PrayerTimesScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = prefs.cityName,
+                        text = cityName,
                         color = GoldAccent,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -107,6 +158,37 @@ fun PrayerTimesScreen(
                         color = TextPrimary,
                         fontSize = 14.sp
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            if (SystemPermissionHelper.checkPermissions(context).locationGranted) {
+                                triggerGpsDetection()
+                            } else {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                        },
+                        enabled = !isDetectingGps,
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = null,
+                            tint = GoldAccent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isDetectingGps) "جاري التحديد بالـ GPS..." else "تحديث موقعي التلقائي بالـ GPS",
+                            color = TextPrimary,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }
@@ -177,7 +259,7 @@ fun PrayerTimesScreen(
                             onClick = {
                                 asrMethod = "standard"
                                 prefs.asrMethod = "standard"
-                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
+                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                             },
                             label = { Text("الجمهور (شافعي/مالكي/حنبلي)", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
@@ -190,7 +272,7 @@ fun PrayerTimesScreen(
                             onClick = {
                                 asrMethod = "hanafi"
                                 prefs.asrMethod = "hanafi"
-                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
+                                scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                             },
                             label = { Text("حنفي", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
@@ -198,6 +280,77 @@ fun PrayerTimesScreen(
                                 selectedLabelColor = Color.White
                             )
                         )
+                    }
+                }
+            }
+        }
+
+        // Manual Minute Offsets Card
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "تعديل الدقائق يدويًا (حسب مسجدك)",
+                                color = GoldAccent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (fajrOff != 0 || dhuhrOff != 0 || asrOff != 0 || maghribOff != 0 || ishaOff != 0) {
+                            TextButton(
+                                onClick = {
+                                    fajrOff = 0; prefs.fajrOffsetMinutes = 0
+                                    dhuhrOff = 0; prefs.dhuhrOffsetMinutes = 0
+                                    asrOff = 0; prefs.asrOffsetMinutes = 0
+                                    maghribOff = 0; prefs.maghribOffsetMinutes = 0
+                                    ishaOff = 0; prefs.ishaOffsetMinutes = 0
+                                    scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                }
+                            ) {
+                                Text("إعادة ضبط", color = GoldLight, fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    PrayerOffsetControl("الفجر", fajrOff) { newVal ->
+                        fajrOff = newVal
+                        prefs.fajrOffsetMinutes = newVal
+                        scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                    }
+                    PrayerOffsetControl("الظهر", dhuhrOff) { newVal ->
+                        dhuhrOff = newVal
+                        prefs.dhuhrOffsetMinutes = newVal
+                        scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                    }
+                    PrayerOffsetControl("العصر", asrOff) { newVal ->
+                        asrOff = newVal
+                        prefs.asrOffsetMinutes = newVal
+                        scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                    }
+                    PrayerOffsetControl("المغرب", maghribOff) { newVal ->
+                        maghribOff = newVal
+                        prefs.maghribOffsetMinutes = newVal
+                        scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                    }
+                    PrayerOffsetControl("العشاء", ishaOff) { newVal ->
+                        ishaOff = newVal
+                        prefs.ishaOffsetMinutes = newVal
+                        scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                     }
                 }
             }
@@ -227,7 +380,7 @@ fun PrayerTimesScreen(
                                     calcMethod = key
                                     prefs.calculationMethod = key
                                     showCalcMethodDialog = false
-                                    scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context) }
+                                    scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                                 }
                                 .padding(12.dp)
                         ) {
@@ -239,6 +392,50 @@ fun PrayerTimesScreen(
             confirmButton = {},
             containerColor = EmeraldDeep
         )
+    }
+}
+
+@Composable
+private fun PrayerOffsetControl(
+    label: String,
+    offsetMinutes: Int,
+    onChange: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(EmeraldSurfaceLight)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = { if (offsetMinutes > -30) onChange(offsetMinutes - 1) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(Icons.Default.Remove, contentDescription = "إنقاص دقيقة", tint = GoldAccent, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                text = when {
+                    offsetMinutes > 0 -> "+$offsetMinutes د"
+                    offsetMinutes < 0 -> "$offsetMinutes د"
+                    else -> "0 د"
+                },
+                color = if (offsetMinutes == 0) TextSecondary else GoldAccent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            IconButton(
+                onClick = { if (offsetMinutes < 30) onChange(offsetMinutes + 1) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "زيادة دقيقة", tint = GoldAccent, modifier = Modifier.size(18.dp))
+            }
+        }
     }
 }
 

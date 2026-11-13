@@ -21,7 +21,7 @@ import java.util.Set;
  *   wakes the device accurately in Deep Doze and grants full Foreground Service exemption.
  * - Uses setExactAndAllowWhileIdle() for pre-prayer alerts, Azkar, Salawat, and Musaharati,
  *   with graceful fallback to setAndAllowWhileIdle() if exact alarm permission is denied.
- * - Enforces a safe cap below Android's 500-alarm per-UID limit.
+ * - Supports genuine delayed background audio + overlay verification tests via scheduleBackgroundTestAlarm().
  */
 public class AlarmScheduler {
     private static final String TAG = "AlarmScheduler";
@@ -29,6 +29,85 @@ public class AlarmScheduler {
     private static final String PREFS = "azan_reminders_prefs";
     private static final String SCHEDULE_KEY = "active_schedule_json";
     private static final int MAX_CONCURRENT_ALARMS = 250;
+
+    /**
+     * Schedules a genuine one-shot background test alarm after [delaySeconds] seconds
+     * through AlarmManager -> AzkarAlarmReceiver -> AzkarAudioService (with Floating Overlay).
+     * Returns the scheduled trigger epoch timestamp in milliseconds, or -1 if AlarmManager unavailable.
+     */
+    public static long scheduleBackgroundTestAlarm(
+            Context context,
+            String audioTrackId,
+            String cityName,
+            int delaySeconds
+    ) {
+        if (context == null) return -1L;
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return -1L;
+
+        long safeDelayMs = Math.max(3, delaySeconds) * 1000L;
+        long triggerEpochMs = System.currentTimeMillis() + safeDelayMs;
+
+        boolean canExact = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            canExact = alarmManager.canScheduleExactAlarms();
+        }
+
+        Intent showAppIntent = new Intent(context, MainActivity.class);
+        showAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent showPendingIntent = PendingIntent.getActivity(
+                context,
+                9002,
+                showAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+        intent.setAction(ACTION);
+        intent.setData(Uri.parse("almoazen://alarm/test/" + triggerEpochMs));
+        intent.putExtra("section", "prayer_azan");
+        intent.putExtra("prayerName", "الاختبار في الخلفية");
+        intent.putExtra("cityName", (cityName != null && !cityName.isEmpty()) ? cityName : "مكة المكرمة");
+        intent.putExtra("title", "اختبار الأذان في الخلفية");
+        intent.putExtra("body", "تم تفعيل منبه الخلفية وتشغيل الصوت والنافذة العائمة بنجاح");
+        intent.putExtra("audioTrackId", (audioTrackId != null && !audioTrackId.isEmpty()) ? audioTrackId : "makkah");
+        intent.putExtra("autoPlay", true);
+        intent.putExtra("isTestAlarm", true);
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                context,
+                99001,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        try {
+            if (canExact) {
+                try {
+                    AlarmManager.AlarmClockInfo clockInfo =
+                            new AlarmManager.AlarmClockInfo(triggerEpochMs, showPendingIntent);
+                    alarmManager.setAlarmClock(clockInfo, pendingIntent);
+                    Log.d(TAG, "Scheduled exact background test alarm in " + delaySeconds + "s");
+                    return triggerEpochMs;
+                } catch (SecurityException se) {
+                    Log.w(TAG, "setAlarmClock denied for test alarm, falling back", se);
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pendingIntent);
+                    return triggerEpochMs;
+                } catch (SecurityException ignored) {}
+            }
+
+            scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
+            return triggerEpochMs;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed scheduling background test alarm", e);
+            return -1L;
+        }
+    }
 
     public static synchronized void rescheduleFromJson(Context context, String jsonArrayString) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);

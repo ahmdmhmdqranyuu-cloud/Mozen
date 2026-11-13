@@ -27,5 +27,7 @@ data class CityLocation(
     val country: String,
     val latitude: Double,
     val longitude: Double,
-    val timezoneHours: Double
+    val timezoneHours: Double,
+    val timezoneId: String = "",
+    val recommendedCalcMethod: String = "umm_al_qura"
 )

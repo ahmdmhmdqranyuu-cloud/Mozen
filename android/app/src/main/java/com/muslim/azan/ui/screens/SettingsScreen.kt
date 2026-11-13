@@ -1,21 +1,16 @@
 package com.muslim.azan.ui.screens
 
 import android.Manifest
-import android.app.AlarmManager
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
-import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -32,14 +27,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.muslim.azan.AlarmScheduler
 import com.muslim.azan.AzkarAudioService
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.data.MediaFileManager
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +49,6 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Expanded states for the 10 sections
     var expandedSection by remember { mutableStateOf<Int?>(null) }
     var permissionRefreshTick by remember { mutableIntStateOf(0) }
 
@@ -71,35 +66,57 @@ fun SettingsScreen(
 
     // Reactive preference states
     var selectedCityName by remember { mutableStateOf(prefs.cityName) }
+    var citySearchQuery by remember { mutableStateOf("") }
+    var isDetectingGps by remember { mutableStateOf(false) }
+
     var azanSoundEnabled by remember { mutableStateOf(prefs.azanSoundEnabled) }
     var prePrayerAlertEnabled by remember { mutableStateOf(prefs.prePrayerAlertEnabled) }
     var selectedAzanVoice by remember { mutableStateOf(prefs.azanVoice) }
+    var backgroundTestScheduledNote by remember { mutableStateOf<String?>(null) }
+
     var salawatEnabled by remember { mutableStateOf(prefs.salawatEnabled) }
     var morningAzkarEnabled by remember { mutableStateOf(prefs.morningAzkarEnabled) }
     var eveningAzkarEnabled by remember { mutableStateOf(prefs.eveningAzkarEnabled) }
     var musaharatiEnabled by remember { mutableStateOf(prefs.musaharatiEnabled) }
 
-    val notificationsGranted = remember(expandedSection, permissionRefreshTick) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
+    val permStatus = remember(expandedSection, permissionRefreshTick) {
+        SystemPermissionHelper.checkPermissions(context)
+    }
+
+    fun runGpsDetection() {
+        isDetectingGps = true
+        coroutineScope.launch {
+            val result = SystemPermissionHelper.detectAndSaveGpsLocation(context, prefs)
+            isDetectingGps = false
+            result.onSuccess { detectedCity ->
+                selectedCityName = prefs.cityName
+                coroutineScope.launch(Dispatchers.IO) {
+                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                }
+                Toast.makeText(
+                    context,
+                    "تم تحديد موقعك ($detectedCity) وإعادة جدولة الأذان",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }.onFailure { err ->
+                Toast.makeText(
+                    context,
+                    err.message ?: "تعذر التقاط الموقع عبر GPS",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
-    val exactAlarmsGranted = remember(expandedSection, permissionRefreshTick) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val am = context.getSystemService(AlarmManager::class.java)
-            am?.canScheduleExactAlarms() ?: prefs.canScheduleExactAlarms
+
+    val locationPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            runGpsDetection()
         } else {
-            true
-        }
-    }
-    val batteryUnrestricted = remember(expandedSection, permissionRefreshTick) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = context.getSystemService(PowerManager::class.java)
-            pm?.isIgnoringBatteryOptimizations(context.packageName) ?: prefs.isIgnoringBatteryOptimizations
-        } else {
-            true
+            Toast.makeText(context, "يرجى منح صلاحية الموقع لتشغيل التحديد التلقائي", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -114,7 +131,7 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Header
+        // Header (preserved centered title in green rectangle)
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -155,7 +172,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 1: Profile & Stats (الملف الشخصي)
+        // Section 1: Profile & Stats
         item {
             SettingsCollapsibleCard(
                 title = "1. الملف الشخصي والإحصائيات",
@@ -183,7 +200,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 2: Permissions (الأذونات والتنبيهات)
+        // Section 2: Permissions & Overlay
         item {
             SettingsCollapsibleCard(
                 title = "2. الأذونات وصلاحيات النظام",
@@ -193,41 +210,26 @@ fun SettingsScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "لضمان تشغيل الأذان والأذكار في الخلفية وعلى الشاشة المقفلة (Android 15 & 16):",
+                        text = "لضمان تشغيل الأذان والأذكار والنافذة العائمة في الخلفية وعلى الشاشة المقفلة (Android 14-16):",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("إذن الإشعارات:", color = TextPrimary, fontSize = 12.sp)
-                        Text(
-                            if (notificationsGranted) "مفعّل ✓" else "مطلوب التفعيل",
-                            color = if (notificationsGranted) SuccessGreen else ErrorRed,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("إذن المنبهات الدقيقة:", color = TextPrimary, fontSize = 12.sp)
-                        Text(
-                            if (exactAlarmsGranted) "مفعّل ✓" else "مطلوب التفعيل",
-                            color = if (exactAlarmsGranted) SuccessGreen else ErrorRed,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("استثناء توفير البطارية:", color = TextPrimary, fontSize = 12.sp)
-                        Text(
-                            if (batteryUnrestricted) "غير مقيد ✓" else "مقيد (يُنصح بالاستثناء)",
-                            color = if (batteryUnrestricted) SuccessGreen else GoldAccent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    PermissionStatusLine("إذن الإشعارات:", permStatus.notificationsGranted)
+                    PermissionStatusLine("إذن المنبهات الدقيقة:", permStatus.exactAlarmsGranted)
+                    PermissionStatusLine("الظهور فوق التطبيقات:", permStatus.overlayGranted)
+                    PermissionStatusLine(
+                        "استثناء توفير البطارية:",
+                        permStatus.batteryUnrestricted,
+                        falseText = "مقيد (يُنصح بالاستثناء)",
+                        falseColor = GoldAccent
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        PermissionStatusLine("الظهور على شاشة القفل:", permStatus.fullScreenIntentGranted)
                     }
 
                     Button(
-                        onClick = { openAppNotificationSettings(context) },
+                        onClick = { SystemPermissionHelper.openNotificationSettings(context) },
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -235,20 +237,7 @@ fun SettingsScreen(
                     }
 
                     Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                try {
-                                    val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                        data = Uri.parse("package:" + context.packageName)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    openAppSettings(context)
-                                }
-                            } else {
-                                openAppSettings(context)
-                            }
-                        },
+                        onClick = { SystemPermissionHelper.openExactAlarmSettings(context) },
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -256,28 +245,65 @@ fun SettingsScreen(
                     }
 
                     Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                try {
-                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                        data = Uri.parse("package:" + context.packageName)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    openAppSettings(context)
-                                }
-                            }
-                        },
+                        onClick = { SystemPermissionHelper.openOverlaySettings(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("إذن الظهور فوق التطبيقات الأخرى (Overlay)", color = TextPrimary)
+                    }
+
+                    Button(
+                        onClick = { SystemPermissionHelper.openBatteryOptimizationSettings(context) },
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("تحسين استهلاك البطارية (عدم إيقاف التطبيق)", color = TextPrimary)
                     }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        Button(
+                            onClick = { SystemPermissionHelper.openFullScreenIntentSettings(context) },
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("إذن الظهور على شاشة القفل (Full Screen Intent)", color = TextPrimary)
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (!SystemPermissionHelper.checkPermissions(context).overlayGranted) {
+                                Toast.makeText(
+                                    context,
+                                    "يرجى تفعيل إذن «الظهور فوق التطبيقات الأخرى» أولًا",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                SystemPermissionHelper.openOverlaySettings(context)
+                            } else {
+                                val overlayIntent = Intent(context, AzkarAudioService::class.java).apply {
+                                    action = AzkarAudioService.ACTION_SHOW_OVERLAY_TEST
+                                    putExtra("title", "تجربة نافذة الأذان العائمة")
+                                    putExtra("body", "تظهر هذه النافذة فوق أي تطبيق مفتوح عند دخول وقت الأذان في $selectedCityName")
+                                }
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    context.startForegroundService(overlayIntent)
+                                } else {
+                                    context.startService(overlayIntent)
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Layers, contentDescription = null, tint = EmeraldDeep, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("تجربة النافذة العائمة فوق التطبيقات", color = EmeraldDeep, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
-        // Section 3: Location & Time (تحديد الموقع والوقت)
+        // Section 3: Location & Time (All 22 Cities + GPS)
         item {
             SettingsCollapsibleCard(
                 title = "3. تحديد الموقع والوقت",
@@ -293,13 +319,60 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold
                     )
 
+                    Button(
+                        onClick = {
+                            if (SystemPermissionHelper.checkPermissions(context).locationGranted) {
+                                runGpsDetection()
+                            } else {
+                                locationPermLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                        },
+                        enabled = !isDetectingGps,
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = EmeraldDeep, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isDetectingGps) "جاري التقاط موقعك عبر GPS..." else "تحديد موقعي التلقائي عبر GPS",
+                            color = EmeraldDeep,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = citySearchQuery,
+                        onValueChange = { citySearchQuery = it },
+                        placeholder = { Text("ابحث عن مدينة أو دولة...", color = TextSecondary, fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldAccent) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = GoldAccent,
+                            unfocusedBorderColor = CardBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    val filteredCities = NativeDataManager.defaultCities.filter { city ->
+                        citySearchQuery.isBlank() ||
+                            city.nameAr.contains(citySearchQuery.trim(), ignoreCase = true) ||
+                            city.country.contains(citySearchQuery.trim(), ignoreCase = true)
+                    }
+
                     Text(
-                        text = "اختر مدينتك من القائمة المدمجة (بدون إنترنت):",
+                        text = "أو اختر مدينتك من القائمة المدمجة (${filteredCities.size} مدينة):",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
 
-                    NativeDataManager.defaultCities.take(8).forEach { city ->
+                    filteredCities.forEach { city ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -311,18 +384,35 @@ fun SettingsScreen(
                                     coroutineScope.launch(Dispatchers.IO) {
                                         BootReceiver.recalculateAndScheduleAll(context.applicationContext)
                                     }
-                                    Toast.makeText(context, "تم تحديد ${city.nameAr} وإعادة جدولة الأذان", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "تم تحديد ${city.nameAr} وضبط الحساب والتوقيت التلقائي",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
-                                .padding(10.dp)
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(text = "${city.nameAr} - ${city.country}", color = Color.White, fontSize = 13.sp)
+                            Text(
+                                text = when (city.recommendedCalcMethod) {
+                                    "egypt" -> "المصرية"
+                                    "mwl" -> "الرابطة"
+                                    "isna" -> "أمريكا ش"
+                                    "karachi" -> "كراتشي"
+                                    else -> "أم القرى"
+                                },
+                                color = GoldLight,
+                                fontSize = 11.sp
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Section 4: Language (اللغة)
+        // Section 4: Language
         item {
             SettingsCollapsibleCard(
                 title = "4. لغة التطبيق والواجهة",
@@ -344,7 +434,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 5: Azan Settings (إعدادات الأذان)
+        // Section 5: Azan Settings & Genuine Background Test
         item {
             SettingsCollapsibleCard(
                 title = "5. إعدادات الأذان والأصوات",
@@ -419,6 +509,48 @@ fun SettingsScreen(
                         }
                     }
 
+                    // Genuine 5-second AlarmManager background test
+                    Button(
+                        onClick = {
+                            val scheduledAt = AlarmScheduler.scheduleBackgroundTestAlarm(
+                                context,
+                                selectedAzanVoice,
+                                selectedCityName,
+                                5
+                            )
+                            if (scheduledAt > 0L) {
+                                backgroundTestScheduledNote = "تمت الجدولة! صغّر التطبيق أو اقفل الشاشة الآن — سيعمل الأذان والنافذة العائمة تلقائيًا بعد 5 ثوانٍ."
+                                Toast.makeText(
+                                    context,
+                                    "صغّر التطبيق الآن.. سيعمل الأذان بعد 5 ثوانٍ من الخلفية",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                Toast.makeText(context, "تعذر جدولة الاختبار، تأكد من إذن المنبهات الدقيقة", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = EmeraldDeep, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "اختبار حقيقي في الخلفية (بعد 5 ثوانٍ)",
+                            color = EmeraldDeep,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    if (backgroundTestScheduledNote != null) {
+                        Text(
+                            text = backgroundTestScheduledNote ?: "",
+                            color = SuccessGreen,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -427,7 +559,7 @@ fun SettingsScreen(
                             onClick = {
                                 val testIntent = Intent(context, AzkarAudioService::class.java).apply {
                                     putExtra("section", "prayer_azan")
-                                    putExtra("prayerName", "الاختبار")
+                                    putExtra("prayerName", "الاختبار الفوري")
                                     putExtra("cityName", selectedCityName)
                                     putExtra("audioTrackId", selectedAzanVoice)
                                     putExtra("autoPlay", true)
@@ -438,10 +570,12 @@ fun SettingsScreen(
                                     context.startService(testIntent)
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("تجربة الأذان بالخلفية", color = EmeraldDeep, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("تشغيل فوري", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Button(
                             onClick = {
@@ -449,10 +583,13 @@ fun SettingsScreen(
                                     action = AzkarAudioService.ACTION_STOP_AUDIO
                                 }
                                 context.startService(stopIntent)
+                                backgroundTestScheduledNote = null
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
                             modifier = Modifier.weight(1f)
                         ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text("إيقاف الصوت", color = TextPrimary, fontSize = 12.sp)
                         }
                     }
@@ -460,7 +597,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 6: Azkar Reminders (إعداد الأذكار والصلوات)
+        // Section 6: Azkar Reminders
         item {
             SettingsCollapsibleCard(
                 title = "6. تنبيهات الأذكار والصلوات على النبي",
@@ -529,7 +666,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 7: Ramadan Settings (رمضان)
+        // Section 7: Ramadan Settings
         item {
             SettingsCollapsibleCard(
                 title = "7. إعدادات شهر رمضان المبارك",
@@ -560,7 +697,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 8: Privacy Policy (سياسة الخصوصية)
+        // Section 8: Privacy Policy
         item {
             SettingsCollapsibleCard(
                 title = "8. سياسة الخصوصية وأمان البيانات",
@@ -577,7 +714,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 9: About (حول التطبيق)
+        // Section 9: About
         item {
             SettingsCollapsibleCard(
                 title = "9. حول تطبيق المؤذن",
@@ -592,7 +729,7 @@ fun SettingsScreen(
             }
         }
 
-        // Section 10: Reset & Storage (تسجيل الخروج وإدارة التخزين)
+        // Section 10: Storage
         item {
             SettingsCollapsibleCard(
                 title = "10. إدارة التخزين المؤقت",
@@ -619,6 +756,24 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PermissionStatusLine(
+    label: String,
+    granted: Boolean,
+    falseText: String = "مطلوب التفعيل",
+    falseColor: Color = ErrorRed
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = TextPrimary, fontSize = 12.sp)
+        Text(
+            if (granted) "مفعّل ✓" else falseText,
+            color = if (granted) SuccessGreen else falseColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -677,30 +832,4 @@ fun SettingsCollapsibleCard(
             }
         }
     }
-}
-
-private fun openAppNotificationSettings(context: Context) {
-    try {
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            }
-        } else {
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:" + context.packageName)
-            }
-        }
-        context.startActivity(intent)
-    } catch (ignored: Exception) {
-        openAppSettings(context)
-    }
-}
-
-private fun openAppSettings(context: Context) {
-    try {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-            data = Uri.parse("package:" + context.packageName)
-        }
-        context.startActivity(intent)
-    } catch (ignored: Exception) {}
 }

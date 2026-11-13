@@ -36,35 +36,38 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         String cityName = intent.getStringExtra("cityName");
         int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
+        boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
 
         long nowMs = System.currentTimeMillis();
-        Log.d(TAG, "Alarm triggered for section: " + section + ", prayer: " + prayerName);
+        Log.d(TAG, "Alarm triggered for section: " + section + ", prayer: " + prayerName + ", isTest: " + isTestAlarm);
 
         SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
 
-        // Cooldown deduplication (prevents duplicate bursts while still allowing same-day user setting updates)
-        String dedupKey;
-        long cooldownMs;
-        if ("prayer_azan".equals(section) && prayerName != null) {
-            dedupKey = "last_trigger_azan_" + prayerName;
-            cooldownMs = 180_000L; // 3 minutes
-        } else if ("morningAzkar".equals(section) || "eveningAzkar".equals(section) || "musaharati".equals(section)) {
-            dedupKey = "last_trigger_" + section;
-            cooldownMs = 180_000L; // 3 minutes
-        } else if ("salawat".equals(section)) {
-            dedupKey = "last_salawat_trigger_ms";
-            cooldownMs = 45_000L; // 45 seconds
-        } else {
-            dedupKey = "last_trigger_" + (section != null ? section : "general") + "_" + (prayerName != null ? prayerName : "");
-            cooldownMs = 60_000L;
-        }
+        // Cooldown deduplication (skip for explicit user background tests so repeated tests always fire)
+        if (!isTestAlarm) {
+            String dedupKey;
+            long cooldownMs;
+            if ("prayer_azan".equals(section) && prayerName != null) {
+                dedupKey = "last_trigger_azan_" + prayerName;
+                cooldownMs = 180_000L; // 3 minutes
+            } else if ("morningAzkar".equals(section) || "eveningAzkar".equals(section) || "musaharati".equals(section)) {
+                dedupKey = "last_trigger_" + section;
+                cooldownMs = 180_000L; // 3 minutes
+            } else if ("salawat".equals(section)) {
+                dedupKey = "last_salawat_trigger_ms";
+                cooldownMs = 45_000L; // 45 seconds
+            } else {
+                dedupKey = "last_trigger_" + (section != null ? section : "general") + "_" + (prayerName != null ? prayerName : "");
+                cooldownMs = 60_000L;
+            }
 
-        long lastFiredMs = prefs.getLong(dedupKey, 0L);
-        if (nowMs - lastFiredMs < cooldownMs) {
-            Log.d(TAG, "Duplicate rapid trigger skipped for " + dedupKey);
-            return;
+            long lastFiredMs = prefs.getLong(dedupKey, 0L);
+            if (nowMs - lastFiredMs < cooldownMs) {
+                Log.d(TAG, "Duplicate rapid trigger skipped for " + dedupKey);
+                return;
+            }
+            prefs.edit().putLong(dedupKey, nowMs).apply();
         }
-        prefs.edit().putLong(dedupKey, nowMs).apply();
 
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final PowerManager.WakeLock wakeLock;
@@ -85,6 +88,7 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         serviceIntent.putExtra("cityName", cityName);
         serviceIntent.putExtra("iqamaDurationMinutes", iqamaDurationMinutes);
         serviceIntent.putExtra("autoPlay", autoPlay);
+        serviceIntent.putExtra("isTestAlarm", isTestAlarm);
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

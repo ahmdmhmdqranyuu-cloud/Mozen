@@ -19,7 +19,7 @@ import java.util.TimeZone;
  * 2. App is updated (MY_PACKAGE_REPLACED)
  * 3. Clock time / timezone / date / locale changes
  * 4. Exact alarm permission state changes (Android 12+)
- * 5. User updates city location or calculation settings.
+ * 5. User updates city location, timezone, offsets, or calculation settings.
  */
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BootReceiver";
@@ -47,9 +47,9 @@ public class BootReceiver extends BroadcastReceiver {
     }
 
     /**
-     * Autonomously recalculates 7 days of upcoming prayer times, pre-prayer alerts,
-     * Morning/Evening Azkar, and Ramadan alerts, plus next 48 hours of Salawat slots
-     * (keeping total concurrent alarms safely below Android's 500-alarm per-UID limit).
+     * Autonomously recalculates 7 days of upcoming prayer times (using the selected city's
+     * DST-aware IANA timezone + manual per-prayer offsets), pre-prayer alerts,
+     * Morning/Evening Azkar, and Ramadan alerts, plus next 48 hours of Salawat slots.
      */
     public static synchronized void recalculateAndScheduleAll(Context context) {
         if (context == null) return;
@@ -67,12 +67,19 @@ public class BootReceiver extends BroadcastReceiver {
             } catch (Exception ignored) {}
 
             String cityName = prefs.getString("city_name", "مكة المكرمة");
+            String cityTimezoneId = prefs.getString("city_timezone_id", "Asia/Riyadh");
             String calcMethod = prefs.getString("calc_method", "umm_al_qura");
             String asrMethod = prefs.getString("asr_method", "standard");
             String azanVoice = prefs.getString("azan_voice", "makkah");
             String fajrVoice = prefs.getString("fajr_voice", "abdulbasit_fajr");
             boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
             boolean prePrayerAlertEnabled = prefs.getBoolean("pre_prayer_alert_enabled", true);
+
+            int fajrOff = prefs.getInt("offset_fajr", 0);
+            int dhuhrOff = prefs.getInt("offset_dhuhr", 0);
+            int asrOff = prefs.getInt("offset_asr", 0);
+            int maghribOff = prefs.getInt("offset_maghrib", 0);
+            int ishaOff = prefs.getInt("offset_isha", 0);
 
             boolean salawatEnabled = prefs.getBoolean("salawat_enabled", true);
             String salawatTime = prefs.getString("salawat_time", "08:00");
@@ -94,22 +101,31 @@ public class BootReceiver extends BroadcastReceiver {
             String musaharatiAudio = prefs.getString("musaharati_audio", "musaharati_1");
 
             long nowMs = System.currentTimeMillis();
-            Calendar nowCal = Calendar.getInstance();
-            TimeZone tz = nowCal.getTimeZone();
+            TimeZone cityTz = (cityTimezoneId != null && !cityTimezoneId.trim().isEmpty())
+                    ? TimeZone.getTimeZone(cityTimezoneId.trim())
+                    : TimeZone.getDefault();
+            Calendar cityNowCal = Calendar.getInstance(cityTz);
+            Calendar deviceNowCal = Calendar.getInstance();
 
             JSONArray priorityArray = new JSONArray();
             JSONArray salawatArray = new JSONArray();
 
             // 1. Schedule full 7 days for high-priority daily prayers, pre-prayer alerts, Azkar, and Musaharati
             for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
-                Calendar dayCal = (Calendar) nowCal.clone();
-                dayCal.add(Calendar.DAY_OF_YEAR, dayOffset);
-                int dayOfYear = dayCal.get(Calendar.DAY_OF_YEAR);
-                double tzOffsetHours = tz.getOffset(dayCal.getTimeInMillis()) / 3600000.0;
+                Calendar cityDayCal = (Calendar) cityNowCal.clone();
+                cityDayCal.add(Calendar.DAY_OF_YEAR, dayOffset);
+
+                Calendar deviceDayCal = (Calendar) deviceNowCal.clone();
+                deviceDayCal.add(Calendar.DAY_OF_YEAR, dayOffset);
+
+                double tzOffsetHours = PrayerTimeCalculator.resolveTimezoneOffsetHours(
+                        cityTimezoneId,
+                        cityDayCal.getTimeInMillis()
+                );
 
                 PrayerTimeCalculator.DailyPrayerTimes times = PrayerTimeCalculator.calculateDailyPrayers(
-                        lat, lng, tzOffsetHours, dayOfYear, calcMethod, asrMethod
-                );
+                        cityDayCal, lat, lng, tzOffsetHours, calcMethod, asrMethod
+                ).withOffsets(fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff);
 
                 String[] prayerKeys = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
                 String[] prayerNames = {"الفجر", "الظهر", "العصر", "المغرب", "العشاء"};
@@ -126,7 +142,7 @@ public class BootReceiver extends BroadcastReceiver {
                     String pName = prayerNames[pIdx];
                     int minutesFromMidnight = prayerMinutes[pIdx];
 
-                    long prayerEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, minutesFromMidnight);
+                    long prayerEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, minutesFromMidnight);
                     String prayerVoice = "fajr".equals(pKey) ? fajrVoice : azanVoice;
 
                     if (prePrayerAlertEnabled) {
@@ -163,7 +179,7 @@ public class BootReceiver extends BroadcastReceiver {
 
                 if (morningAzkarEnabled) {
                     int morningMins = parseHHmm(morningAzkarTime, 6, 30);
-                    long morningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, morningMins);
+                    long morningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, morningMins);
                     if (morningEpochMs > nowMs) {
                         JSONObject mObj = new JSONObject();
                         mObj.put("section", "morningAzkar");
@@ -178,7 +194,7 @@ public class BootReceiver extends BroadcastReceiver {
 
                 if (eveningAzkarEnabled) {
                     int eveningMins = parseHHmm(eveningAzkarTime, 17, 0);
-                    long eveningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, eveningMins);
+                    long eveningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, eveningMins);
                     if (eveningEpochMs > nowMs) {
                         JSONObject eObj = new JSONObject();
                         eObj.put("section", "eveningAzkar");
@@ -193,7 +209,7 @@ public class BootReceiver extends BroadcastReceiver {
 
                 if (musaharatiEnabled) {
                     int musaharatiMins = parseHHmm(musaharatiTime, 3, 30);
-                    long musaharatiEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, musaharatiMins);
+                    long musaharatiEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, musaharatiMins);
                     if (musaharatiEpochMs > nowMs) {
                         JSONObject muObj = new JSONObject();
                         muObj.put("section", "musaharati");
@@ -206,10 +222,10 @@ public class BootReceiver extends BroadcastReceiver {
                     }
                 }
 
-                // 2. Schedule periodic Salawat only for today and tomorrow (max 60 slots) to stay well below 500 UID alarm limit
+                // 2. Schedule periodic Salawat only for today and tomorrow (max 60 slots)
                 if (salawatEnabled && dayOffset < 2 && salawatArray.length() < 60) {
                     int salawatStartMins = parseHHmm(salawatTime, 8, 0);
-                    long salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, salawatStartMins);
+                    long salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, salawatStartMins);
 
                     if ("once".equalsIgnoreCase(salawatRepeatType)) {
                         if (salawatStartEpochMs > nowMs) {
@@ -226,7 +242,7 @@ public class BootReceiver extends BroadcastReceiver {
                         long stepMs = salawatInterval * ("hours".equalsIgnoreCase(salawatUnit) ? 3600000L : 60000L);
                         if (stepMs < 60000L) stepMs = 60000L;
 
-                        long salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(dayCal, 22 * 60);
+                        long salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, 22 * 60);
                         long currentSlotMs = salawatStartEpochMs;
 
                         while (currentSlotMs <= salawatEndEpochMs && salawatArray.length() < 60) {
@@ -255,7 +271,8 @@ public class BootReceiver extends BroadcastReceiver {
                 mergedSchedule.put(salawatArray.get(i));
             }
 
-            Log.d(TAG, "Recalculation complete. Priority slots: " + priorityArray.length() + ", Salawat slots: " + salawatArray.length());
+            Log.d(TAG, "Recalculation complete for " + cityName + " (" + cityTimezoneId + "). Priority slots: "
+                    + priorityArray.length() + ", Salawat slots: " + salawatArray.length());
 
             AlarmScheduler.rescheduleFromJson(context, mergedSchedule.toString());
 
