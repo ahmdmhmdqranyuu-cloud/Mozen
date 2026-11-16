@@ -163,12 +163,17 @@ public class AlarmScheduler {
                 intent.setData(Uri.parse("almoazen://alarm/" + section + "/" + triggerEpochMs));
 
                 intent.putExtra("section", section);
+                intent.putExtra("prayerKey", obj.optString("prayerKey", ""));
                 intent.putExtra("title", obj.optString("title", ""));
                 intent.putExtra("body", obj.optString("body", ""));
                 intent.putExtra("audioTrackId", obj.optString("audioTrackId", ""));
                 intent.putExtra("prayerName", obj.optString("prayerName", "الصلاة"));
                 intent.putExtra("cityName", obj.optString("cityName", "مدينتك"));
                 intent.putExtra("iqamaDurationMinutes", obj.optInt("iqamaDurationMinutes", 15));
+                intent.putExtra("volumePercent", obj.optInt("volumePercent", 100));
+                intent.putExtra("alertMode", obj.optString("alertMode", "full_azan"));
+                intent.putExtra("silentDuringPrayer", obj.optBoolean("silentDuringPrayer", false));
+                intent.putExtra("duaAfterPrayerEnabled", obj.optBoolean("duaAfterPrayerEnabled", false));
                 intent.putExtra("autoPlay", obj.optBoolean("autoPlay", true));
 
                 PendingIntent pendingIntent = PendingIntent.getBroadcast(

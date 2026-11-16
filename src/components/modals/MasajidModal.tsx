@@ -111,7 +111,7 @@ export const MasajidModal: React.FC<MasajidModalProps> = ({ isOpen, onClose }) =
             <button
               type="button"
               onClick={() => setViewMode((m) => (m === 'list' ? 'map' : 'list'))}
-              className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 border border-gray-200 text-gray-700 cursor-pointer"
+              className="moazen-widget p-2 rounded-xl border border-gray-200 text-gray-700 cursor-pointer"
               title={viewMode === 'list' ? 'عرض الخريطة' : 'عرض القائمة'}
             >
               {viewMode === 'list' ? (
@@ -144,7 +144,7 @@ export const MasajidModal: React.FC<MasajidModalProps> = ({ isOpen, onClose }) =
                 placeholder="ابحث في المساجد المحفوظة محلياً..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-9 pl-4 py-2 text-xs bg-white border border-gray-200 rounded-2xl focus:outline-none focus:border-emerald-600 shadow-xs"
+                className="moazen-widget w-full pr-9 pl-4 py-2 text-xs border border-gray-200 rounded-2xl focus:outline-none focus:border-emerald-600 shadow-xs"
               />
             </div>
 
@@ -268,7 +268,7 @@ export const MasajidModal: React.FC<MasajidModalProps> = ({ isOpen, onClose }) =
                 </svg>
 
                 {/* Floating Mosque Card preview */}
-                <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-gray-200 text-xs shadow-xs flex items-center justify-between">
+                <div className="moazen-widget absolute bottom-2 left-2 right-2 backdrop-blur-xs p-2.5 rounded-xl border border-gray-200 text-xs shadow-xs flex items-center justify-between">
                   <div className="min-w-0">
                     <span className="text-[10px] text-gray-500 block truncate">
                       اضغط على أي مسجد للملاحة
@@ -289,7 +289,7 @@ export const MasajidModal: React.FC<MasajidModalProps> = ({ isOpen, onClose }) =
               {filteredMosques.map((mosque) => (
                 <div
                   key={mosque.id}
-                  className="p-4 rounded-2xl bg-white border border-gray-100 shadow-xs hover:border-emerald-200 hover:shadow-md transition-all text-right"
+                  className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs hover:border-emerald-200 hover:shadow-md transition-all text-right"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-1 bg-amber-50 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-200/50">

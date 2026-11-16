@@ -175,23 +175,220 @@ class NativePreferences(context: Context) {
 
     var fajrOffsetMinutes: Int
         get() = prefs.getInt("offset_fajr", 0)
-        set(value) = prefs.edit().putInt("offset_fajr", value.coerceIn(-30, 30)).apply()
+        set(value) = prefs.edit().putInt("offset_fajr", value.coerceIn(-60, 60)).apply()
+
+    var sunriseOffsetMinutes: Int
+        get() = prefs.getInt("offset_sunrise", 0)
+        set(value) = prefs.edit().putInt("offset_sunrise", value.coerceIn(-60, 60)).apply()
+
+    var duhaOffsetMinutes: Int
+        get() = prefs.getInt("offset_duha", 0)
+        set(value) = prefs.edit().putInt("offset_duha", value.coerceIn(-60, 60)).apply()
 
     var dhuhrOffsetMinutes: Int
         get() = prefs.getInt("offset_dhuhr", 0)
-        set(value) = prefs.edit().putInt("offset_dhuhr", value.coerceIn(-30, 30)).apply()
+        set(value) = prefs.edit().putInt("offset_dhuhr", value.coerceIn(-60, 60)).apply()
 
     var asrOffsetMinutes: Int
         get() = prefs.getInt("offset_asr", 0)
-        set(value) = prefs.edit().putInt("offset_asr", value.coerceIn(-30, 30)).apply()
+        set(value) = prefs.edit().putInt("offset_asr", value.coerceIn(-60, 60)).apply()
 
     var maghribOffsetMinutes: Int
         get() = prefs.getInt("offset_maghrib", 0)
-        set(value) = prefs.edit().putInt("offset_maghrib", value.coerceIn(-30, 30)).apply()
+        set(value) = prefs.edit().putInt("offset_maghrib", value.coerceIn(-60, 60)).apply()
 
     var ishaOffsetMinutes: Int
         get() = prefs.getInt("offset_isha", 0)
-        set(value) = prefs.edit().putInt("offset_isha", value.coerceIn(-30, 30)).apply()
+        set(value) = prefs.edit().putInt("offset_isha", value.coerceIn(-60, 60)).apply()
+
+    fun getOffsetForPrayer(key: String): Int = when (key) {
+        "fajr" -> fajrOffsetMinutes
+        "sunrise" -> sunriseOffsetMinutes
+        "duha" -> duhaOffsetMinutes
+        "dhuhr" -> dhuhrOffsetMinutes
+        "asr" -> asrOffsetMinutes
+        "maghrib" -> maghribOffsetMinutes
+        "isha" -> ishaOffsetMinutes
+        else -> 0
+    }
+
+    fun setOffsetForPrayer(key: String, minutes: Int) {
+        val clamped = minutes.coerceIn(-60, 60)
+        when (key) {
+            "fajr" -> fajrOffsetMinutes = clamped
+            "sunrise" -> sunriseOffsetMinutes = clamped
+            "duha" -> duhaOffsetMinutes = clamped
+            "dhuhr" -> dhuhrOffsetMinutes = clamped
+            "asr" -> asrOffsetMinutes = clamped
+            "maghrib" -> maghribOffsetMinutes = clamped
+            "isha" -> ishaOffsetMinutes = clamped
+        }
+    }
+
+    fun getPrayerConfig(prayerKey: String): com.muslim.azan.model.PrayerSettingConfig {
+        val defaultName = prayerArabicName(prayerKey)
+        val defaultVoice = if (prayerKey == "fajr") fajrVoice else azanVoice
+        val isObligatory = prayerKey in listOf("fajr", "dhuhr", "asr", "maghrib", "isha")
+        val isDuha = prayerKey == "duha"
+        val raw = prefs.getString("prayer_config_$prayerKey", null)
+        if (raw.isNullOrBlank()) {
+            return com.muslim.azan.model.PrayerSettingConfig(
+                prayerKey = prayerKey,
+                arabicName = defaultName,
+                offsetMinutes = getOffsetForPrayer(prayerKey),
+                soundEnabled = if (isObligatory || isDuha) (if (isObligatory) azanSoundEnabled else true) else false,
+                volumePercent = 100,
+                preAlertEnabled = if (isObligatory) prePrayerAlertEnabled else false,
+                preAlertMinutes = 15,
+                preAlertVoice = "pre_prayer_15m",
+                silentDuringPrayer = false,
+                azanVoice = if (isObligatory) defaultVoice else if (isDuha) "duha_surah" else "salawat_1",
+                alertMode = if (isObligatory || isDuha) "full_azan" else "short_tone",
+                iqamaVoice = if (isObligatory) "iqama_1" else "none",
+                duaAfterPrayerEnabled = isObligatory
+            )
+        }
+        return try {
+            val o = JSONObject(raw)
+            com.muslim.azan.model.PrayerSettingConfig(
+                prayerKey = prayerKey,
+                arabicName = defaultName,
+                offsetMinutes = o.optInt("offsetMinutes", getOffsetForPrayer(prayerKey)).coerceIn(-60, 60),
+                soundEnabled = o.optBoolean("soundEnabled", if (isObligatory) azanSoundEnabled else false),
+                volumePercent = o.optInt("volumePercent", 100).coerceIn(0, 100),
+                preAlertEnabled = o.optBoolean("preAlertEnabled", if (isObligatory) prePrayerAlertEnabled else false),
+                preAlertMinutes = o.optInt("preAlertMinutes", 15).coerceIn(1, 60),
+                preAlertVoice = o.optString("preAlertVoice", "pre_prayer_15m"),
+                silentDuringPrayer = o.optBoolean("silentDuringPrayer", false),
+                azanVoice = o.optString("azanVoice", if (isObligatory) defaultVoice else "salawat_1"),
+                alertMode = o.optString("alertMode", if (isObligatory) "full_azan" else "short_tone"),
+                iqamaVoice = o.optString("iqamaVoice", if (isObligatory) "iqama_1" else "none"),
+                duaAfterPrayerEnabled = o.optBoolean("duaAfterPrayerEnabled", isObligatory)
+            )
+        } catch (_: Exception) {
+            com.muslim.azan.model.PrayerSettingConfig(
+                prayerKey = prayerKey,
+                arabicName = defaultName,
+                offsetMinutes = getOffsetForPrayer(prayerKey)
+            )
+        }
+    }
+
+    fun savePrayerConfig(config: com.muslim.azan.model.PrayerSettingConfig) {
+        setOffsetForPrayer(config.prayerKey, config.offsetMinutes)
+        val o = JSONObject().apply {
+            put("prayerKey", config.prayerKey)
+            put("offsetMinutes", config.offsetMinutes.coerceIn(-60, 60))
+            put("soundEnabled", config.soundEnabled)
+            put("volumePercent", config.volumePercent.coerceIn(0, 100))
+            put("preAlertEnabled", config.preAlertEnabled)
+            put("preAlertMinutes", config.preAlertMinutes.coerceIn(1, 60))
+            put("preAlertVoice", config.preAlertVoice)
+            put("silentDuringPrayer", config.silentDuringPrayer)
+            put("azanVoice", config.azanVoice)
+            put("alertMode", config.alertMode)
+            put("iqamaVoice", config.iqamaVoice)
+            put("duaAfterPrayerEnabled", config.duaAfterPrayerEnabled)
+        }
+        prefs.edit().putString("prayer_config_${config.prayerKey}", o.toString()).apply()
+    }
+
+    fun applyConfigToAllPrayers(source: com.muslim.azan.model.PrayerSettingConfig) {
+        for (key in ALL_PRAYER_KEYS) {
+            val existing = getPrayerConfig(key)
+            val resolvedVoice = if (key == "fajr" && source.prayerKey != "fajr" && source.azanVoice in listOf("makkah", "madinah", "alaqsa", "cairo", "alafasy", "abdulbasit", "hussary", "mohamed_rifaat", "mustafa_ismail", "nasser_alqatami")) {
+                existing.azanVoice
+            } else {
+                source.azanVoice
+            }
+            savePrayerConfig(
+                existing.copy(
+                    soundEnabled = source.soundEnabled,
+                    volumePercent = source.volumePercent,
+                    preAlertEnabled = source.preAlertEnabled,
+                    preAlertMinutes = source.preAlertMinutes,
+                    preAlertVoice = source.preAlertVoice,
+                    silentDuringPrayer = source.silentDuringPrayer,
+                    azanVoice = resolvedVoice,
+                    alertMode = source.alertMode,
+                    iqamaVoice = source.iqamaVoice,
+                    duaAfterPrayerEnabled = source.duaAfterPrayerEnabled
+                )
+            )
+        }
+    }
+
+    fun getSavedWallpapers(): List<com.muslim.azan.model.SavedWallpaperRecord> {
+        val raw = prefs.getString("saved_wallpapers_list", null) ?: return emptyList()
+        val list = mutableListOf<com.muslim.azan.model.SavedWallpaperRecord>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                list.add(
+                    com.muslim.azan.model.SavedWallpaperRecord(
+                        id = o.optString("id"),
+                        titleAr = o.optString("titleAr"),
+                        category = o.optString("category"),
+                        imageUrl = o.optString("imageUrl"),
+                        localUriString = o.optString("localUriString"),
+                        savedAtMs = o.optLong("savedAtMs", System.currentTimeMillis())
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+        return list
+    }
+
+    fun addSavedWallpaper(record: com.muslim.azan.model.SavedWallpaperRecord) {
+        val list = getSavedWallpapers().filter { it.id != record.id }.toMutableList()
+        list.add(0, record)
+        val arr = JSONArray()
+        list.forEach { item ->
+            val o = JSONObject().apply {
+                put("id", item.id)
+                put("titleAr", item.titleAr)
+                put("category", item.category)
+                put("imageUrl", item.imageUrl)
+                put("localUriString", item.localUriString)
+                put("savedAtMs", item.savedAtMs)
+            }
+            arr.put(o)
+        }
+        prefs.edit().putString("saved_wallpapers_list", arr.toString()).apply()
+    }
+
+    fun removeSavedWallpaper(id: String) {
+        val list = getSavedWallpapers().filter { it.id != id }
+        val arr = JSONArray()
+        list.forEach { item ->
+            val o = JSONObject().apply {
+                put("id", item.id)
+                put("titleAr", item.titleAr)
+                put("category", item.category)
+                put("imageUrl", item.imageUrl)
+                put("localUriString", item.localUriString)
+                put("savedAtMs", item.savedAtMs)
+            }
+            arr.put(o)
+        }
+        prefs.edit().putString("saved_wallpapers_list", arr.toString()).apply()
+    }
+
+    companion object {
+        val ALL_PRAYER_KEYS = listOf("fajr", "sunrise", "duha", "dhuhr", "asr", "maghrib", "isha")
+
+        fun prayerArabicName(key: String): String = when (key) {
+            "fajr" -> "الفجر"
+            "sunrise" -> "الشروق"
+            "duha" -> "صلاة الضحى"
+            "dhuhr" -> "الظهر"
+            "asr" -> "العصر"
+            "maghrib" -> "المغرب"
+            "isha" -> "العشاء"
+            else -> "الصلاة"
+        }
+    }
 
     fun setCity(city: CityLocation) {
         cityName = city.nameAr
@@ -203,13 +400,153 @@ class NativePreferences(context: Context) {
         if (city.recommendedCalcMethod.isNotEmpty()) {
             calculationMethod = city.recommendedCalcMethod
         }
+        activeLocationSource = if (city.isCachedOnline) "online" else "manual"
+        val parts = listOfNotNull(
+            city.country.takeIf { it.isNotBlank() },
+            city.stateAr.takeIf { it.isNotBlank() },
+            city.district.takeIf { it.isNotBlank() }
+        )
+        activeLocationHierarchy = parts.joinToString(" • ")
     }
 
-    fun setGpsLocation(nameAr: String, lat: Double, lng: Double, timezoneId: String) {
+    fun setGpsLocation(
+        nameAr: String,
+        lat: Double,
+        lng: Double,
+        timezoneId: String,
+        sourceTag: String = "gps",
+        hierarchyText: String = ""
+    ) {
         cityName = nameAr
         latitude = lat
         longitude = lng
         cityTimezoneId = timezoneId
+        activeLocationSource = sourceTag
+        activeLocationHierarchy = hierarchyText
+    }
+
+    var activeLocationSource: String
+        get() = prefs.getString("active_location_source", "manual") ?: "manual"
+        set(value) = prefs.edit().putString("active_location_source", value).apply()
+
+    var activeLocationHierarchy: String
+        get() = prefs.getString("active_location_hierarchy", "") ?: ""
+        set(value) = prefs.edit().putString("active_location_hierarchy", value).apply()
+
+    fun saveLastGpsResult(result: GpsLocationResult) {
+        val o = JSONObject().apply {
+            put("cityName", result.cityName)
+            put("latitude", result.latitude)
+            put("longitude", result.longitude)
+            put("accuracyMeters", result.accuracyMeters)
+            put("timezoneId", result.timezoneId)
+            put("calcMethod", result.calcMethod)
+            put("country", result.country)
+            put("countryCode", result.countryCode)
+            put("governorate", result.governorate)
+            put("city", result.city)
+            put("district", result.district)
+            put("neighborhood", result.neighborhood)
+            put("street", result.street)
+            put("detectedAtMs", result.detectedAtMs)
+        }
+        prefs.edit().putString("last_saved_gps_backup_json", o.toString()).apply()
+    }
+
+    fun getLastGpsResult(): GpsLocationResult? {
+        val raw = prefs.getString("last_saved_gps_backup_json", null) ?: return null
+        return try {
+            val o = JSONObject(raw)
+            val lat = o.optDouble("latitude", Double.NaN)
+            val lng = o.optDouble("longitude", Double.NaN)
+            if (lat.isNaN() || lng.isNaN()) return null
+            GpsLocationResult(
+                cityName = o.optString("cityName", "موقع محفوظ"),
+                latitude = lat,
+                longitude = lng,
+                accuracyMeters = o.optInt("accuracyMeters", 0),
+                timezoneId = o.optString("timezoneId", "Asia/Riyadh"),
+                calcMethod = o.optString("calcMethod", "umm_al_qura"),
+                country = o.optString("country", ""),
+                countryCode = o.optString("countryCode", ""),
+                governorate = o.optString("governorate", ""),
+                city = o.optString("city", ""),
+                district = o.optString("district", ""),
+                neighborhood = o.optString("neighborhood", ""),
+                street = o.optString("street", ""),
+                isSavedFallback = true,
+                detectedAtMs = o.optLong("detectedAtMs", System.currentTimeMillis())
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun appendCachedOsmCities(cities: List<CityLocation>) {
+        if (cities.isEmpty()) return
+        val existing = getCachedOsmCities().toMutableList()
+        for (item in cities) {
+            existing.removeAll {
+                it.id == item.id ||
+                    (kotlin.math.abs(it.latitude - item.latitude) < 0.005 &&
+                        kotlin.math.abs(it.longitude - item.longitude) < 0.005 &&
+                        it.nameAr == item.nameAr)
+            }
+            existing.add(0, item.copy(isCachedOnline = true))
+        }
+        val capped = existing.take(250)
+        val arr = JSONArray()
+        capped.forEach { c ->
+            arr.put(
+                JSONObject().apply {
+                    put("id", c.id)
+                    put("nameAr", c.nameAr)
+                    put("nameEn", c.nameEn)
+                    put("country", c.country)
+                    put("countryEn", c.countryEn)
+                    put("countryCode", c.countryCode)
+                    put("stateAr", c.stateAr)
+                    put("stateEn", c.stateEn)
+                    put("district", c.district)
+                    put("lat", c.latitude)
+                    put("lng", c.longitude)
+                    put("tz", c.timezoneId)
+                    put("m", c.recommendedCalcMethod)
+                }
+            )
+        }
+        prefs.edit().putString("cached_osm_cities_json", arr.toString()).apply()
+    }
+
+    fun getCachedOsmCities(): List<CityLocation> {
+        val raw = prefs.getString("cached_osm_cities_json", null) ?: return emptyList()
+        val list = mutableListOf<CityLocation>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                list.add(
+                    CityLocation(
+                        id = o.optString("id", "osm_$i"),
+                        nameAr = o.optString("nameAr", ""),
+                        nameEn = o.optString("nameEn", ""),
+                        country = o.optString("country", ""),
+                        latitude = o.optDouble("lat", 0.0),
+                        longitude = o.optDouble("lng", 0.0),
+                        timezoneHours = 0.0,
+                        timezoneId = o.optString("tz", ""),
+                        recommendedCalcMethod = o.optString("m", "mwl"),
+                        countryEn = o.optString("countryEn", ""),
+                        countryCode = o.optString("countryCode", ""),
+                        stateAr = o.optString("stateAr", ""),
+                        stateEn = o.optString("stateEn", ""),
+                        district = o.optString("district", ""),
+                        isCachedOnline = true
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+        return list
     }
 
     var canScheduleExactAlarms: Boolean
@@ -223,4 +560,207 @@ class NativePreferences(context: Context) {
     var suppressSpecialPermissionsPrompt: Boolean
         get() = prefs.getBoolean("suppress_special_permissions_prompt", false)
         set(value) = prefs.edit().putBoolean("suppress_special_permissions_prompt", value).apply()
+
+    // =========================================================================
+    // Smart Sheikh («شيخي») Persistent Progress, Weak-Ayah Log & Stats
+    // =========================================================================
+    var sheikhLastSurah: Int
+        get() = prefs.getInt("sheikh_last_surah", 1).coerceIn(1, 114)
+        set(value) = prefs.edit().putInt("sheikh_last_surah", value.coerceIn(1, 114)).apply()
+
+    var sheikhLastAyah: Int
+        get() = prefs.getInt("sheikh_last_ayah", 1).coerceAtLeast(1)
+        set(value) = prefs.edit().putInt("sheikh_last_ayah", value.coerceAtLeast(1)).apply()
+
+    var sheikhUnitType: String
+        get() = prefs.getString("sheikh_unit_type", "ayah") ?: "ayah"
+        set(value) = prefs.edit().putString("sheikh_unit_type", if (value == "page") "page" else "ayah").apply()
+
+    var sheikhLastPage: Int
+        get() = prefs.getInt("sheikh_last_page", 1).coerceIn(1, 604)
+        set(value) = prefs.edit().putInt("sheikh_last_page", value.coerceIn(1, 604)).apply()
+
+    var sheikhTargetRepeats: Int
+        get() = prefs.getInt("sheikh_target_repeats", 3)
+        set(value) = prefs.edit().putInt("sheikh_target_repeats", value).apply()
+
+    var sheikhRangeStart: Int
+        get() = prefs.getInt("sheikh_range_start", 1).coerceAtLeast(1)
+        set(value) = prefs.edit().putInt("sheikh_range_start", value.coerceAtLeast(1)).apply()
+
+    var sheikhRangeEnd: Int
+        get() = prefs.getInt("sheikh_range_end", 7).coerceAtLeast(1)
+        set(value) = prefs.edit().putInt("sheikh_range_end", value.coerceAtLeast(1)).apply()
+
+    var sheikhDialect: String
+        get() = prefs.getString("sheikh_dialect", "egyptian") ?: "egyptian"
+        set(value) = prefs.edit().putString("sheikh_dialect", value).apply()
+
+    var sheikhCorrectionMode: String
+        get() = prefs.getString("sheikh_correction_mode", "instant") ?: "instant"
+        set(value) = prefs.edit().putString("sheikh_correction_mode", value).apply()
+
+    var sheikhServerBaseUrl: String
+        get() = prefs.getString(
+            "sheikh_server_base_url",
+            "https://ais-pre-aogd7h5zvrwkdpwfi6su4v-613282291771.europe-west3.run.app"
+        ) ?: "https://ais-pre-aogd7h5zvrwkdpwfi6su4v-613282291771.europe-west3.run.app"
+        set(value) = prefs.edit().putString("sheikh_server_base_url", value.trim()).apply()
+
+    var sheikhSessionsCount: Int
+        get() = prefs.getInt("sheikh_sessions_count", 0)
+        set(value) = prefs.edit().putInt("sheikh_sessions_count", value.coerceAtLeast(0)).apply()
+
+    var sheikhCorrectWordsCount: Int
+        get() = prefs.getInt("sheikh_correct_words_count", 0)
+        set(value) = prefs.edit().putInt("sheikh_correct_words_count", value.coerceAtLeast(0)).apply()
+
+    fun getSheikhMasteredMap(): MutableMap<String, Int> {
+        val raw = prefs.getString("sheikh_mastered_map", null) ?: return mutableMapOf()
+        val map = mutableMapOf<String, Int>()
+        try {
+            val o = JSONObject(raw)
+            val keys = o.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                map[k] = o.optInt(k, 100)
+            }
+        } catch (_: Exception) {}
+        return map
+    }
+
+    fun recordSheikhAyahMastered(surahNumber: Int, ayahNumber: Int, score: Int) {
+        val map = getSheikhMasteredMap()
+        val key = "${surahNumber}:${ayahNumber}"
+        map[key] = maxOf(map[key] ?: 0, score)
+        val o = JSONObject()
+        map.forEach { (k, v) -> o.put(k, v) }
+        prefs.edit().putString("sheikh_mastered_map", o.toString()).apply()
+    }
+
+    fun getSheikhWeakAyahs(): MutableList<Triple<String, Int, String>> {
+        val raw = prefs.getString("sheikh_weak_ayahs", null) ?: return mutableListOf()
+        val list = mutableListOf<Triple<String, Int, String>>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                list.add(
+                    Triple(
+                        o.optString("key"),
+                        o.optInt("errorCount", 1),
+                        o.optString("weakWords", "")
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+        return list
+    }
+
+    fun recordSheikhWeakAyahError(surahNumber: Int, ayahNumber: Int, surahName: String, weakWords: List<String>) {
+        val current = getSheikhWeakAyahs()
+        val key = "${surahNumber}:${ayahNumber}"
+        val existingIdx = current.indexOfFirst { it.first == key }
+        val newWords = weakWords.joinToString(" ، ")
+        if (existingIdx >= 0) {
+            val prev = current[existingIdx]
+            val mergedWords = if (prev.third.isBlank()) newWords else if (newWords.isBlank()) prev.third else "${prev.third} ، $newWords"
+            current[existingIdx] = Triple(key, prev.second + weakWords.size.coerceAtLeast(1), mergedWords.take(120))
+        } else {
+            current.add(0, Triple(key, weakWords.size.coerceAtLeast(1), newWords.take(120)))
+        }
+        val arr = JSONArray()
+        current.take(30).forEach { (k, count, words) ->
+            val o = JSONObject().apply {
+                put("key", k)
+                put("surahName", surahName)
+                put("errorCount", count)
+                put("weakWords", words)
+            }
+            arr.put(o)
+        }
+        prefs.edit().putString("sheikh_weak_ayahs", arr.toString()).apply()
+    }
+
+    var sheikhMicSensitivity: Float
+        get() = prefs.getFloat("sheikh_mic_sensitivity", 1.0f).coerceIn(0.5f, 2.5f)
+        set(value) = prefs.edit().putFloat("sheikh_mic_sensitivity", value.coerceIn(0.5f, 2.5f)).apply()
+
+    var sheikhNoiseGate: String
+        get() = prefs.getString("sheikh_noise_gate", "medium") ?: "medium"
+        set(value) = prefs.edit().putString("sheikh_noise_gate", value).apply()
+
+    var sheikhAnalysisSpeed: String
+        get() = prefs.getString("sheikh_analysis_speed", "balanced") ?: "balanced"
+        set(value) = prefs.edit().putString("sheikh_analysis_speed", value).apply()
+
+    var sheikhVibrateOnError: Boolean
+        get() = prefs.getBoolean("sheikh_vibrate_on_error", true)
+        set(value) = prefs.edit().putBoolean("sheikh_vibrate_on_error", value).apply()
+
+    var sheikhQuickPopupEnabled: Boolean
+        get() = prefs.getBoolean("sheikh_quick_popup_enabled", true)
+        set(value) = prefs.edit().putBoolean("sheikh_quick_popup_enabled", value).apply()
+
+    var sheikhAutoAdvance: Boolean
+        get() = prefs.getBoolean("sheikh_auto_advance", true)
+        set(value) = prefs.edit().putBoolean("sheikh_auto_advance", value).apply()
+
+    fun getSheikhDailyHistory(): Map<String, Pair<Int, Int>> {
+        val raw = prefs.getString("sheikh_daily_history", null) ?: return emptyMap()
+        val result = linkedMapOf<String, Pair<Int, Int>>()
+        try {
+            val o = JSONObject(raw)
+            val keys = o.keys()
+            while (keys.hasNext()) {
+                val dateKey = keys.next()
+                val item = o.optJSONObject(dateKey) ?: continue
+                result[dateKey] = Pair(
+                    item.optInt("masteredCount", 0),
+                    item.optInt("attemptsCount", 0)
+                )
+            }
+        } catch (_: Exception) {}
+        return result
+    }
+
+    fun recordSheikhDailyProgress(
+        dateIso: String,
+        newlyMasteredDelta: Int,
+        correctWordsDelta: Int,
+        score: Int
+    ) {
+        val raw = prefs.getString("sheikh_daily_history", null)
+        val root = try {
+            if (raw != null) JSONObject(raw) else JSONObject()
+        } catch (_: Exception) {
+            JSONObject()
+        }
+        val prev = root.optJSONObject(dateIso) ?: JSONObject()
+        val prevMastered = prev.optInt("masteredCount", 0)
+        val prevAttempts = prev.optInt("attemptsCount", 0)
+        val prevWords = prev.optInt("correctWordsCount", 0)
+        val prevAvg = prev.optInt("avgScore", 0)
+        val newAttempts = prevAttempts + 1
+        val newAvg = ((prevAvg * prevAttempts) + score) / newAttempts
+
+        val updated = JSONObject().apply {
+            put("masteredCount", prevMastered + newlyMasteredDelta.coerceAtLeast(0))
+            put("attemptsCount", newAttempts)
+            put("correctWordsCount", prevWords + correctWordsDelta.coerceAtLeast(0))
+            put("avgScore", newAvg)
+        }
+        root.put(dateIso, updated)
+
+        // Retain recent 90 days cleanly
+        val sortedKeys = mutableListOf<String>()
+        val iter = root.keys()
+        while (iter.hasNext()) sortedKeys.add(iter.next())
+        sortedKeys.sort()
+        while (sortedKeys.size > 90) {
+            val oldest = sortedKeys.removeAt(0)
+            root.remove(oldest)
+        }
+        prefs.edit().putString("sheikh_daily_history", root.toString()).apply()
+    }
 }

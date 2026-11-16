@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 data class ProphetStory(
     val name: String,
@@ -116,9 +117,8 @@ fun ProphetsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(stories, key = { it.name }) { story ->
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -129,13 +129,13 @@ fun ProphetsScreen(
                         ) {
                             Text(
                                 text = story.name,
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = story.title,
-                                color = TextSecondary,
+                                color = MoazenInkMuted,
                                 fontSize = 12.sp
                             )
                         }
@@ -144,7 +144,7 @@ fun ProphetsScreen(
 
                         Text(
                             text = story.summary,
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             textAlign = TextAlign.Right,
@@ -155,7 +155,7 @@ fun ProphetsScreen(
 
                         Text(
                             text = story.quranAyah,
-                            color = GoldLight,
+                            color = MoazenGoldDark,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Right,
@@ -166,7 +166,7 @@ fun ProphetsScreen(
 
                         Text(
                             text = "العبر والفوائد: ${story.lessons}",
-                            color = TextTertiary,
+                            color = MoazenInkMuted,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
                             textAlign = TextAlign.Right,

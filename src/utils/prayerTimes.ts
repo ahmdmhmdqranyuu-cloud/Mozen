@@ -106,6 +106,109 @@ export const ASR_METHODS = [
   { id: 'hanafi' as const, name: 'المذهب الحنفي - ظل الشيء مثليه' },
 ];
 
+export interface PrayerCalculationLogEntry {
+  timestamp: string;
+  cityName: string;
+  latitude: number;
+  longitude: number;
+  methodId: string;
+  asrMethod: 'standard' | 'hanafi';
+  dstMode: DstMode;
+  adjustments: Partial<Record<PrayerKey, number>>;
+  chronologyValid: boolean;
+  warnings: string[];
+}
+
+const MAX_CALC_LOG_ENTRIES = 40;
+const calcLogBuffer: PrayerCalculationLogEntry[] = [];
+let lastCalcLogDedupKey = '';
+
+export function getPrayerCalculationLogs(): PrayerCalculationLogEntry[] {
+  return [...calcLogBuffer];
+}
+
+export function clearPrayerCalculationLogs(): void {
+  calcLogBuffer.length = 0;
+  lastCalcLogDedupKey = '';
+}
+
+function recordPrayerCalculationLog(entry: PrayerCalculationLogEntry): void {
+  const dedupKey = `${entry.timestamp.slice(0, 10)}|${entry.cityName}|${entry.latitude.toFixed(3)},${entry.longitude.toFixed(3)}|${entry.methodId}|${entry.asrMethod}|${entry.dstMode}|${JSON.stringify(entry.adjustments)}`;
+  if (dedupKey === lastCalcLogDedupKey && entry.warnings.length === 0) {
+    return;
+  }
+  lastCalcLogDedupKey = dedupKey;
+  calcLogBuffer.push(entry);
+  if (calcLogBuffer.length > MAX_CALC_LOG_ENTRIES) {
+    calcLogBuffer.splice(0, calcLogBuffer.length - MAX_CALC_LOG_ENTRIES);
+  }
+}
+
+export function validateCityCoordinates(city: CityLocation): {
+  latitude: number;
+  longitude: number;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  let lat = Number(city?.latitude);
+  let lng = Number(city?.longitude);
+
+  if (!Number.isFinite(lat)) {
+    warnings.push(`Invalid latitude "${String(city?.latitude)}", fallback to Makkah 21.4225`);
+    lat = 21.4225;
+  } else if (lat < -90 || lat > 90) {
+    warnings.push(`Out-of-range latitude ${lat}, clamped to [-90, 90]`);
+    lat = Math.max(-90, Math.min(90, lat));
+  }
+
+  if (!Number.isFinite(lng)) {
+    warnings.push(`Invalid longitude "${String(city?.longitude)}", fallback to Makkah 39.8262`);
+    lng = 39.8262;
+  } else if (lng < -180 || lng > 180) {
+    warnings.push(`Out-of-range longitude ${lng}, clamped to [-180, 180]`);
+    lng = Math.max(-180, Math.min(180, lng));
+  }
+
+  return { latitude: lat, longitude: lng, warnings };
+}
+
+export function sanitizePrayerAdjustments(
+  adjustments?: Partial<Record<PrayerKey, number>>
+): Partial<Record<PrayerKey, number>> {
+  if (!adjustments) return {};
+  const keys: PrayerKey[] = ['fajr', 'sunrise', 'duha', 'dhuhr', 'asr', 'maghrib', 'isha'];
+  const sanitized: Partial<Record<PrayerKey, number>> = {};
+  for (const k of keys) {
+    const raw = adjustments[k];
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw !== 0) {
+      sanitized[k] = Math.max(-60, Math.min(60, Math.round(raw)));
+    }
+  }
+  return sanitized;
+}
+
+export function validatePrayerChronology(prayers: PrayerTime[]): boolean {
+  const byKey = new Map<PrayerKey, number>();
+  for (const p of prayers) {
+    byKey.set(p.key, p.timestamp.getTime());
+  }
+  const fajr = byKey.get('fajr') ?? 0;
+  const sunrise = byKey.get('sunrise') ?? 0;
+  const duha = byKey.get('duha') ?? 0;
+  const dhuhr = byKey.get('dhuhr') ?? 0;
+  const asr = byKey.get('asr') ?? 0;
+  const maghrib = byKey.get('maghrib') ?? 0;
+  const isha = byKey.get('isha') ?? 0;
+  return (
+    fajr < sunrise &&
+    sunrise <= duha &&
+    duha < dhuhr &&
+    dhuhr < asr &&
+    asr < maghrib &&
+    maghrib < isha
+  );
+}
+
 /**
  * Astronomical prayer calculation with method, juristic school, manual adjustments, and DST mode
  */
@@ -124,9 +227,8 @@ export function calculatePrayerTimes(
   const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
   const declination = 23.45 * Math.sin(((360 / 365) * (dayOfYear - 81) * Math.PI) / 180);
 
-  const lat = city.latitude;
-  const lng = city.longitude;
-  const dstStatus = detectDaylightSavingStatus(date, city.timezone);
+  const { latitude: lat, longitude: lng, warnings } = validateCityCoordinates(city);
+  const dstStatus = detectDaylightSavingStatus(date, city?.timezone);
   const effectiveDstMode = dstModeOverride || dstStatus.activeMode;
 
   let tzOffsetHours = dstStatus.currentSystemOffsetHours;
@@ -145,29 +247,41 @@ export function calculatePrayerTimes(
   const latRad = toRad(lat);
   const decRad = toRad(declination);
 
-  const hourAngle = (angle: number) => {
+  const hourAngle = (angle: number): { deg: number; clampedLow: boolean } => {
     const cosHA = (Math.sin(toRad(-angle)) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
-    if (cosHA > 1) return 0;
-    if (cosHA < -1) return 180;
-    return toDeg(Math.acos(cosHA));
+    if (cosHA > 1) return { deg: 0, clampedLow: false };
+    if (cosHA < -1) return { deg: 180, clampedLow: true };
+    return { deg: toDeg(Math.acos(cosHA)), clampedLow: false };
   };
 
   // Sunrise / Sunset
-  const sunHA = hourAngle(0.833);
+  const sunHA = hourAngle(0.833).deg;
   const sunriseMin = solarNoonMin - (sunHA / 15) * 60;
   const sunsetMin = solarNoonMin + (sunHA / 15) * 60;
+  const nightDurationMin = Math.max(0, sunriseMin + 1440 - sunsetMin);
 
-  // Fajr
-  const fajrHA = hourAngle(method.fajrAngle);
-  const fajrMin = solarNoonMin - (fajrHA / 15) * 60;
+  // Duha (when sun rises ~4.5 degrees above horizon, clamped [sunrise+15, dhuhr-10])
+  const duhaRawHA = hourAngle(-4.5).deg;
+  const duhaRawMin = solarNoonMin - (duhaRawHA / 15) * 60;
 
-  // Isha
+  // Fajr (with standard Angle-Based high-latitude fallback when continuous twilight occurs)
+  const fajrRes = hourAngle(method.fajrAngle);
+  let fajrMin = solarNoonMin - (fajrRes.deg / 15) * 60;
+  if (fajrRes.clampedLow && nightDurationMin > 0) {
+    fajrMin = sunriseMin - (method.fajrAngle / 60) * nightDurationMin;
+  }
+
+  // Isha (with standard Angle-Based high-latitude fallback when continuous twilight occurs)
   let ishaMin: number;
   if (method.ishaInterval > 0) {
     ishaMin = sunsetMin + method.ishaInterval;
   } else {
-    const ishaHA = hourAngle(method.ishaAngle);
-    ishaMin = solarNoonMin + (ishaHA / 15) * 60;
+    const ishaRes = hourAngle(method.ishaAngle);
+    if (ishaRes.clampedLow && nightDurationMin > 0) {
+      ishaMin = sunsetMin + (method.ishaAngle / 60) * nightDurationMin;
+    } else {
+      ishaMin = solarNoonMin + (ishaRes.deg / 15) * 60;
+    }
   }
 
   // Asr: shadow multiplier (1 for standard, 2 for hanafi)
@@ -180,14 +294,17 @@ export function calculatePrayerTimes(
   // Dhuhr: solar noon + 2 min
   const dhuhrMin = solarNoonMin + 2;
 
-  // Apply manual adjustments
-  const adj = adjustments || {};
+  const duhaClampedMin = Math.max(sunriseMin + 15, Math.min(dhuhrMin - 10, duhaRawMin));
+
+  // Apply sanitized manual adjustments (clamped -60..+60)
+  const adj = sanitizePrayerAdjustments(adjustments);
   const fajrFinalMin = fajrMin + (adj.fajr || 0);
   const sunriseFinalMin = sunriseMin + (adj.sunrise || 0);
+  const duhaFinalMin = duhaClampedMin + (adj.duha || 0);
   const dhuhrFinalMin = dhuhrMin + (adj.dhuhr || 0);
   const asrFinalMin = asrMin + (adj.asr || 0);
   const maghribFinalMin = sunsetMin + (adj.maghrib || 0);
-  const ishaFinalMin = ishaMin + (adj.isha || 0);
+  const ishaFinalMin = Math.max(maghribFinalMin + 1, ishaMin + (adj.isha || 0));
 
   const formatTime = (minutes: number, is12hr = false): string => {
     let m = Math.round(minutes);
@@ -204,10 +321,7 @@ export function calculatePrayerTimes(
 
   const createDateFromMinutes = (minutes: number): Date => {
     const d = new Date(date);
-    let m = Math.round(minutes);
-    while (m < 0) m += 1440;
-    while (m >= 1440) m -= 1440;
-    d.setHours(Math.floor(m / 60), m % 60, 0, 0);
+    d.setHours(0, Math.round(minutes), 0, 0);
     return d;
   };
 
@@ -216,13 +330,14 @@ export function calculatePrayerTimes(
   const prayers: { key: PrayerKey; name: string; min: number; icon: string }[] = [
     { key: 'fajr', name: 'الفجر', min: fajrFinalMin, icon: 'fajr' },
     { key: 'sunrise', name: 'الشروق', min: sunriseFinalMin, icon: 'sunrise' },
+    { key: 'duha', name: 'الضحى', min: duhaFinalMin, icon: 'duha' },
     { key: 'dhuhr', name: 'الظهر', min: dhuhrFinalMin, icon: 'dhuhr' },
     { key: 'asr', name: 'العصر', min: asrFinalMin, icon: 'asr' },
     { key: 'maghrib', name: 'المغرب', min: maghribFinalMin, icon: 'maghrib' },
     { key: 'isha', name: 'العشاء', min: ishaFinalMin, icon: 'isha' },
   ];
 
-  return prayers.map((p) => {
+  const computed: PrayerTime[] = prayers.map((p) => {
     const prayerDate = createDateFromMinutes(p.min);
     return {
       key: p.key,
@@ -234,6 +349,26 @@ export function calculatePrayerTimes(
       timestamp: prayerDate,
     };
   });
+
+  const chronologyValid = validatePrayerChronology(computed);
+  if (!chronologyValid) {
+    warnings.push(`Prayer chronology anomaly detected for ${city?.name || 'unknown'} (${method.id})`);
+  }
+
+  recordPrayerCalculationLog({
+    timestamp: new Date().toISOString(),
+    cityName: city?.name || 'مكة المكرمة',
+    latitude: lat,
+    longitude: lng,
+    methodId: method.id,
+    asrMethod,
+    dstMode: effectiveDstMode,
+    adjustments: adj,
+    chronologyValid,
+    warnings,
+  });
+
+  return computed;
 }
 
 /**
@@ -244,7 +379,8 @@ export function calculateRamadanCalendar(
   methodId: string = 'egypt',
   asrMethod: 'standard' | 'hanafi' = 'standard',
   adjustments: Partial<Record<PrayerKey, number>> = {},
-  ramadanStartDate: Date = new Date(2026, 1, 18) // Approx mid-Feb 2026 for Ramadan 1447
+  ramadanStartDate: Date = new Date(2026, 1, 18), // Approx mid-Feb 2026 for Ramadan 1447
+  dstModeOverride?: DstMode
 ): RamadanDayImsakiya[] {
   const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const arabicMonths = [
@@ -262,7 +398,7 @@ export function calculateRamadanCalendar(
     const dayName = arabicDays[d.getDay()];
     const gregorianStr = `${dayName} ${d.getDate()} ${arabicMonths[d.getMonth()]}`;
 
-    const prayerTimes = calculatePrayerTimes(city, d, methodId, asrMethod, adjustments);
+    const prayerTimes = calculatePrayerTimes(city, d, methodId, asrMethod, adjustments, dstModeOverride);
     const fajrPrayer = prayerTimes.find((p) => p.key === 'fajr')!;
     const sunrisePrayer = prayerTimes.find((p) => p.key === 'sunrise')!;
     const dhuhrPrayer = prayerTimes.find((p) => p.key === 'dhuhr')!;
@@ -427,6 +563,7 @@ export function calculateQiblaDirection(latitude: number, longitude: number): { 
 export const DEFAULT_IQAMA_MINUTES: Record<PrayerKey, number> = {
   fajr: 15,
   sunrise: 0,
+  duha: 0,
   dhuhr: 15,
   asr: 15,
   maghrib: 7,
@@ -453,11 +590,11 @@ export interface ActiveIqamaCountdown {
  */
 export function getActiveIqamaCountdown(
   prayers: PrayerTime[],
-  intervals: Record<PrayerKey, number> = DEFAULT_IQAMA_MINUTES,
+  intervals: Partial<Record<PrayerKey, number>> = DEFAULT_IQAMA_MINUTES,
   now: Date = new Date()
 ): ActiveIqamaCountdown | null {
   for (const prayer of prayers) {
-    if (prayer.key === 'sunrise') continue;
+    if (prayer.key === 'sunrise' || prayer.key === 'duha') continue;
     const intervalMinutes = intervals[prayer.key] ?? DEFAULT_IQAMA_MINUTES[prayer.key] ?? 15;
     if (intervalMinutes <= 0) continue;
 
@@ -539,7 +676,7 @@ export function calculateNightThirds(
   dstModeOverride?: DstMode
 ): NightThirds {
   const todayPrayers = calculatePrayerTimes(city, date, methodId, asrMethod, adjustments, dstModeOverride);
-  const maghrib = todayPrayers.find((p) => p.key === 'maghrib') || todayPrayers[4];
+  const maghrib = todayPrayers.find((p) => p.key === 'maghrib') || todayPrayers[5] || todayPrayers[4];
 
   const tomorrow = new Date(date);
   tomorrow.setDate(tomorrow.getDate() + 1);

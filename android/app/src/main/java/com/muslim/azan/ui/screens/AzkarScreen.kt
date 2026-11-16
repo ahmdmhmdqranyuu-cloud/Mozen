@@ -29,6 +29,7 @@ import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.model.AzkarItem
 import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun AzkarScreen(
@@ -98,21 +99,43 @@ fun AzkarScreen(
         ) {
             categories.forEachIndexed { index, cat ->
                 val isSelected = selectedCategoryIndex == index
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) GoldDark else EmeraldSurface)
-                        .clickable { selectedCategoryIndex = index }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = cat,
-                        color = if (isSelected) Color.White else TextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                    )
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(GoldDark)
+                            .clickable { selectedCategoryIndex = index }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = cat,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    MoazenWidgetCard(
+                        cornerRadius = 12.dp,
+                        modifier = Modifier.weight(1f),
+                        onClick = { selectedCategoryIndex = index }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = cat,
+                                color = MoazenInkPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -127,15 +150,15 @@ fun AzkarScreen(
                 val remaining = countsMap[item.id] ?: item.count
                 val isCompleted = remaining == 0
 
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (isCompleted) EmeraldSurfaceLight else EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
+                    borderColor = if (isCompleted) MoazenInkEmerald.copy(alpha = 0.5f) else MoazenCardBorder,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = item.textArabic,
-                            color = if (isCompleted) TextSecondary else TextPrimary,
+                            color = if (isCompleted) MoazenInkMuted else MoazenInkPrimary,
                             fontSize = 16.sp,
                             lineHeight = 28.sp,
                             textAlign = TextAlign.Right,
@@ -146,8 +169,9 @@ fun AzkarScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "الفضل: ${item.fadl}",
-                                color = GoldLight,
+                                color = MoazenGoldDark,
                                 fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.Right,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -162,7 +186,7 @@ fun AzkarScreen(
                         ) {
                             Text(
                                 text = item.source,
-                                color = TextSecondary,
+                                color = MoazenInkMuted,
                                 fontSize = 11.sp
                             )
 
@@ -170,7 +194,7 @@ fun AzkarScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isCompleted) EmeraldPrimaryDark else GoldAccent)
+                                    .background(if (isCompleted) MoazenInkEmerald else GoldAccent)
                                     .clickable {
                                         if (remaining > 0) {
                                             countsMap[item.id] = remaining - 1
@@ -190,7 +214,7 @@ fun AzkarScreen(
                             ) {
                                 Text(
                                     text = if (isCompleted) "تم بحمد الله ✓" else "متبقي $remaining من ${item.count}",
-                                    color = if (isCompleted) Color.White else EmeraldDeep,
+                                    color = if (isCompleted) Color.White else MoazenInkPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )

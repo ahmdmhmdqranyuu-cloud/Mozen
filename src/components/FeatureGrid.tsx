@@ -139,7 +139,7 @@ export const FeatureGrid: React.FC<FeatureGridProps> = ({ onSelectFeature, langu
           <button
             key={item.id}
             onClick={() => onSelectFeature(item.id)}
-            className="flex flex-col items-center justify-between py-1.5 px-1 rounded-xl bg-white border border-black/[0.04] shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-emerald-200 transition-all active:scale-95 cursor-pointer text-center group min-h-[54px] sm:min-h-[58px]"
+            className="moazen-widget flex flex-col items-center justify-between py-1.5 px-1 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-[#C5A059] transition-all active:scale-95 cursor-pointer text-center group min-h-[54px] sm:min-h-[58px]"
             title={item.title}
           >
             {/* Real Uploaded / SVG Islamic Icon */}
@@ -155,7 +155,7 @@ export const FeatureGrid: React.FC<FeatureGridProps> = ({ onSelectFeature, langu
               <h4 className="text-[9.5px] sm:text-[10px] font-extrabold text-[#172A28] tracking-tight leading-tight group-hover:text-[#104B40] transition-colors truncate">
                 {item.title}
               </h4>
-              <p className="text-[7.5px] sm:text-[8px] text-gray-400 font-medium truncate mt-0 leading-none">
+              <p className="text-[7.5px] sm:text-[8px] text-[#4B5B58] font-medium truncate mt-0 leading-none">
                 {item.desc}
               </p>
             </div>

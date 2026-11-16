@@ -216,7 +216,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
         {viewMode === 'index' && (
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 pb-16">
             {/* Search & Collection Filter Bar */}
-            <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5">
               <div className="relative">
                 <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -224,7 +224,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
                   placeholder="ابحث في متن الحديث أو الراوي أو الموضوع..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pr-9 pl-8 py-2 text-xs bg-[#F7F6F2] border border-gray-200 rounded-xl focus:outline-none focus:border-[#104B40]"
+                  className="moazen-widget w-full pr-9 pl-8 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#104B40]"
                 />
                 {searchQuery && (
                   <button
@@ -270,7 +270,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
                       setViewMode('detail');
                     }
                   }}
-                  className="w-full bg-white hover:bg-[#FAF9F5] rounded-2xl p-4 border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all text-right cursor-pointer flex items-center justify-between gap-3"
+                  className="moazen-widget w-full rounded-2xl p-4 border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all text-right cursor-pointer flex items-center justify-between gap-3"
                 >
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <div className="w-9 h-9 rounded-xl bg-[#ebf5f1] text-[#104B40] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-[#104B40]/15">
@@ -324,7 +324,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
         {viewMode === 'detail' && (
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 pb-16">
             {/* Quick Collection Selector Card */}
-            <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between gap-2">
+            <div className="moazen-widget p-3 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-black text-[#172A28]">
                   {activeHadith.collectionName}
@@ -336,7 +336,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
 
               <button
                 onClick={() => setViewMode('index')}
-                className="text-xs font-bold text-[#104B40] bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-200 cursor-pointer flex items-center gap-1.5 shrink-0"
+                className="moazen-widget text-xs font-bold text-[#104B40] px-3 py-1.5 rounded-xl border border-gray-200 cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 <span>العودة للفهرس ({filteredHadiths.length})</span>
@@ -344,7 +344,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
             </div>
 
             {/* Hadith Main White Card */}
-            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs space-y-4 text-right">
+            <div className="moazen-widget p-5 rounded-2xl border border-gray-100 shadow-xs space-y-4 text-right">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs bg-gray-100 text-[#104B40] px-3 py-1 rounded-full font-bold">
                   {activeHadith.category}
@@ -400,21 +400,21 @@ export const HadithModal: React.FC<HadithModalProps> = ({
                 {activeHadith.title}
               </h3>
 
-              <div className="bg-gray-50/70 p-4 sm:p-5 rounded-2xl border border-gray-100">
+              <div className="moazen-widget p-4 sm:p-5 rounded-2xl border border-gray-100">
                 <p className="font-quran text-base sm:text-lg leading-loose text-[#172A28] text-right select-text font-bold">
                   {activeHadith.hadith}
                 </p>
 
                 <div className="mt-4 pt-3 border-t border-gray-200/70 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-700 font-bold">
-                  <div className="bg-white px-3 py-1.5 rounded-xl border border-gray-100">
+                  <div className="moazen-widget px-3 py-1.5 rounded-xl border border-gray-100">
                     <span className="text-gray-400 block text-[10px]">المصدر والتخريج</span>
                     <span className="text-[#104B40] font-black">{activeHadith.source}</span>
                   </div>
-                  <div className="bg-white px-3 py-1.5 rounded-xl border border-gray-100">
+                  <div className="moazen-widget px-3 py-1.5 rounded-xl border border-gray-100">
                     <span className="text-gray-400 block text-[10px]">الراوي</span>
                     <span className="text-[#172A28] font-black">{activeHadith.narrator}</span>
                   </div>
-                  <div className="bg-white px-3 py-1.5 rounded-xl border border-gray-100">
+                  <div className="moazen-widget px-3 py-1.5 rounded-xl border border-gray-100">
                     <span className="text-gray-400 block text-[10px]">درجة صحة الحديث</span>
                     <span className="text-emerald-700 font-black">{getHadithGrade(activeHadith)}</span>
                   </div>
@@ -454,7 +454,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
             </div>
 
             {/* Sharh / Explanation White Card */}
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs text-right">
+            <div className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs text-right">
               <h4 className="text-xs font-black text-[#172A28] mb-2 flex items-center gap-1.5">
                 <BookMarked className="w-4 h-4 text-[#104B40]" />
                 <span>شرح الحديث وفوائده التربوية</span>

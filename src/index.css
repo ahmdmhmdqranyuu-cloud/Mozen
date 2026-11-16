@@ -70,3 +70,26 @@
 .animate-pulse-subtle {
   animation: pulse-subtle 3s ease-in-out infinite;
 }
+
+/* Unified Holy Quran Widget Background across the entire app */
+.moazen-widget {
+  background-color: #ebf5f1;
+  background-image:
+    linear-gradient(135deg, rgba(235, 245, 241, 0.92) 0%, rgba(244, 248, 246, 0.94) 100%),
+    url('/assets/images/hadith_widget_mosque_1793589264940.jpg');
+  background-size: cover;
+  background-position: center;
+  border-color: rgba(2, 44, 34, 0.11);
+  color: #172A28;
+}
+
+.moazen-widget-sub {
+  background-color: #eff7f3;
+  background-image:
+    linear-gradient(135deg, rgba(238, 247, 243, 0.95) 0%, rgba(246, 250, 248, 0.96) 100%),
+    url('/assets/images/hadith_widget_mosque_1793589264940.jpg');
+  background-size: cover;
+  background-position: center;
+  border-color: rgba(16, 75, 64, 0.12);
+  color: #172A28;
+}

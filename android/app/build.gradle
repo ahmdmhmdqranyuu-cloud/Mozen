@@ -17,6 +17,7 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        resourceConfigurations += ['ar', 'en']
     }
 
     sourceSets {
@@ -50,6 +51,7 @@ android {
     def releaseKeystorePassword = System.getenv("KEYSTORE_PASSWORD")
     def releaseKeyAlias = System.getenv("KEY_ALIAS")
     def releaseKeyPassword = System.getenv("KEY_PASSWORD")
+    def ciTestSignRelease = System.getenv("CI_SIGN_RELEASE_WITH_DEBUG") == "true"
     def hasValidReleaseSigning = releaseKeystorePath != null && !releaseKeystorePath.isEmpty() &&
             file(releaseKeystorePath).exists() &&
             releaseKeystorePassword != null && !releaseKeystorePassword.isEmpty() &&
@@ -78,12 +80,20 @@ android {
             debuggable true
         }
         release {
-            minifyEnabled false
-            shrinkResources false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasValidReleaseSigning) {
                 signingConfig signingConfigs.release
+            } else if (ciTestSignRelease) {
+                signingConfig signingConfigs.debug
             }
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "AlMoazen-v${defaultConfig.versionName}-${variant.buildType.name}.apk"
         }
     }
 

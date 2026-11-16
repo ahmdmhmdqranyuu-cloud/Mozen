@@ -38,6 +38,7 @@ import { RecitationsModal } from './components/modals/RecitationsModal';
 import { WallpapersModal } from './components/modals/WallpapersModal';
 import { ProphetsModal } from './components/modals/ProphetsModal';
 import { FirstTimeSetupModal } from './components/modals/FirstTimeSetupModal';
+import { PrayerSettingsModal } from './components/modals/PrayerSettingsModal';
 import {
   PermissionsModal,
   hasSeenFirstRunPermissions,
@@ -62,6 +63,11 @@ import {
   resetAllFirstTimeOnboardingFlags,
 } from './data/worldCitiesData';
 import { soundService } from './utils/audioPlayer';
+import {
+  getPrayerConfig,
+  savePrayerConfigToUser,
+  applyPrayerConfigToAllUser,
+} from './utils/prayerSettings';
 import { getSavedLanguage, applyDocumentDirection, getTranslation, AppLanguage } from './utils/i18n';
 import { userStatsTracker } from './utils/userStatsTracker';
 import {
@@ -82,6 +88,7 @@ const DEFAULT_PROFILE: UserProfile = {
   manualPrayerAdjustments: {
     fajr: 0,
     sunrise: 0,
+    duha: 0,
     dhuhr: 0,
     asr: 0,
     maghrib: 0,
@@ -97,11 +104,12 @@ const DEFAULT_PROFILE: UserProfile = {
   pageBookmarks: [],
   favoriteDuas: ['dua-q-1'],
   azanVoice: 'makkah',
-  fajrAzanVoice: 'fajr',
+  fajrAzanVoice: 'abdulbasit_fajr',
   prayerAzanVoices: {},
   prayerAzanEnabled: {
     fajr: true,
     sunrise: false,
+    duha: false,
     dhuhr: true,
     asr: true,
     maghrib: true,
@@ -129,6 +137,7 @@ const DEFAULT_PROFILE: UserProfile = {
   prayersToday: {
     fajr: true,
     sunrise: false,
+    duha: false,
     dhuhr: true,
     asr: true,
     maghrib: false,
@@ -182,6 +191,7 @@ export default function App() {
   const [recitationsOpen, setRecitationsOpen] = useState(false);
   const [wallpapersOpen, setWallpapersOpen] = useState(false);
   const [prophetsOpen, setProphetsOpen] = useState(false);
+  const [prayerSettingsKey, setPrayerSettingsKey] = useState<PrayerKey | null>(null);
   const [firstRunPermissionsOpen, setFirstRunPermissionsOpen] = useState<boolean>(false);
   const [focusedPermissionKey, setFocusedPermissionKey] = useState<ManagedPermissionKey | null>(null);
   const [firstTimeSetupOpen, setFirstTimeSetupOpen] = useState<boolean>(() => {
@@ -209,11 +219,30 @@ export default function App() {
     }
   }, []);
 
-  // Keep reminderScheduler synchronized with user's active city and sync with Android bridge
+  // Keep reminderScheduler synchronized with user's active city, method, Asr, offsets, DST and cancel-reschedule immediately
   useEffect(() => {
-    reminderScheduler.setCity(user.city);
-    reminderScheduler.syncWithAndroidBridge();
-  }, [user.city, user.calculationMethod, user.dstMode, user.manualPrayerAdjustments]);
+    reminderScheduler.setUserProfile(user);
+    reminderScheduler.cancelAndRescheduleAll('user_prayer_config_changed', user);
+
+    // Clear daily/minute trigger locks so updated prayer times trigger accurately
+    lastTriggeredPrayerRef.current = '';
+    lastTriggeredIqamaRef.current = '';
+    lastTriggeredCannonRef.current = '';
+    lastTriggeredDuhaQiyamRef.current = '';
+    lastPersistentSyncMinuteRef.current = -1;
+
+    window.dispatchEvent(new CustomEvent('prayerTimesUpdated'));
+  }, [
+    user.city,
+    user.calculationMethod,
+    user.asrJuristicMethod,
+    user.dstMode,
+    user.manualPrayerAdjustments,
+    user.prayerConfigs,
+    user.iqamaIntervals,
+    user.azanVoice,
+    user.fajrAzanVoice,
+  ]);
 
   // Apply document direction and language whenever user.language changes + listen to global language changes
   useEffect(() => {
@@ -468,84 +497,102 @@ export default function App() {
         }
       }
 
-      // 1. Check Azan (plays full Azan from start to finish without early stop)
+      // 1. Check Azan / Prayer alerts using per-prayer independent configuration
       const prayerMatch = calculated.find(
         (p) =>
-          p.key !== 'sunrise' &&
           p.timestamp.getHours() === now.getHours() &&
           p.timestamp.getMinutes() === now.getMinutes()
       );
+
+      const extSetup = getExtendedSetupSettings();
 
       if (prayerMatch) {
         const triggerKey = `${currentDateKey}_${prayerMatch.key}_${currentTimeStr}`;
         if (lastTriggeredPrayerRef.current !== triggerKey) {
           lastTriggeredPrayerRef.current = triggerKey;
 
-          const iqamaDuration =
-            (currentUser.iqamaIntervals || DEFAULT_IQAMA_MINUTES)[prayerMatch.key] ??
-            (prayerMatch.key === 'maghrib' ? 7 : 15);
-          const nowMs = Date.now();
-          const extConfig = getExtendedSetupSettings();
-
-          // Launch Floating Azan Window or Full-Screen Lock-Screen Widget if enabled
-          if (
-            isSmartAzanWidgetEnabled() &&
-            (extConfig.floatingAzanWindowEnabled || extConfig.lockScreenAzanEnabled)
-          ) {
-            setSmartAzanSession({
-              prayerKey: prayerMatch.key,
-              prayerName: prayerMatch.name,
-              azanTimeStr: prayerMatch.time,
-              cityName: currentUser.city.name,
-              iqamaDurationMinutes: iqamaDuration,
-              startedAtMs: nowMs,
-              iqamaTargetMs: nowMs + iqamaDuration * 60 * 1000,
-            });
-            setSmartAzanMinimized(false);
-          } else {
-            // Fallback banner if Floating Window & Lock Screen were disabled
-            setActiveAzanBanner({
-              prayerKey: prayerMatch.key,
-              prayerName: prayerMatch.name,
-              time: prayerMatch.time,
-            });
-          }
-
-          // Play full Azan automatically if enabled (never cut off early)
+          const pCfg = getPrayerConfig(currentUser, prayerMatch.key);
+          const isObligatory = prayerMatch.key !== 'sunrise' && prayerMatch.key !== 'duha';
           const isPrayerAzanAllowed =
-            currentUser.prayerAzanEnabled?.[prayerMatch.key] !== false &&
-            extConfig.prayerAlerts[prayerMatch.key] !== false;
-          if (
-            currentUser.autoPlayAzan !== false &&
-            extConfig.azanSoundEnabled !== false &&
-            currentUser.soundEnabled &&
-            isPrayerAzanAllowed
-          ) {
-            const isFajr = prayerMatch.key === 'fajr';
-            const customPrayerVoice = currentUser.prayerAzanVoices?.[prayerMatch.key];
-            const voice =
-              customPrayerVoice ||
-              (isFajr
-                ? currentUser.fajrAzanVoice || 'abdulbasit_fajr'
-                : currentUser.azanVoice || 'makkah');
+            pCfg.soundEnabled &&
+            (isObligatory ? extSetup.prayerAlerts[prayerMatch.key] !== false : true);
 
+          if (isPrayerAzanAllowed || isObligatory) {
+            const iqamaDuration =
+              (currentUser.iqamaIntervals || DEFAULT_IQAMA_MINUTES)[prayerMatch.key] ??
+              (prayerMatch.key === 'maghrib' ? 7 : isObligatory ? 15 : 0);
+            const nowMs = Date.now();
 
-            setSmartAzanAudioPlaying(true);
-            soundService.playAzan(voice, isFajr, () => {
-              setSmartAzanAudioPlaying(false);
-              setActiveAzanBanner(null);
-            });
-          }
-
-          // Trigger native notification if permitted
-          if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification(`حان الآن موعد أذان ${prayerMatch.name}`, {
-                body: `الله أكبر، حان وقت صلاة ${prayerMatch.name} حسب التوقيت المحلي لمدينة ${currentUser.city.name}`,
-                icon: '/assets/icons/prayer.png?v=2',
+            if (
+              isObligatory &&
+              isSmartAzanWidgetEnabled() &&
+              (extSetup.floatingAzanWindowEnabled || extSetup.lockScreenAzanEnabled)
+            ) {
+              setSmartAzanSession({
+                prayerKey: prayerMatch.key,
+                prayerName: prayerMatch.name,
+                azanTimeStr: prayerMatch.time,
+                cityName: currentUser.city.name,
+                iqamaDurationMinutes: iqamaDuration,
+                startedAtMs: nowMs,
+                iqamaTargetMs: nowMs + iqamaDuration * 60 * 1000,
               });
-            } catch {
-              // ignore
+              setSmartAzanMinimized(false);
+            } else if (isPrayerAzanAllowed) {
+              setActiveAzanBanner({
+                prayerKey: prayerMatch.key,
+                prayerName: prayerMatch.name,
+                time: prayerMatch.time,
+              });
+            }
+
+            if (pCfg.alertMode === 'vibrate_only' && navigator.vibrate) {
+              navigator.vibrate([250, 120, 250]);
+            } else if (
+              currentUser.autoPlayAzan !== false &&
+              extSetup.azanSoundEnabled !== false &&
+              currentUser.soundEnabled &&
+              isPrayerAzanAllowed &&
+              pCfg.alertMode !== 'silent'
+            ) {
+              const isFajr = prayerMatch.key === 'fajr';
+              const voice = pCfg.azanVoice || (isFajr ? 'abdulbasit_fajr' : 'makkah');
+              const durationMs = pCfg.alertMode === 'short_tone' ? 12000 : undefined;
+
+              setSmartAzanAudioPlaying(true);
+              soundService.playAzan(
+                voice,
+                isFajr,
+                () => {
+                  setSmartAzanAudioPlaying(false);
+                  setActiveAzanBanner(null);
+                  if (pCfg.duaAfterPrayerEnabled) {
+                    if (currentUser.soundEnabled) {
+                      soundService.playDuaAfterAzan(undefined, undefined, pCfg.volumePercent);
+                    }
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                      try {
+                        new Notification('دعاء ما بعد الأذان والصلاة', {
+                          body: '«اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلَاةِ الْقَائِمَةِ آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ»',
+                          icon: '/assets/icons/prayer.png?v=2',
+                        });
+                      } catch {}
+                    }
+                  }
+                },
+                undefined,
+                pCfg.volumePercent,
+                durationMs
+              );
+            }
+
+            if (isPrayerAzanAllowed && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(`حان الآن موعد ${prayerMatch.key === 'sunrise' ? 'الشروق' : `صلاة ${prayerMatch.name}`}`, {
+                  body: `حسب التوقيت المحلي لمدينة ${currentUser.city.name} • وضع التنبيه: ${pCfg.alertMode === 'silent' ? 'صامت' : 'مفعّل'}`,
+                  icon: '/assets/icons/prayer.png?v=2',
+                });
+              } catch {}
             }
           }
         }
@@ -554,7 +601,9 @@ export default function App() {
       // 2. Check Iqama (Fajr, Dhuhr, Asr, Isha 15 mins after Azan; Maghrib 7 mins after Azan)
       const intervals = currentUser.iqamaIntervals || DEFAULT_IQAMA_MINUTES;
       const iqamaMatch = calculated.find((p) => {
-        if (p.key === 'sunrise') return false;
+        if (p.key === 'sunrise' || p.key === 'duha') return false;
+        const pCfg = getPrayerConfig(currentUser, p.key);
+        if (pCfg.iqamaVoice === 'none') return false;
         const interval = intervals[p.key] ?? (p.key === 'maghrib' ? 7 : 15);
         const iqamaDate = new Date(p.timestamp.getTime() + interval * 60 * 1000);
         const iqamaH = String(iqamaDate.getHours()).padStart(2, '0');
@@ -567,46 +616,64 @@ export default function App() {
         if (lastTriggeredIqamaRef.current !== iqamaTriggerKey) {
           lastTriggeredIqamaRef.current = iqamaTriggerKey;
 
-          // Set active Iqama banner
-          setActiveIqamaBanner({
-            prayerKey: iqamaMatch.key,
-            prayerName: iqamaMatch.name,
-            time: currentTimeStr,
-          });
+          const pCfg = getPrayerConfig(currentUser, iqamaMatch.key);
+          const iqamaVoiceId = pCfg.iqamaVoice || currentUser.iqamaVoice || 'iqama_1';
 
-          // Play full Iqama audio automatically
-          if (currentUser.soundEnabled && currentUser.iqamaSoundEnabled !== false) {
-            soundService.playIqama(currentUser.iqamaVoice || 'iqama_1', () => {
-              setActiveIqamaBanner(null);
+          if (iqamaVoiceId !== 'none') {
+            setActiveIqamaBanner({
+              prayerKey: iqamaMatch.key,
+              prayerName: iqamaMatch.name,
+              time: currentTimeStr,
             });
-          }
 
-          // Trigger native notification if permitted
-          if ('Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification(`حان الآن موعد إقامة صلاة ${iqamaMatch.name}`, {
-                body: `أقيموا صفوفكم وتراصّوا، حان الآن وقت إقامة صلاة ${iqamaMatch.name}`,
-                icon: '/assets/icons/prayer.png?v=2',
-              });
-            } catch {
-              // ignore
+            if (currentUser.soundEnabled && currentUser.iqamaSoundEnabled !== false) {
+              soundService.playIqama(
+                iqamaVoiceId,
+                () => setActiveIqamaBanner(null),
+                undefined,
+                pCfg.volumePercent
+              );
+            }
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(`حان الآن موعد إقامة صلاة ${iqamaMatch.name}`, {
+                  body: `أقيموا صفوفكم وتراصّوا، حان الآن وقت إقامة صلاة ${iqamaMatch.name}`,
+                  icon: '/assets/icons/prayer.png?v=2',
+                });
+              } catch {}
             }
           }
         }
       }
 
-      // 3. Check Duha (20 mins after Sunrise) and Qiyam al-Layl alerts + Persistent Prayer Shade Notification
-      const extSetup = getExtendedSetupSettings();
-      const sunrisePrayer = calculated.find((p) => p.key === 'sunrise');
-      if (sunrisePrayer && extSetup.prayerAlerts.duha) {
-        const duhaDate = new Date(sunrisePrayer.timestamp.getTime() + 20 * 60 * 1000);
-        const duhaTimeStr = `${String(duhaDate.getHours()).padStart(2, '0')}:${String(
-          duhaDate.getMinutes()
+      // 3. Check Duha (uses calculated Duha prayer + per-prayer config + attached Surah Ad-Duha audio) and Qiyam al-Layl alerts
+      const duhaPrayer = calculated.find((p) => p.key === 'duha');
+      const duhaCfg = getPrayerConfig(currentUser, 'duha');
+      const isDuhaAlertEnabled = extSetup.prayerAlerts.duha !== false && duhaCfg.soundEnabled;
+      if (duhaPrayer && isDuhaAlertEnabled) {
+        const duhaTimeStr = `${String(duhaPrayer.timestamp.getHours()).padStart(2, '0')}:${String(
+          duhaPrayer.timestamp.getMinutes()
         ).padStart(2, '0')}`;
         if (currentTimeStr === duhaTimeStr) {
           const duhaKey = `${currentDateKey}_duha_${duhaTimeStr}`;
           if (lastTriggeredDuhaQiyamRef.current !== duhaKey) {
             lastTriggeredDuhaQiyamRef.current = duhaKey;
+            if (currentUser.soundEnabled && duhaCfg.alertMode !== 'silent') {
+              if (duhaCfg.alertMode === 'vibrate_only' && navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+              } else if (!duhaCfg.azanVoice || duhaCfg.azanVoice === 'duha_surah') {
+                soundService.playDuha(undefined, undefined, duhaCfg.volumePercent);
+              } else {
+                soundService.playAzan(
+                  duhaCfg.azanVoice,
+                  false,
+                  undefined,
+                  undefined,
+                  duhaCfg.volumePercent
+                );
+              }
+            }
             if ('Notification' in window && Notification.permission === 'granted') {
               try {
                 new Notification('حان الآن وقت صلاة الضحى (صلاة الأوابين)', {
@@ -852,10 +919,10 @@ export default function App() {
     <div className="min-h-[100dvh] bg-[#FAF9F5] text-[#172A28] flex flex-col justify-between w-full relative overflow-x-hidden">
       {/* Real-Time Live Azan Notification Banner */}
       {activeAzanBanner && (
-        <div className="fixed top-3 inset-x-3 max-w-xl mx-auto z-50 bg-gradient-to-r from-[#0c392c] to-[#124d3f] text-white p-3 rounded-2xl shadow-2xl border border-amber-400/40 flex items-center justify-between animate-bounce">
+        <div className="fixed top-3 inset-x-3 max-w-xl mx-auto z-50 moazen-widget text-[#172A28] p-3 rounded-2xl shadow-2xl border border-[#C5A059]/70 flex items-center justify-between animate-bounce">
           <button
             onClick={handleStopAzanAlert}
-            className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-white cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-[#104B40]/10 transition-colors text-[#104B40] cursor-pointer"
             title={getTranslation(user.language).stopBtn}
           >
             <X className="w-4 h-4" />
@@ -863,19 +930,19 @@ export default function App() {
 
           <div className="flex-1 text-right mr-2">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-xs font-black text-amber-300 font-quran">
+              <span className="text-xs font-black text-[#104B40] font-quran">
                 {getTranslation(user.language).azanAlertTitle(activeAzanBanner.prayerName)}
               </span>
-              <BellRing className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <BellRing className="w-3.5 h-3.5 text-[#9A7732] animate-pulse" />
             </div>
-            <span className="text-[10px] text-emerald-100 font-sans block mt-0.5">
+            <span className="text-[10px] text-[#4B5B58] font-sans block mt-0.5">
               {getTranslation(user.language).azanAlertSub} • {activeAzanBanner.time}
             </span>
           </div>
 
           <button
             onClick={handleStopAzanAlert}
-            className="bg-amber-400 hover:bg-amber-300 text-emerald-950 text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="bg-[#104B40] hover:bg-[#0D3D34] text-white text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             {getTranslation(user.language).stopBtn}
           </button>
@@ -884,13 +951,13 @@ export default function App() {
 
       {/* Real-Time Live Iqama Notification Banner */}
       {activeIqamaBanner && (
-        <div className="fixed top-3 inset-x-3 max-w-xl mx-auto z-50 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-white p-3 rounded-2xl shadow-2xl border border-amber-300/50 flex items-center justify-between animate-bounce">
+        <div className="fixed top-3 inset-x-3 max-w-xl mx-auto z-50 moazen-widget text-[#172A28] p-3 rounded-2xl shadow-2xl border border-[#C5A059] flex items-center justify-between animate-bounce">
           <button
             onClick={() => {
               soundService.stopAudio();
               setActiveIqamaBanner(null);
             }}
-            className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-white cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-[#104B40]/10 transition-colors text-[#104B40] cursor-pointer"
             title={getTranslation(user.language).closeBtn}
           >
             <X className="w-4 h-4" />
@@ -898,12 +965,12 @@ export default function App() {
 
           <div className="flex-1 text-right mr-2">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-xs font-black text-amber-200 font-quran">
+              <span className="text-xs font-black text-[#104B40] font-quran">
                 {getTranslation(user.language).iqamaAlertTitle(activeIqamaBanner.prayerName)}
               </span>
-              <BellRing className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <BellRing className="w-3.5 h-3.5 text-[#9A7732] animate-pulse" />
             </div>
-            <span className="text-[10px] text-amber-100 font-sans block mt-0.5">
+            <span className="text-[10px] text-[#4B5B58] font-sans block mt-0.5">
               {getTranslation(user.language).iqamaAlertSub}
             </span>
           </div>
@@ -913,7 +980,7 @@ export default function App() {
               soundService.stopAudio();
               setActiveIqamaBanner(null);
             }}
-            className="bg-amber-400 hover:bg-amber-300 text-emerald-950 text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="bg-[#104B40] hover:bg-[#0D3D34] text-white text-xs font-black px-3 py-1.5 rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             {getTranslation(user.language).closeBtn}
           </button>
@@ -951,6 +1018,9 @@ export default function App() {
             onOpenPrayerModal={() => {
               setActiveTab('prayer');
               setPrayerOpen(true);
+            }}
+            onOpenPrayerSettings={(key) => {
+              setPrayerSettingsKey(key);
             }}
             onOpenCitySelector={() => {
               setActiveTab('settings');
@@ -1032,10 +1102,24 @@ export default function App() {
         city={user.city}
         user={user}
         onTogglePrayerToday={handleTogglePrayerToday}
+        onOpenPrayerSettings={(key) => setPrayerSettingsKey(key)}
         onOpenLocationSettings={() => {
           setPrayerOpen(false);
           setActiveTab('settings');
           setSettingsOpen(true);
+        }}
+      />
+
+      <PrayerSettingsModal
+        isOpen={prayerSettingsKey !== null}
+        initialPrayerKey={prayerSettingsKey || 'fajr'}
+        user={user}
+        onClose={() => setPrayerSettingsKey(null)}
+        onSaveConfig={(cfg) => {
+          setUser((prev) => savePrayerConfigToUser(prev, cfg));
+        }}
+        onApplyToAllPrayers={(cfg) => {
+          setUser((prev) => applyPrayerConfigToAllUser(prev, cfg));
         }}
       />
 
@@ -1101,6 +1185,11 @@ export default function App() {
         onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
         onToggleSoundEnabled={(en) => setUser((prev) => ({ ...prev, soundEnabled: en }))}
         onUpdateUser={setUser}
+        onOpenPrayerSettings={(key) => {
+          setSettingsOpen(false);
+          setActiveTab('home');
+          setPrayerSettingsKey(key);
+        }}
         onOpenFirstTimeSetup={() => {
           setSettingsOpen(false);
           if (activeTab === 'settings') setActiveTab('home');
@@ -1224,7 +1313,13 @@ export default function App() {
           setFirstTimeSetupOpen(false);
         }}
         user={user}
-        onUpdateCity={(newCity) => setUser((prev) => ({ ...prev, city: newCity }))}
+        onUpdateCity={(newCity) =>
+          setUser((prev) => ({
+            ...prev,
+            city: newCity,
+            calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
+          }))
+        }
         onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
         onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
         onUpdateDstMode={(mode) => setUser((prev) => ({ ...prev, dstMode: mode }))}
@@ -1247,28 +1342,35 @@ export default function App() {
           setFocusedPermissionKey(null);
           setFirstRunPermissionsOpen(false);
         }}
-        onUpdateCity={(newCity) => setUser((prev) => ({ ...prev, city: newCity }))}
+        onUpdateCity={(newCity) => {
+          savePersistentLocation(newCity);
+          setUser((prev) => ({
+            ...prev,
+            city: newCity,
+            calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
+          }));
+        }}
       />
 
       {/* 10-Minute Pre-Prayer Floating Alert Banner with Live Countdown */}
       {approachingAlert && approachingSecondsLeft > 0 && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-fadeIn">
-          <div className="bg-gradient-to-r from-[#104B40] via-[#165B4C] to-[#104B40] text-white p-3.5 rounded-2xl shadow-2xl border border-amber-300/40 flex items-center justify-between gap-3">
+          <div className="moazen-widget text-[#172A28] p-3.5 rounded-2xl shadow-2xl border border-[#C5A059]/60 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-400/20 border border-amber-300/30 flex items-center justify-center text-amber-300 animate-pulse shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-[#104B40]/10 border border-[#C5A059]/40 flex items-center justify-center text-[#9A7732] animate-pulse shrink-0">
                 <BellRing className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-black text-amber-300">
+                  <span className="text-xs font-black text-[#104B40]">
                     اقتربت صلاة {approachingAlert.prayerName}
                   </span>
-                  <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-md font-sans font-bold">
+                  <span className="text-[10px] bg-[#104B40]/10 text-[#104B40] px-1.5 py-0.5 rounded-md font-sans font-bold">
                     {Math.floor(approachingSecondsLeft / 60)}:
                     {String(approachingSecondsLeft % 60).padStart(2, '0')}
                   </span>
                 </div>
-                <p className="text-[11px] text-white/80 line-clamp-1">
+                <p className="text-[11px] text-[#4B5B58] line-clamp-1">
                   حان وقت الاستعداد والوضوء لصلاة {approachingAlert.prayerName} في {approachingAlert.cityName}
                 </p>
               </div>
@@ -1279,13 +1381,13 @@ export default function App() {
                   setPrayerOpen(true);
                   setApproachingAlert(null);
                 }}
-                className="px-2.5 py-1.5 bg-[#C5A059] text-[#104B40] rounded-xl text-xs font-black hover:bg-[#b59048] transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 bg-[#104B40] text-white rounded-xl text-xs font-black hover:bg-[#0D3D34] transition-colors cursor-pointer"
               >
                 عرض
               </button>
               <button
                 onClick={() => setApproachingAlert(null)}
-                className="p-1 rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-[#4B5B58] hover:text-[#172A28] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>

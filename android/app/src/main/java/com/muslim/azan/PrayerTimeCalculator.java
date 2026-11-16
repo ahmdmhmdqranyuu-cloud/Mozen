@@ -13,6 +13,7 @@ public class PrayerTimeCalculator {
     public static class DailyPrayerTimes {
         public final int fajrMinutes;
         public final int sunriseMinutes;
+        public final int duhaMinutes;
         public final int dhuhrMinutes;
         public final int asrMinutes;
         public final int maghribMinutes;
@@ -26,8 +27,21 @@ public class PrayerTimeCalculator {
                 int maghribMinutes,
                 int ishaMinutes
         ) {
+            this(fajrMinutes, sunriseMinutes, clampDuha(sunriseMinutes + 20, sunriseMinutes, dhuhrMinutes), dhuhrMinutes, asrMinutes, maghribMinutes, ishaMinutes);
+        }
+
+        public DailyPrayerTimes(
+                int fajrMinutes,
+                int sunriseMinutes,
+                int duhaMinutes,
+                int dhuhrMinutes,
+                int asrMinutes,
+                int maghribMinutes,
+                int ishaMinutes
+        ) {
             this.fajrMinutes = fajrMinutes;
             this.sunriseMinutes = sunriseMinutes;
+            this.duhaMinutes = duhaMinutes;
             this.dhuhrMinutes = dhuhrMinutes;
             this.asrMinutes = asrMinutes;
             this.maghribMinutes = maghribMinutes;
@@ -37,7 +51,8 @@ public class PrayerTimeCalculator {
         public boolean isChronologicallyValid() {
             return fajrMinutes >= 0
                     && fajrMinutes < sunriseMinutes
-                    && sunriseMinutes < dhuhrMinutes
+                    && sunriseMinutes < duhaMinutes
+                    && duhaMinutes < dhuhrMinutes
                     && dhuhrMinutes < asrMinutes
                     && asrMinutes < maghribMinutes
                     && maghribMinutes < ishaMinutes
@@ -45,9 +60,22 @@ public class PrayerTimeCalculator {
         }
 
         public DailyPrayerTimes withOffsets(int fajrOff, int dhuhrOff, int asrOff, int maghribOff, int ishaOff) {
+            return withOffsets(fajrOff, 0, 0, dhuhrOff, asrOff, maghribOff, ishaOff);
+        }
+
+        public DailyPrayerTimes withOffsets(
+                int fajrOff,
+                int sunriseOff,
+                int duhaOff,
+                int dhuhrOff,
+                int asrOff,
+                int maghribOff,
+                int ishaOff
+        ) {
             return new DailyPrayerTimes(
                     clampMinute(fajrMinutes + fajrOff),
-                    sunriseMinutes,
+                    clampMinute(sunriseMinutes + sunriseOff),
+                    clampMinute(duhaMinutes + duhaOff),
                     clampMinute(dhuhrMinutes + dhuhrOff),
                     clampMinute(asrMinutes + asrOff),
                     clampMinute(maghribMinutes + maghribOff),
@@ -57,6 +85,12 @@ public class PrayerTimeCalculator {
 
         private static int clampMinute(int m) {
             return Math.max(0, Math.min(24 * 60 - 1, m));
+        }
+
+        private static int clampDuha(int candidate, int sunrise, int dhuhr) {
+            int minDuha = sunrise + 15;
+            int maxDuha = Math.max(minDuha, dhuhr - 10);
+            return Math.max(minDuha, Math.min(maxDuha, candidate));
         }
     }
 
@@ -123,16 +157,34 @@ public class PrayerTimeCalculator {
         );
     }
 
+    public static double sanitizeLatitude(double lat) {
+        if (Double.isNaN(lat) || Double.isInfinite(lat)) return 21.4225;
+        return Math.max(-66.0, Math.min(66.0, lat));
+    }
+
+    public static double sanitizeLongitude(double lng) {
+        if (Double.isNaN(lng) || Double.isInfinite(lng)) return 39.8262;
+        return Math.max(-180.0, Math.min(180.0, lng));
+    }
+
+    public static double sanitizeTimezoneOffset(double tzOffset) {
+        if (Double.isNaN(tzOffset) || Double.isInfinite(tzOffset)) return 0.0;
+        return Math.max(-12.0, Math.min(14.0, tzOffset));
+    }
+
     public static DailyPrayerTimes calculateDailyPrayersForDate(
             int year,
             int month,
             int day,
-            double latitude,
-            double longitude,
-            double timezoneOffsetHours,
+            double rawLatitude,
+            double rawLongitude,
+            double rawTimezoneOffsetHours,
             String calculationMethod,
             String asrMethod
     ) {
+        double latitude = sanitizeLatitude(rawLatitude);
+        double longitude = sanitizeLongitude(rawLongitude);
+        double timezoneOffsetHours = sanitizeTimezoneOffset(rawTimezoneOffsetHours);
         double jd = julianDay(year, month, day) - longitude / (15.0 * 24.0);
 
         double fajrAngle = 18.5;
@@ -165,29 +217,60 @@ public class PrayerTimeCalculator {
 
         // Iterative per-prayer solar ephemeris refinement (Jean Meeus / PrayTimes standard)
         double noonHours = computeMidDayHours(jd + 0.5, longitude, timezoneOffsetHours);
-        double fajrHours = noonHours - sunAngleTimeHours(jd + 5.0 / 24.0, latitude, fajrAngle);
         double sunriseHours = noonHours - sunAngleTimeHours(jd + 6.0 / 24.0, latitude, 0.833);
         double dhuhrHours = computeMidDayHours(jd + noonHours / 24.0, longitude, timezoneOffsetHours);
+        double maghribHours = dhuhrHours + sunAngleTimeHours(jd + 18.0 / 24.0, latitude, 0.833);
+        double nightHours = Math.max(0.0, (24.0 - maghribHours) + sunriseHours);
+
+        double fajrHours;
+        if (sunAngleTimeCosH(jd + 5.0 / 24.0, latitude, fajrAngle) < -1.0 && nightHours > 0.0) {
+            fajrHours = sunriseHours - (fajrAngle / 60.0) * nightHours;
+        } else {
+            fajrHours = noonHours - sunAngleTimeHours(jd + 5.0 / 24.0, latitude, fajrAngle);
+        }
+
+        double duhaHours = noonHours - sunAngleTimeHours(jd + 6.5 / 24.0, latitude, -4.5);
 
         double shadowFactor = (asrMethod != null && asrMethod.toLowerCase(Locale.US).contains("hanafi")) ? 2.0 : 1.0;
         double asrHours = dhuhrHours + asrTimeHours(jd + 15.0 / 24.0, latitude, shadowFactor);
-        double maghribHours = dhuhrHours + sunAngleTimeHours(jd + 18.0 / 24.0, latitude, 0.833);
 
         double ishaHours;
         if (ishaFixedInterval) {
             ishaHours = maghribHours + (ishaFixedMinutes / 60.0);
+        } else if (sunAngleTimeCosH(jd + 19.5 / 24.0, latitude, ishaAngle) < -1.0 && nightHours > 0.0) {
+            ishaHours = maghribHours + (ishaAngle / 60.0) * nightHours;
         } else {
             ishaHours = dhuhrHours + sunAngleTimeHours(jd + 19.5 / 24.0, latitude, ishaAngle);
         }
 
+        int sunriseMin = toMinutes(sunriseHours);
+        int dhuhrMin = toMinutes(dhuhrHours);
+        int maghribMin = toMinutes(maghribHours);
+        int ishaMin = Math.max(maghribMin + 1, Math.min(24 * 60 - 1, toMinutes(ishaHours)));
+        int computedDuhaMin = DailyPrayerTimes.clampDuha(toMinutes(duhaHours), sunriseMin, dhuhrMin);
+
         return new DailyPrayerTimes(
                 toMinutes(fajrHours),
-                toMinutes(sunriseHours),
-                toMinutes(dhuhrHours),
+                sunriseMin,
+                computedDuhaMin,
+                dhuhrMin,
                 toMinutes(asrHours),
-                toMinutes(maghribHours),
-                toMinutes(ishaHours)
+                maghribMin,
+                ishaMin
         );
+    }
+
+    private static double sunAngleTimeCosH(double jd, double latitudeDeg, double depressionDeg) {
+        double declDeg = sunPosition(jd)[0];
+        double altRad = Math.toRadians(-depressionDeg);
+        double latRad = Math.toRadians(latitudeDeg);
+        double decRad = Math.toRadians(declDeg);
+        double numerator = Math.sin(altRad) - (Math.sin(latRad) * Math.sin(decRad));
+        double denominator = Math.cos(latRad) * Math.cos(decRad);
+        if (Math.abs(denominator) < 1e-6) {
+            denominator = denominator < 0 ? -1e-6 : 1e-6;
+        }
+        return numerator / denominator;
     }
 
     private static double julianDay(int year, int month, int day) {

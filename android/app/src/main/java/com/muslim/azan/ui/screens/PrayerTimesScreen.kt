@@ -26,16 +26,20 @@ import com.muslim.azan.PrayerTimeCalculator
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenSubWidgetBox
+import com.muslim.azan.ui.components.MoazenWidgetCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.Locale
 import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrayerTimesScreen(
     prefs: NativePreferences,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenPrayerSettings: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -48,11 +52,14 @@ fun PrayerTimesScreen(
     var asrMethod by remember { mutableStateOf(prefs.asrMethod) }
 
     var fajrOff by remember { mutableIntStateOf(prefs.fajrOffsetMinutes) }
+    var sunriseOff by remember { mutableIntStateOf(prefs.sunriseOffsetMinutes) }
+    var duhaOff by remember { mutableIntStateOf(prefs.duhaOffsetMinutes) }
     var dhuhrOff by remember { mutableIntStateOf(prefs.dhuhrOffsetMinutes) }
     var asrOff by remember { mutableIntStateOf(prefs.asrOffsetMinutes) }
     var maghribOff by remember { mutableIntStateOf(prefs.maghribOffsetMinutes) }
     var ishaOff by remember { mutableIntStateOf(prefs.ishaOffsetMinutes) }
     var isDetectingGps by remember { mutableStateOf(false) }
+    var gpsDetail by remember { mutableStateOf<String?>(null) }
 
     val cal = remember(cityTimezoneId) {
         val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
@@ -62,7 +69,7 @@ fun PrayerTimesScreen(
         PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis)
     }
 
-    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
+    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
         PrayerTimeCalculator.calculateDailyPrayers(
             cal,
             lat,
@@ -70,7 +77,7 @@ fun PrayerTimesScreen(
             tzOffsetHours,
             calcMethod,
             asrMethod
-        ).withOffsets(fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff)
+        ).withOffsets(fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff)
     }
 
     val currentMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
@@ -81,17 +88,26 @@ fun PrayerTimesScreen(
     var showCalcMethodDialog by remember { mutableStateOf(false) }
 
     fun triggerGpsDetection() {
+        if (!SystemPermissionHelper.isDeviceLocationEnabled(context)) {
+            Toast.makeText(context, "يرجى تشغيل خدمة الموقع (GPS) في الهاتف أولًا", Toast.LENGTH_LONG).show()
+            SystemPermissionHelper.openLocationSourceSettings(context)
+            return
+        }
         isDetectingGps = true
+        gpsDetail = null
         scope.launch {
             val result = SystemPermissionHelper.detectAndSaveGpsLocation(context, prefs)
             isDetectingGps = false
-            result.onSuccess { detectedName ->
-                cityName = prefs.cityName
-                lat = prefs.latitude
-                lng = prefs.longitude
-                cityTimezoneId = prefs.cityTimezoneId
+            result.onSuccess { gps ->
+                cityName = gps.cityName
+                lat = gps.latitude
+                lng = gps.longitude
+                cityTimezoneId = gps.timezoneId
+                calcMethod = gps.calcMethod
+                val accText = if (gps.accuracyMeters > 0) " • دقة ±${gps.accuracyMeters}م" else ""
+                gpsDetail = String.format(Locale.US, "%.4f°, %.4f°%s", gps.latitude, gps.longitude, accText)
                 scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
-                Toast.makeText(context, "تم تحديد الموقع: $detectedName", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "تم تحديد الموقع: ${gps.cityName}", Toast.LENGTH_SHORT).show()
             }.onFailure { err ->
                 Toast.makeText(context, err.message ?: "تعذر تحديد الموقع عبر GPS", Toast.LENGTH_LONG).show()
             }
@@ -137,27 +153,38 @@ fun PrayerTimesScreen(
 
         // Location & Next prayer highlight
         item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+            MoazenWidgetCard(
+                cornerRadius = 20.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = cityName,
-                        color = GoldAccent,
+                        color = MoazenInkEmerald,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "الصلاة القادمة: صلاة $nextPrayerName",
-                        color = TextPrimary,
-                        fontSize = 14.sp
+                        color = MoazenInkPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
+                    if (gpsDetail != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = gpsDetail ?: "",
+                            color = Color(0xFF047857),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = {
@@ -173,82 +200,102 @@ fun PrayerTimesScreen(
                             }
                         },
                         enabled = !isDetectingGps,
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurfaceLight),
+                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.MyLocation,
                             contentDescription = null,
-                            tint = GoldAccent,
+                            tint = GoldLight,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isDetectingGps) "جاري التحديد بالـ GPS..." else "تحديث موقعي التلقائي بالـ GPS",
-                            color = TextPrimary,
-                            fontSize = 12.sp
+                            text = if (isDetectingGps) "جاري التقاط موقعك الدقيق..." else "تحديث موقعي الدقيق بالـ GPS",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
         }
 
-        // Daily Prayers List
+        // Daily Prayers List (including صلاة الضحى + tap any row to open Advanced Prayer Settings)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrayerRowItem("الفجر", PrayerTimeCalculator.formatMinutesToHHmm(times.fajrMinutes), nextPrayerName == "الفجر")
-                PrayerRowItem("الشروق", PrayerTimeCalculator.formatMinutesToHHmm(times.sunriseMinutes), false)
-                PrayerRowItem("الظهر", PrayerTimeCalculator.formatMinutesToHHmm(times.dhuhrMinutes), nextPrayerName == "الظهر")
-                PrayerRowItem("العصر", PrayerTimeCalculator.formatMinutesToHHmm(times.asrMinutes), nextPrayerName == "العصر")
-                PrayerRowItem("المغرب", PrayerTimeCalculator.formatMinutesToHHmm(times.maghribMinutes), nextPrayerName == "المغرب")
-                PrayerRowItem("العشاء", PrayerTimeCalculator.formatMinutesToHHmm(times.ishaMinutes), nextPrayerName == "العشاء")
+                PrayerRowItem("الفجر", PrayerTimeCalculator.formatMinutesToHHmm(times.fajrMinutes), nextPrayerName == "الفجر") {
+                    onOpenPrayerSettings("fajr")
+                }
+                PrayerRowItem("الشروق", PrayerTimeCalculator.formatMinutesToHHmm(times.sunriseMinutes), false) {
+                    onOpenPrayerSettings("sunrise")
+                }
+                PrayerRowItem("صلاة الضحى", PrayerTimeCalculator.formatMinutesToHHmm(times.duhaMinutes), false) {
+                    onOpenPrayerSettings("duha")
+                }
+                PrayerRowItem("الظهر", PrayerTimeCalculator.formatMinutesToHHmm(times.dhuhrMinutes), nextPrayerName == "الظهر") {
+                    onOpenPrayerSettings("dhuhr")
+                }
+                PrayerRowItem("العصر", PrayerTimeCalculator.formatMinutesToHHmm(times.asrMinutes), nextPrayerName == "العصر") {
+                    onOpenPrayerSettings("asr")
+                }
+                PrayerRowItem("المغرب", PrayerTimeCalculator.formatMinutesToHHmm(times.maghribMinutes), nextPrayerName == "المغرب") {
+                    onOpenPrayerSettings("maghrib")
+                }
+                PrayerRowItem("العشاء", PrayerTimeCalculator.formatMinutesToHHmm(times.ishaMinutes), nextPrayerName == "العشاء") {
+                    onOpenPrayerSettings("isha")
+                }
             }
         }
 
         // Calculation Settings
         item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = EmeraldSurfaceLight),
+            MoazenWidgetCard(
+                cornerRadius = 16.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "طريقة الحساب الفلكي والمذهب",
-                        color = GoldAccent,
+                        color = MoazenInkEmerald,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(EmeraldSurface)
-                            .clickable { showCalcMethodDialog = true }
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    MoazenSubWidgetBox(
+                        cornerRadius = 10.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showCalcMethodDialog = true }
                     ) {
-                        Text(
-                            text = when (calcMethod) {
-                                "umm_al_qura" -> "أم القرى (مكة المكرمة)"
-                                "egypt" -> "الهيئة المصرية العامة للمساحة"
-                                "mwl" -> "رابطة العالم الإسلامي"
-                                "isna" -> "الجمعية الإسلامية لأمريكا الشمالية"
-                                "karachi" -> "جامعة العلوم الإسلامية بكراتشي"
-                                else -> "أم القرى (افتراضي)"
-                            },
-                            color = TextPrimary,
-                            fontSize = 13.sp
-                        )
-                        Icon(Icons.Default.ExpandMore, contentDescription = null, tint = GoldAccent)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = when (calcMethod) {
+                                    "umm_al_qura" -> "أم القرى (مكة المكرمة)"
+                                    "egypt" -> "الهيئة المصرية العامة للمساحة"
+                                    "dubai" -> "دبي / الخليج"
+                                    "mwl" -> "رابطة العالم الإسلامي"
+                                    "isna" -> "الجمعية الإسلامية لأمريكا الشمالية"
+                                    "karachi" -> "جامعة العلوم الإسلامية بكراتشي"
+                                    else -> "أم القرى (افتراضي)"
+                                },
+                                color = MoazenInkPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Icon(Icons.Default.ExpandMore, contentDescription = null, tint = MoazenInkEmerald)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(text = "مذهب حساب صلاة العصر:", color = TextSecondary, fontSize = 13.sp)
+                    Text(text = "مذهب حساب صلاة العصر:", color = MoazenInkMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -263,7 +310,9 @@ fun PrayerTimesScreen(
                             },
                             label = { Text("الجمهور (شافعي/مالكي/حنبلي)", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldDark,
+                                containerColor = Color.White.copy(alpha = 0.78f),
+                                labelColor = MoazenInkPrimary,
+                                selectedContainerColor = MoazenInkEmerald,
                                 selectedLabelColor = Color.White
                             )
                         )
@@ -276,7 +325,9 @@ fun PrayerTimesScreen(
                             },
                             label = { Text("حنفي", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldDark,
+                                containerColor = Color.White.copy(alpha = 0.78f),
+                                labelColor = MoazenInkPrimary,
+                                selectedContainerColor = MoazenInkEmerald,
                                 selectedLabelColor = Color.White
                             )
                         )
@@ -287,9 +338,8 @@ fun PrayerTimesScreen(
 
         // Manual Minute Offsets Card
         item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+            MoazenWidgetCard(
+                cornerRadius = 16.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -302,11 +352,11 @@ fun PrayerTimesScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Tune, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "تعديل الدقائق يدويًا (حسب مسجدك)",
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -322,7 +372,7 @@ fun PrayerTimesScreen(
                                     scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                                 }
                             ) {
-                                Text("إعادة ضبط", color = GoldLight, fontSize = 12.sp)
+                                Text("إعادة ضبط", color = MoazenGoldDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -360,22 +410,24 @@ fun PrayerTimesScreen(
     if (showCalcMethodDialog) {
         AlertDialog(
             onDismissRequest = { showCalcMethodDialog = false },
-            title = { Text("اختر طريقة الحساب", color = TextPrimary) },
+            title = { Text("اختر طريقة الحساب", color = MoazenInkPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val methods = listOf(
                         "umm_al_qura" to "أم القرى (مكة المكرمة)",
                         "egypt" to "الهيئة العامة المصرية للمساحة",
+                        "dubai" to "دبي / الخليج",
                         "mwl" to "رابطة العالم الإسلامي",
                         "isna" to "الجمعية الإسلامية لأمريكا الشمالية",
                         "karachi" to "جامعة العلوم الإسلامية بكراتشي"
                     )
                     methods.forEach { (key, name) ->
+                        val isSelected = calcMethod == key
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (calcMethod == key) GoldDark else EmeraldSurfaceLight)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
                                 .clickable {
                                     calcMethod = key
                                     prefs.calculationMethod = key
@@ -384,13 +436,18 @@ fun PrayerTimesScreen(
                                 }
                                 .padding(12.dp)
                         ) {
-                            Text(text = name, color = Color.White, fontSize = 13.sp)
+                            Text(
+                                text = name,
+                                color = if (isSelected) Color.White else MoazenInkPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
                         }
                     }
                 }
             },
             confirmButton = {},
-            containerColor = EmeraldDeep
+            containerColor = MoazenCardEnd
         )
     }
 }
@@ -401,76 +458,93 @@ private fun PrayerOffsetControl(
     offsetMinutes: Int,
     onChange: (Int) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(EmeraldSurfaceLight)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    MoazenSubWidgetBox(
+        cornerRadius = 10.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(text = label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = { if (offsetMinutes > -30) onChange(offsetMinutes - 1) },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(Icons.Default.Remove, contentDescription = "إنقاص دقيقة", tint = GoldAccent, modifier = Modifier.size(18.dp))
-            }
-            Text(
-                text = when {
-                    offsetMinutes > 0 -> "+$offsetMinutes د"
-                    offsetMinutes < 0 -> "$offsetMinutes د"
-                    else -> "0 د"
-                },
-                color = if (offsetMinutes == 0) TextSecondary else GoldAccent,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-            IconButton(
-                onClick = { if (offsetMinutes < 30) onChange(offsetMinutes + 1) },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "زيادة دقيقة", tint = GoldAccent, modifier = Modifier.size(18.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = label, color = MoazenInkPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { if (offsetMinutes > -30) onChange(offsetMinutes - 1) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "إنقاص دقيقة", tint = MoazenInkEmerald, modifier = Modifier.size(18.dp))
+                }
+                Text(
+                    text = when {
+                        offsetMinutes > 0 -> "+$offsetMinutes د"
+                        offsetMinutes < 0 -> "$offsetMinutes د"
+                        else -> "0 د"
+                    },
+                    color = if (offsetMinutes == 0) MoazenInkMuted else MoazenGoldDark,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+                IconButton(
+                    onClick = { if (offsetMinutes < 30) onChange(offsetMinutes + 1) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "زيادة دقيقة", tint = MoazenInkEmerald, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-fun PrayerRowItem(name: String, time: String, isNext: Boolean) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isNext) EmeraldSurfaceLight else EmeraldSurface)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+fun PrayerRowItem(name: String, time: String, isNext: Boolean, onClick: () -> Unit = {}) {
+    MoazenWidgetCard(
+        cornerRadius = 14.dp,
+        borderColor = if (isNext) MoazenGoldDark else MoazenCardBorder,
+        borderWidth = if (isNext) 1.5.dp else 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.AccessTime,
-                contentDescription = null,
-                tint = if (isNext) GoldAccent else TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = name,
-                color = if (isNext) GoldAccent else TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = if (isNext) FontWeight.Bold else FontWeight.Medium
-            )
-        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = null,
+                    tint = if (isNext) MoazenInkEmerald else MoazenInkMuted,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = name,
+                    color = if (isNext) MoazenInkEmerald else MoazenInkPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = if (isNext) FontWeight.Bold else FontWeight.SemiBold
+                )
+            }
 
-        Text(
-            text = time,
-            color = if (isNext) GoldAccent else TextPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold
-        )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = time,
+                    color = if (isNext) MoazenInkEmerald else MoazenInkPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = "إعدادات $name",
+                    tint = MoazenGoldDark,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }

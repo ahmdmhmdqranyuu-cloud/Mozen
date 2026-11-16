@@ -135,9 +135,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4">
           {/* User Identity Card */}
-          <div className="bg-white rounded-2xl p-4 text-[#172A28] shadow-xs border border-gray-100 flex items-center justify-between gap-3">
+          <div className="moazen-widget rounded-2xl p-4 text-[#172A28] shadow-xs border border-gray-100 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-[#F7F6F2] border-2 border-[#C5A059] flex items-center justify-center text-[#104B40] shrink-0">
+              <div className="moazen-widget w-14 h-14 rounded-2xl border-2 border-[#C5A059] flex items-center justify-center text-[#104B40] shrink-0">
                 <User className="w-7 h-7" />
               </div>
 
@@ -188,7 +188,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* =========================================================
               MY STATISTICS SECTION («إحصائياتي»)
           ========================================================= */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[#104B40] text-[#C5A059] flex items-center justify-center">
@@ -205,7 +205,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {/* Period Switcher: Daily | Monthly | Total */}
-              <div className="grid grid-cols-3 gap-1 bg-[#F7F6F2] p-1 rounded-xl border border-gray-200">
+              <div className="moazen-widget grid grid-cols-3 gap-1 p-1 rounded-xl border border-gray-200">
                 {[
                   { id: 'daily' as const, label: 'اليومية' },
                   { id: 'monthly' as const, label: 'الشهرية' },
@@ -228,7 +228,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             {/* 1. التسبيح (Tasbih: Daily, Monthly & Total) */}
-            <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#C5A059]" />
@@ -242,19 +242,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">تسبيحات اليوم</span>
                   <strong className="text-base font-black font-mono text-[#104B40]">
                     {dailyMetrics.tasbihCount.toLocaleString('en-US')}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">تسبيحات الشهر</span>
                   <strong className="text-base font-black font-mono text-[#9A7732]">
                     {monthlyMetrics.tasbihCount.toLocaleString('en-US')}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">الإجمالي الكلي</span>
                   <strong className="text-base font-black font-mono text-[#172A28]">
                     {totalMetrics.tasbihCount.toLocaleString('en-US')}
@@ -264,7 +264,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             {/* 2. القرآن الكريم (Surahs, Ayahs, Khatma %, Last Read Position) */}
-            <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-3">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#104B40]" />
@@ -282,7 +282,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">السور المقروءة</span>
                   <strong className="text-base font-black font-mono text-[#104B40]">
                     {activeMetrics.quranSurahsIds.length}
@@ -290,7 +290,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span className="text-[9px] text-gray-400 block">من 114 سورة</span>
                 </div>
 
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">الآيات المقروءة</span>
                   <strong className="text-base font-black font-mono text-[#104B40]">
                     {activeMetrics.quranAyahsCount.toLocaleString('en-US')}
@@ -300,7 +300,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </span>
                 </div>
 
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">نسبة إتمام الختمة</span>
                   <strong className="text-base font-black font-mono text-[#9A7732]">
                     {khatmaPercent}%
@@ -319,7 +319,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     style={{ width: `${Math.max(0, Math.min(100, khatmaPercent))}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-[11px] bg-white px-3 py-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget flex items-center justify-between text-[11px] px-3 py-2 rounded-xl border border-gray-100">
                   <span className="text-gray-600 font-bold">آخر موضع وصلت إليه:</span>
                   <span className="font-black text-[#104B40]">
                     {displayLastSurahName} • صفحة {displayLastPage} (الآية {displayLastAyah})
@@ -331,7 +331,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             {/* 3. الأحاديث النبوية & 4. السنن والأذكار */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* 3. الأحاديث */}
-              <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2">
+              <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ScrollText className="w-4 h-4 text-[#9A7732]" />
@@ -342,7 +342,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span className="text-[10px] text-gray-500">{periodLabel}</span>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-gray-100 flex items-center justify-between">
+                <div className="moazen-widget p-3 rounded-xl border border-gray-100 flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold text-gray-700 block">
                       عدد الأحاديث المقروءة
@@ -358,7 +358,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               {/* 4. السنن والأذكار */}
-              <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2">
+              <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-[#104B40]" />
@@ -369,7 +369,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <span className="text-[10px] text-gray-500">{periodLabel}</span>
                 </div>
 
-                <div className="bg-white p-3 rounded-xl border border-gray-100 flex items-center justify-between">
+                <div className="moazen-widget p-3 rounded-xl border border-gray-100 flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold text-gray-700 block">
                       الأذكار والسنن المنجزة
@@ -388,7 +388,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             {/* 5. المسابقات (Participations, Correct Answers, Points) */}
-            <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Trophy className="w-4 h-4 text-[#C5A059]" />
@@ -400,19 +400,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">عدد المشاركات</span>
                   <strong className="text-base font-black font-mono text-[#172A28]">
                     {activeMetrics.quizParticipations}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">الإجابات الصحيحة</span>
                   <strong className="text-base font-black font-mono text-[#104B40]">
                     {activeMetrics.quizCorrectQuestionIds.length}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">النقاط المكتسبة</span>
                   <strong className="text-base font-black font-mono text-[#9A7732]">
                     {activeMetrics.quizPoints}
@@ -422,7 +422,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             {/* 6. رمضان (Worship & Achievements recorded during the month) */}
-            <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Moon className="w-4 h-4 text-[#9A7732]" />
@@ -436,31 +436,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-5 gap-1.5 text-center">
-                <div className="bg-white p-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2 rounded-xl border border-gray-100">
                   <span className="text-[9px] text-gray-500 block">الصيام</span>
                   <strong className="text-xs font-black font-mono text-[#104B40]">
                     {ramadanStats.fastedDays}/30
                   </strong>
                 </div>
-                <div className="bg-white p-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2 rounded-xl border border-gray-100">
                   <span className="text-[9px] text-gray-500 block">الجماعة</span>
                   <strong className="text-xs font-black font-mono text-[#104B40]">
                     {ramadanStats.congregationDays}/30
                   </strong>
                 </div>
-                <div className="bg-white p-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2 rounded-xl border border-gray-100">
                   <span className="text-[9px] text-gray-500 block">التراويح</span>
                   <strong className="text-xs font-black font-mono text-[#9A7732]">
                     {ramadanStats.taraweehDays}/30
                   </strong>
                 </div>
-                <div className="bg-white p-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2 rounded-xl border border-gray-100">
                   <span className="text-[9px] text-gray-500 block">الورد القرآني</span>
                   <strong className="text-xs font-black font-mono text-teal-800">
                     {ramadanStats.quranDays}/30
                   </strong>
                 </div>
-                <div className="bg-white p-2 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2 rounded-xl border border-gray-100">
                   <span className="text-[9px] text-gray-500 block">الصدقة</span>
                   <strong className="text-xs font-black font-mono text-rose-700">
                     {ramadanStats.charityDays}/30
@@ -470,7 +470,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
 
             {/* 7. الاستماع للتلاوات (Listening time, Surahs count, Recitations count) */}
-            <div className="bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Headphones className="w-4 h-4 text-[#104B40]" />
@@ -482,22 +482,56 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">وقت الاستماع</span>
                   <strong className="text-xs sm:text-sm font-black text-[#104B40] block mt-0.5">
                     {formatListeningDuration(activeMetrics.recitationListeningSeconds)}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">عدد السور المستمع إليها</span>
                   <strong className="text-base font-black font-mono text-[#104B40]">
                     {activeMetrics.recitationSurahsIds.length}
                   </strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-gray-100">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
                   <span className="text-[10px] text-gray-500 block">عدد التلاوات المشغلة</span>
                   <strong className="text-base font-black font-mono text-[#9A7732]">
                     {activeMetrics.recitationTracksKeys.length}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* 8. معلم القرآن الذكي «شيخي» */}
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/70 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-[#C5A059]" />
+                  <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                    8. الحفظ والتسميع مع «شيخي»
+                  </h4>
+                </div>
+                <span className="text-[10px] text-gray-500">{periodLabel}</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
+                  <span className="text-[10px] text-gray-500 block">آيات متقنة</span>
+                  <strong className="text-base font-black font-mono text-[#104B40]">
+                    {(activeMetrics.sheikhMemorizedKeys || []).length}
+                  </strong>
+                </div>
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
+                  <span className="text-[10px] text-gray-500 block">جلسات التسميع</span>
+                  <strong className="text-base font-black font-mono text-[#104B40]">
+                    {activeMetrics.sheikhSessionsCount || 0}
+                  </strong>
+                </div>
+                <div className="moazen-widget p-2.5 rounded-xl border border-gray-100">
+                  <span className="text-[10px] text-gray-500 block">كلمات مضبوطة</span>
+                  <strong className="text-base font-black font-mono text-[#9A7732]">
+                    {activeMetrics.sheikhCorrectWordsCount || 0}
                   </strong>
                 </div>
               </div>

@@ -2,9 +2,24 @@ package com.muslim.azan.data
 
 import android.content.Context
 import com.muslim.azan.model.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.util.Locale
+import java.util.TimeZone
+import kotlin.math.*
+
+data class CountrySummary(
+    val countryAr: String,
+    val countryEn: String,
+    val countryCode: String,
+    val citiesCount: Int,
+    val statesCount: Int
+)
 
 object NativeDataManager {
 
@@ -134,29 +149,392 @@ object NativeDataManager {
     )
 
     val defaultCities: List<CityLocation> = listOf(
-        CityLocation("makkah", "مكة المكرمة", "Makkah", "المملكة العربية السعودية", 21.4225, 39.8262, 3.0, "Asia/Riyadh", "umm_al_qura"),
-        CityLocation("madinah", "المدينة المنورة", "Madinah", "المملكة العربية السعودية", 24.5247, 39.5692, 3.0, "Asia/Riyadh", "umm_al_qura"),
-        CityLocation("cairo", "القاهرة", "Cairo", "مصر", 30.0444, 31.2357, 2.0, "Africa/Cairo", "egypt"),
-        CityLocation("alexandria", "الإسكندرية", "Alexandria", "مصر", 31.2001, 29.9187, 2.0, "Africa/Cairo", "egypt"),
-        CityLocation("giza", "الجيزة", "Giza", "مصر", 30.0131, 31.2089, 2.0, "Africa/Cairo", "egypt"),
-        CityLocation("jerusalem", "القدس الشريف", "Jerusalem", "فلسطين", 31.7683, 35.2137, 2.0, "Asia/Jerusalem", "mwl"),
-        CityLocation("riyadh", "الرياض", "Riyadh", "المملكة العربية السعودية", 24.7136, 46.6753, 3.0, "Asia/Riyadh", "umm_al_qura"),
-        CityLocation("dubai", "دبي", "Dubai", "الإمارات العربية المتحدة", 25.2048, 55.2708, 4.0, "Asia/Dubai", "dubai"),
-        CityLocation("doha", "الدوحة", "Doha", "قطر", 25.2854, 51.5310, 3.0, "Asia/Qatar", "umm_al_qura"),
-        CityLocation("kuwait", "مدينة الكويت", "Kuwait City", "الكويت", 29.3759, 47.9774, 3.0, "Asia/Kuwait", "umm_al_qura"),
-        CityLocation("amman", "عمّان", "Amman", "الأردن", 31.9454, 35.9284, 3.0, "Asia/Amman", "mwl"),
-        CityLocation("baghdad", "بغداد", "Baghdad", "العراق", 33.3152, 44.3661, 3.0, "Asia/Baghdad", "mwl"),
-        CityLocation("damascus", "دمشق", "Damascus", "سوريا", 33.5138, 36.2765, 3.0, "Asia/Damascus", "mwl"),
-        CityLocation("beirut", "بيروت", "Beirut", "لبنان", 33.8938, 35.5018, 2.0, "Asia/Beirut", "mwl"),
-        CityLocation("tripoli", "طرابلس", "Tripoli", "ليبيا", 32.8872, 13.1913, 2.0, "Africa/Tripoli", "egypt"),
-        CityLocation("tunis", "تونس", "Tunis", "تونس", 36.8065, 10.1815, 1.0, "Africa/Tunis", "mwl"),
-        CityLocation("algiers", "الجزائر العاصمة", "Algiers", "الجزائر", 36.7538, 3.0588, 1.0, "Africa/Algiers", "mwl"),
-        CityLocation("rabat", "الرباط", "Rabat", "المغرب", 34.0209, -6.8416, 1.0, "Africa/Casablanca", "mwl"),
-        CityLocation("khartoum", "الخرطوم", "Khartoum", "السودان", 15.5007, 32.5599, 2.0, "Africa/Khartoum", "egypt"),
-        CityLocation("muscat", "مسقط", "Muscat", "عمان", 23.5880, 58.3829, 4.0, "Asia/Muscat", "dubai"),
-        CityLocation("manama", "المنامة", "Manama", "البحرين", 26.2285, 50.5860, 3.0, "Asia/Bahrain", "umm_al_qura"),
-        CityLocation("istanbul", "إسطنبول", "Istanbul", "تركيا", 41.0082, 28.9784, 3.0, "Europe/Istanbul", "mwl")
+        CityLocation("makkah", "مكة المكرمة", "Makkah", "المملكة العربية السعودية", 21.4225, 39.8262, 3.0, "Asia/Riyadh", "umm_al_qura", "Saudi Arabia"),
+        CityLocation("madinah", "المدينة المنورة", "Madinah", "المملكة العربية السعودية", 24.5247, 39.5692, 3.0, "Asia/Riyadh", "umm_al_qura", "Saudi Arabia"),
+        CityLocation("cairo", "القاهرة", "Cairo", "مصر", 30.0444, 31.2357, 2.0, "Africa/Cairo", "egypt", "Egypt"),
+        CityLocation("alexandria", "الإسكندرية", "Alexandria", "مصر", 31.2001, 29.9187, 2.0, "Africa/Cairo", "egypt", "Egypt"),
+        CityLocation("giza", "الجيزة", "Giza", "مصر", 30.0131, 31.2089, 2.0, "Africa/Cairo", "egypt", "Egypt"),
+        CityLocation("jerusalem", "القدس الشريف", "Jerusalem", "فلسطين", 31.7683, 35.2137, 2.0, "Asia/Jerusalem", "mwl", "Palestine"),
+        CityLocation("riyadh", "الرياض", "Riyadh", "المملكة العربية السعودية", 24.7136, 46.6753, 3.0, "Asia/Riyadh", "umm_al_qura", "Saudi Arabia"),
+        CityLocation("dubai", "دبي", "Dubai", "الإمارات العربية المتحدة", 25.2048, 55.2708, 4.0, "Asia/Dubai", "dubai", "United Arab Emirates"),
+        CityLocation("doha", "الدوحة", "Doha", "قطر", 25.2854, 51.5310, 3.0, "Asia/Qatar", "umm_al_qura", "Qatar"),
+        CityLocation("kuwait", "مدينة الكويت", "Kuwait City", "الكويت", 29.3759, 47.9774, 3.0, "Asia/Kuwait", "umm_al_qura", "Kuwait"),
+        CityLocation("amman", "عمّان", "Amman", "الأردن", 31.9454, 35.9284, 3.0, "Asia/Amman", "mwl", "Jordan"),
+        CityLocation("baghdad", "بغداد", "Baghdad", "العراق", 33.3152, 44.3661, 3.0, "Asia/Baghdad", "mwl", "Iraq"),
+        CityLocation("damascus", "دمشق", "Damascus", "سوريا", 33.5138, 36.2765, 3.0, "Asia/Damascus", "mwl", "Syria"),
+        CityLocation("beirut", "بيروت", "Beirut", "لبنان", 33.8938, 35.5018, 2.0, "Asia/Beirut", "mwl", "Lebanon"),
+        CityLocation("tripoli", "طرابلس", "Tripoli", "ليبيا", 32.8872, 13.1913, 2.0, "Africa/Tripoli", "egypt", "Libya"),
+        CityLocation("tunis", "تونس", "Tunis", "تونس", 36.8065, 10.1815, 1.0, "Africa/Tunis", "mwl", "Tunisia"),
+        CityLocation("algiers", "الجزائر العاصمة", "Algiers", "الجزائر", 36.7538, 3.0588, 1.0, "Africa/Algiers", "mwl", "Algeria"),
+        CityLocation("rabat", "الرباط", "Rabat", "المغرب", 34.0209, -6.8416, 1.0, "Africa/Casablanca", "mwl", "Morocco"),
+        CityLocation("khartoum", "الخرطوم", "Khartoum", "السودان", 15.5007, 32.5599, 2.0, "Africa/Khartoum", "egypt", "Sudan"),
+        CityLocation("muscat", "مسقط", "Muscat", "عمان", 23.5880, 58.3829, 4.0, "Asia/Muscat", "dubai", "Oman"),
+        CityLocation("manama", "المنامة", "Manama", "البحرين", 26.2285, 50.5860, 3.0, "Asia/Bahrain", "umm_al_qura", "Bahrain"),
+        CityLocation("istanbul", "إسطنبول", "Istanbul", "تركيا", 41.0082, 28.9784, 3.0, "Europe/Istanbul", "mwl", "Turkey")
     )
+
+    @Volatile
+    private var cachedWorldCities: List<CityLocation>? = null
+
+    /**
+     * Loads 660+ global cities across 206 countries/territories from offline assets/data/world_cities.json.
+     * Cached in memory for instant search and offline GPS reverse lookup.
+     */
+    fun loadAllWorldCities(context: Context): List<CityLocation> {
+        cachedWorldCities?.let { return it }
+        return synchronized(this) {
+            cachedWorldCities ?: run {
+                val parsed = mutableListOf<CityLocation>()
+                try {
+                    val jsonStr = context.assets.open("data/world_cities.json")
+                        .bufferedReader()
+                        .use { it.readText() }
+                    val arr = JSONArray(jsonStr)
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        parsed.add(
+                            CityLocation(
+                                id = o.optString("id", "city_$i"),
+                                nameAr = o.optString("nameAr", ""),
+                                nameEn = o.optString("nameEn", ""),
+                                country = o.optString("country", ""),
+                                latitude = o.optDouble("lat", 0.0),
+                                longitude = o.optDouble("lng", 0.0),
+                                timezoneHours = 0.0,
+                                timezoneId = o.optString("tz", ""),
+                                recommendedCalcMethod = o.optString("m", "mwl"),
+                                countryEn = o.optString("countryEn", ""),
+                                countryCode = o.optString("countryCode", ""),
+                                stateAr = o.optString("stateAr", ""),
+                                stateEn = o.optString("stateEn", ""),
+                                district = o.optString("district", ""),
+                                isCachedOnline = false
+                            )
+                        )
+                    }
+                } catch (_: Exception) {
+                    parsed.clear()
+                    parsed.addAll(defaultCities)
+                }
+                val result = if (parsed.isNotEmpty()) parsed else defaultCities
+                cachedWorldCities = result
+                result
+            }
+        }
+    }
+
+    fun getAllCitiesIncludingCached(context: Context, prefs: NativePreferences): List<CityLocation> {
+        val base = loadAllWorldCities(context)
+        val cached = prefs.getCachedOsmCities()
+        if (cached.isEmpty()) return base
+        val merged = ArrayList<CityLocation>(base.size + cached.size)
+        val seenIds = HashSet<String>(base.size + cached.size)
+        for (c in cached) {
+            if (seenIds.add(c.id)) merged.add(c)
+        }
+        for (c in base) {
+            if (seenIds.add(c.id)) merged.add(c)
+        }
+        return merged
+    }
+
+    fun normalizeArabic(raw: String): String {
+        if (raw.isBlank()) return ""
+        val sb = StringBuilder(raw.length)
+        var prevSpace = true
+        for (ch in raw.trim().lowercase(Locale.US)) {
+            when (ch) {
+                '\u0623', '\u0625', '\u0622', '\u0671' -> {
+                    sb.append('\u0627')
+                    prevSpace = false
+                }
+                '\u0629' -> {
+                    sb.append('\u0647')
+                    prevSpace = false
+                }
+                '\u0649' -> {
+                    sb.append('\u064A')
+                    prevSpace = false
+                }
+                '\u0624' -> {
+                    sb.append('\u0648')
+                    prevSpace = false
+                }
+                '\u0626' -> {
+                    sb.append('\u064A')
+                    prevSpace = false
+                }
+                in '\u064B'..'\u065F', '\u0670', '\u0640' -> Unit
+                ' ', '\t', '\n', '\r', '-', '_', ',', '،', '(', ')', '/' -> {
+                    if (!prevSpace) {
+                        sb.append(' ')
+                        prevSpace = true
+                    }
+                }
+                else -> {
+                    sb.append(ch)
+                    prevSpace = false
+                }
+            }
+        }
+        return sb.toString().trim()
+    }
+
+    private val priorityCountryOrder = listOf(
+        "مصر",
+        "المملكة العربية السعودية",
+        "السعودية",
+        "الإمارات العربية المتحدة",
+        "قطر",
+        "الكويت",
+        "البحرين",
+        "سلطنة عمان",
+        "عمان",
+        "الأردن",
+        "فلسطين",
+        "لبنان",
+        "سوريا",
+        "العراق",
+        "اليمن",
+        "ليبيا",
+        "تونس",
+        "الجزائر",
+        "المغرب",
+        "موريتانيا",
+        "السودان",
+        "الصومال",
+        "جيبوتي",
+        "جزر القمر",
+        "تركيا",
+        "إندونيسيا",
+        "ماليزيا",
+        "باكستان"
+    )
+
+    fun getCountries(context: Context, prefs: NativePreferences): List<CountrySummary> {
+        val all = getAllCitiesIncludingCached(context, prefs)
+        val grouped = LinkedHashMap<String, MutableList<CityLocation>>()
+        for (city in all) {
+            val key = city.country.ifBlank { city.countryEn }
+            if (key.isNotBlank()) {
+                grouped.getOrPut(key) { mutableListOf() }.add(city)
+            }
+        }
+        val list = grouped.entries.map { (countryAr, cities) ->
+            val first = cities.first()
+            val distinctStates = cities.mapNotNull { it.stateAr.takeIf { s -> s.isNotBlank() } }.distinct().size
+            CountrySummary(
+                countryAr = countryAr,
+                countryEn = first.countryEn,
+                countryCode = first.countryCode,
+                citiesCount = cities.size,
+                statesCount = distinctStates
+            )
+        }
+        return list.sortedWith { a, b ->
+            val ia = priorityCountryOrder.indexOf(a.countryAr)
+            val ib = priorityCountryOrder.indexOf(b.countryAr)
+            when {
+                ia >= 0 && ib >= 0 -> ia.compareTo(ib)
+                ia >= 0 -> -1
+                ib >= 0 -> 1
+                else -> a.countryAr.compareTo(b.countryAr)
+            }
+        }
+    }
+
+    fun getStatesForCountry(context: Context, prefs: NativePreferences, countryAr: String): List<String> {
+        if (countryAr.isBlank()) return emptyList()
+        val normTarget = normalizeArabic(countryAr)
+        val all = getAllCitiesIncludingCached(context, prefs)
+        return all
+            .filter { normalizeArabic(it.country) == normTarget || it.country == countryAr }
+            .mapNotNull { it.stateAr.takeIf { s -> s.isNotBlank() } }
+            .distinct()
+    }
+
+    fun searchCities(
+        context: Context,
+        prefs: NativePreferences,
+        query: String,
+        countryFilter: String? = null,
+        stateFilter: String? = null,
+        limit: Int = 80
+    ): List<CityLocation> {
+        val all = getAllCitiesIncludingCached(context, prefs)
+        val normCountry = countryFilter?.takeIf { it.isNotBlank() }?.let { normalizeArabic(it) }
+        val normState = stateFilter?.takeIf { it.isNotBlank() }?.let { normalizeArabic(it) }
+        val normQ = normalizeArabic(query)
+
+        val scoped = all.filter { c ->
+            val matchesCountry = normCountry == null ||
+                normalizeArabic(c.country) == normCountry ||
+                normalizeArabic(c.countryEn) == normCountry
+            val matchesState = normState == null ||
+                normalizeArabic(c.stateAr) == normState ||
+                normalizeArabic(c.stateEn) == normState
+            matchesCountry && matchesState
+        }
+
+        if (normQ.isEmpty()) {
+            return scoped.take(limit)
+        }
+
+        val scored = ArrayList<Pair<Int, CityLocation>>()
+        for (city in scoped) {
+            val nAr = normalizeArabic(city.nameAr)
+            val nEn = normalizeArabic(city.nameEn)
+            val nState = normalizeArabic(city.stateAr)
+            val nDistrict = normalizeArabic(city.district)
+            val nCountry = normalizeArabic(city.country)
+            val nCountryEn = normalizeArabic(city.countryEn)
+
+            val score = when {
+                nAr == normQ || nEn == normQ -> 100
+                nAr.startsWith(normQ) || nEn.startsWith(normQ) -> 85
+                nAr.contains(" $normQ") || nEn.contains(" $normQ") -> 75
+                nAr.contains(normQ) || nEn.contains(normQ) -> 65
+                nState == normQ || nDistrict == normQ -> 55
+                nState.contains(normQ) || nDistrict.contains(normQ) -> 45
+                nCountry == normQ || nCountryEn == normQ -> 35
+                nCountry.contains(normQ) || nCountryEn.contains(normQ) -> 20
+                else -> 0
+            }
+            if (score > 0) {
+                scored.add(score to city)
+            }
+        }
+        scored.sortByDescending { it.first }
+        return scored.take(limit).map { it.second }
+    }
+
+    fun mapCountryCodeToCalcMethod(countryCode: String?, fallbackMethod: String = "mwl"): String {
+        val cc = countryCode?.uppercase(Locale.US) ?: return fallbackMethod
+        return when (cc) {
+            "EG", "SD", "LY" -> "egypt"
+            "SA", "KW", "QA", "BH", "YE" -> "umm_al_qura"
+            "AE", "OM" -> "dubai"
+            "PK", "IN", "BD", "AF" -> "karachi"
+            "US", "CA", "MX" -> "isna"
+            else -> fallbackMethod
+        }
+    }
+
+    suspend fun searchOnlineOsm(
+        context: Context,
+        prefs: NativePreferences,
+        query: String,
+        countryCode: String? = null
+    ): Result<List<CityLocation>> = withContext(Dispatchers.IO) {
+        val cleanQuery = query.trim()
+        if (cleanQuery.length < 2) {
+            return@withContext Result.success(emptyList())
+        }
+        runCatching {
+            val encodedQ = URLEncoder.encode(cleanQuery, "UTF-8")
+            val ccParam = if (!countryCode.isNullOrBlank()) {
+                "&countrycodes=${URLEncoder.encode(countryCode.lowercase(Locale.US), "UTF-8")}"
+            } else {
+                ""
+            }
+            val urlStr =
+                "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=15&accept-language=ar,en&q=$encodedQ$ccParam"
+            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 6_000
+                readTimeout = 6_000
+                setRequestProperty("User-Agent", "AlMoazenIslamicApp/2.2 (contact@almoazen.app)")
+                setRequestProperty("Accept", "application/json")
+            }
+            val code = conn.responseCode
+            val body = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            conn.disconnect()
+            if (code !in 200..299) {
+                throw IllegalStateException("تعذر الاتصال بخدمة البحث العالمية ($code)")
+            }
+
+            val arr = JSONArray(body)
+            val results = mutableListOf<CityLocation>()
+            for (i in 0 until arr.length()) {
+                val item = arr.optJSONObject(i) ?: continue
+                val lat = item.optString("lat").toDoubleOrNull() ?: continue
+                val lng = item.optString("lon").toDoubleOrNull() ?: continue
+                val addr = item.optJSONObject("address")
+                val cc = addr?.optString("country_code", "")?.uppercase(Locale.US).orEmpty()
+                val countryName = addr?.optString("country", "").orEmpty()
+                val stateName = addr?.optString("state", "").orEmpty()
+                    .ifBlank { addr?.optString("province", "").orEmpty() }
+                    .ifBlank { addr?.optString("region", "").orEmpty() }
+                val cityTitle = addr?.optString("city", "").orEmpty()
+                    .ifBlank { addr?.optString("town", "").orEmpty() }
+                    .ifBlank { addr?.optString("village", "").orEmpty() }
+                    .ifBlank { addr?.optString("municipality", "").orEmpty() }
+                    .ifBlank { item.optString("name", "") }
+                    .ifBlank { item.optString("display_name", "").substringBefore(",").trim() }
+                val districtName = addr?.optString("city_district", "").orEmpty()
+                    .ifBlank { addr?.optString("county", "").orEmpty() }
+                    .ifBlank { addr?.optString("suburb", "").orEmpty() }
+                val nearestOffline = findNearestCity(context, lat, lng)
+                val tzId = if (nearestOffline != null && nearestOffline.second <= 400.0 && nearestOffline.first.timezoneId.isNotBlank()) {
+                    nearestOffline.first.timezoneId
+                } else {
+                    TimeZone.getDefault().id.ifBlank { "UTC" }
+                }
+                val placeId = item.optLong("place_id", (lat * 1000).toLong() + i)
+                results.add(
+                    CityLocation(
+                        id = "osm_$placeId",
+                        nameAr = cityTitle.ifBlank { cleanQuery },
+                        nameEn = item.optString("name", cityTitle),
+                        country = countryName.ifBlank { "عالمي" },
+                        latitude = lat,
+                        longitude = lng,
+                        timezoneHours = 0.0,
+                        timezoneId = tzId,
+                        recommendedCalcMethod = mapCountryCodeToCalcMethod(cc, nearestOffline?.first?.recommendedCalcMethod ?: "mwl"),
+                        countryEn = countryName,
+                        countryCode = cc,
+                        stateAr = stateName,
+                        stateEn = stateName,
+                        district = districtName,
+                        isCachedOnline = true
+                    )
+                )
+            }
+            if (results.isNotEmpty()) {
+                prefs.appendCachedOsmCities(results)
+            }
+            results
+        }
+    }
+
+    /**
+     * Finds the nearest global city to (lat, lng) using the Haversine formula (returns City + distance in km).
+     */
+    fun findNearestCity(context: Context, lat: Double, lng: Double): Pair<CityLocation, Double>? {
+        val cities = loadAllWorldCities(context)
+        var best: CityLocation? = null
+        var bestKm = Double.MAX_VALUE
+        for (city in cities) {
+            val dKm = haversineKm(lat, lng, city.latitude, city.longitude)
+            if (dKm < bestKm) {
+                bestKm = dKm
+                best = city
+            }
+        }
+        return best?.let { it to bestKm }
+    }
+
+    private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = sin(dLat / 2).pow(2) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
+        return 2 * r * atan2(sqrt(a), sqrt(1.0 - a))
+    }
 
     val sampleMorningAzkar: List<AzkarItem> = listOf(
         AzkarItem(
@@ -223,44 +601,55 @@ object NativeDataManager {
     @Volatile
     private var cachedTafseerByKey: JSONObject? = null
 
+    private fun getCachedQuranRoot(context: Context): JSONArray {
+        return cachedQuranArray ?: synchronized(this) {
+            cachedQuranArray ?: run {
+                val text = context.assets.open("data/quran_uthmani.json")
+                    .bufferedReader()
+                    .use { it.readText() }
+                val trimmed = text.trim()
+                val arr = if (trimmed.startsWith("[")) {
+                    JSONArray(trimmed)
+                } else {
+                    JSONObject(trimmed).optJSONArray("surahs") ?: JSONArray()
+                }
+                cachedQuranArray = arr
+                arr
+            }
+        }
+    }
+
+    private fun getCachedTafseerMap(context: Context): JSONObject {
+        return cachedTafseerByKey ?: synchronized(this) {
+            cachedTafseerByKey ?: run {
+                try {
+                    val tText = context.assets.open("data/quran_tafseer_muyassar.json")
+                        .bufferedReader()
+                        .use { it.readText() }
+                    val tRoot = JSONObject(tText)
+                    val byKey = tRoot.optJSONObject("byKey") ?: JSONObject()
+                    cachedTafseerByKey = byKey
+                    byKey
+                } catch (_: Exception) {
+                    JSONObject()
+                }
+            }
+        }
+    }
+
     fun loadAyahsForSurah(context: Context, surahNumber: Int): List<Ayah> {
         val list = mutableListOf<Ayah>()
         try {
-            val surahsArray = cachedQuranArray ?: synchronized(this) {
-                cachedQuranArray ?: run {
-                    val text = context.assets.open("data/quran_uthmani.json")
-                        .bufferedReader()
-                        .use { it.readText() }
-                    val trimmed = text.trim()
-                    val arr = if (trimmed.startsWith("[")) {
-                        JSONArray(trimmed)
-                    } else {
-                        JSONObject(trimmed).optJSONArray("surahs") ?: JSONArray()
-                    }
-                    cachedQuranArray = arr
-                    arr
-                }
-            }
-
-            val tafseerMap = cachedTafseerByKey ?: synchronized(this) {
-                cachedTafseerByKey ?: run {
-                    try {
-                        val tText = context.assets.open("data/quran_tafseer_muyassar.json")
-                            .bufferedReader()
-                            .use { it.readText() }
-                        val tRoot = JSONObject(tText)
-                        val byKey = tRoot.optJSONObject("byKey") ?: JSONObject()
-                        cachedTafseerByKey = byKey
-                        byKey
-                    } catch (ignored: Exception) {
-                        JSONObject()
-                    }
-                }
-            }
+            val surahsArray = getCachedQuranRoot(context)
+            val tafseerMap = getCachedTafseerMap(context)
+            val fallbackSurahName = surahs.find { it.number == surahNumber }?.nameArabic.orEmpty()
 
             for (i in 0 until surahsArray.length()) {
                 val sObj = surahsArray.getJSONObject(i)
                 if (sObj.optInt("number") == surahNumber) {
+                    val sName = sObj.optString("name", fallbackSurahName)
+                        .replace("سورة ", "")
+                        .ifBlank { fallbackSurahName }
                     val ayahsArr = sObj.optJSONArray("ayahs") ?: JSONArray()
                     for (j in 0 until ayahsArr.length()) {
                         val aObj = ayahsArr.getJSONObject(j)
@@ -274,7 +663,11 @@ object NativeDataManager {
                                 numberInSurah = ayahInSurah,
                                 textArabic = aObj.optString("text"),
                                 translation = aObj.optString("translation", ""),
-                                tafseer = tafseerText
+                                tafseer = tafseerText,
+                                page = aObj.optInt("page", 1).coerceIn(1, 604),
+                                juz = aObj.optInt("juz", 1).coerceIn(1, 30),
+                                surahNumber = surahNumber,
+                                surahName = sName
                             )
                         )
                     }
@@ -283,21 +676,101 @@ object NativeDataManager {
             }
         } catch (e: Exception) {
             if (surahNumber == 1) {
-                list.add(Ayah(1, 1, "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"))
-                list.add(Ayah(2, 2, "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"))
-                list.add(Ayah(3, 3, "الرَّحْمَٰنِ الرَّحِيمِ"))
-                list.add(Ayah(4, 4, "مَالِكِ يَوْمِ الدِّينِ"))
-                list.add(Ayah(5, 5, "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ"))
-                list.add(Ayah(6, 6, "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ"))
-                list.add(Ayah(7, 7, "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ"))
+                list.add(Ayah(1, 1, "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(2, 2, "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(3, 3, "الرَّحْمَٰنِ الرَّحِيمِ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(4, 4, "مَالِكِ يَوْمِ الدِّينِ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(5, 5, "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(6, 6, "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
+                list.add(Ayah(7, 7, "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ", page = 1, juz = 1, surahNumber = 1, surahName = "الفاتحة"))
             } else {
                 val sMeta = surahs.find { it.number == surahNumber }
                 val count = sMeta?.numberOfAyahs ?: 5
                 for (k in 1..count) {
-                    list.add(Ayah(k, k, "آية كريمة مباركة رقم $k من سورة ${sMeta?.nameArabic ?: ""}"))
+                    list.add(Ayah(k, k, "آية كريمة مباركة رقم $k من سورة ${sMeta?.nameArabic ?: ""}", surahNumber = surahNumber, surahName = sMeta?.nameArabic.orEmpty()))
                 }
             }
         }
         return list
+    }
+
+    fun loadAyahsForPage(context: Context, pageNumber: Int): List<Ayah> {
+        val targetPage = pageNumber.coerceIn(1, 604)
+        val result = mutableListOf<Ayah>()
+        try {
+            val surahsArray = getCachedQuranRoot(context)
+            val tafseerMap = getCachedTafseerMap(context)
+            for (i in 0 until surahsArray.length()) {
+                val sObj = surahsArray.getJSONObject(i)
+                val sNum = sObj.optInt("number", i + 1)
+                val fallbackName = surahs.find { it.number == sNum }?.nameArabic.orEmpty()
+                val sName = sObj.optString("name", fallbackName).replace("سورة ", "").ifBlank { fallbackName }
+                val ayahsArr = sObj.optJSONArray("ayahs") ?: JSONArray()
+                for (j in 0 until ayahsArr.length()) {
+                    val aObj = ayahsArr.getJSONObject(j)
+                    val p = aObj.optInt("page", -1)
+                    if (p == targetPage) {
+                        val ayahInSurah = aObj.optInt("numberInSurah", j + 1)
+                        val tafseerKey = "$sNum:$ayahInSurah"
+                        val tafseerText = aObj.optString("tafseer", "")
+                            .ifEmpty { tafseerMap.optString(tafseerKey, "") }
+                        result.add(
+                            Ayah(
+                                number = aObj.optInt("number"),
+                                numberInSurah = ayahInSurah,
+                                textArabic = aObj.optString("text"),
+                                translation = aObj.optString("translation", ""),
+                                tafseer = tafseerText,
+                                page = targetPage,
+                                juz = aObj.optInt("juz", 1).coerceIn(1, 30),
+                                surahNumber = sNum,
+                                surahName = sName
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return result
+    }
+
+    fun getFirstPageForSurah(context: Context, surahNumber: Int): Int {
+        return try {
+            val surahsArray = getCachedQuranRoot(context)
+            for (i in 0 until surahsArray.length()) {
+                val sObj = surahsArray.getJSONObject(i)
+                if (sObj.optInt("number") == surahNumber) {
+                    val ayahsArr = sObj.optJSONArray("ayahs") ?: break
+                    if (ayahsArr.length() > 0) {
+                        return ayahsArr.getJSONObject(0).optInt("page", 1).coerceIn(1, 604)
+                    }
+                    break
+                }
+            }
+            1
+        } catch (_: Exception) {
+            1
+        }
+    }
+
+    fun getFirstPageForJuz(context: Context, juzNumber: Int): Int {
+        val targetJuz = juzNumber.coerceIn(1, 30)
+        return try {
+            val surahsArray = getCachedQuranRoot(context)
+            for (i in 0 until surahsArray.length()) {
+                val sObj = surahsArray.getJSONObject(i)
+                val ayahsArr = sObj.optJSONArray("ayahs") ?: continue
+                for (j in 0 until ayahsArr.length()) {
+                    val aObj = ayahsArr.getJSONObject(j)
+                    if (aObj.optInt("juz", -1) == targetJuz) {
+                        return aObj.optInt("page", 1).coerceIn(1, 604)
+                    }
+                }
+            }
+            ((targetJuz - 1) * 20 + 2).coerceIn(1, 604)
+        } catch (_: Exception) {
+            ((targetJuz - 1) * 20 + 2).coerceIn(1, 604)
+        }
     }
 }

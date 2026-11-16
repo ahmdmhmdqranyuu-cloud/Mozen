@@ -202,7 +202,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="فهرس المسابقات"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -272,7 +272,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
         {screenMode === 'index' && (
           <div className="space-y-3">
             {/* Section 1: Vertical Index of Interactive Quiz Categories */}
-            <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-[#172A28] font-cairo">
                   1. فهرس اختبارات المسابقة التفاعلية
@@ -288,7 +288,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
               <button
                 key={cat.id}
                 onClick={() => startCategoryQuiz(cat.id)}
-                className="w-full text-right bg-white hover:bg-[#FAF9F5] p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                className="moazen-widget w-full text-right p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0">
@@ -311,7 +311,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
             ))}
 
             {/* Section 2: Vertical Index of All Encyclopedia Questions */}
-            <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5 mt-4">
+            <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5 mt-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#C5A059]" />
@@ -327,7 +327,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                   placeholder="ابحث في فهرس الأسئلة والإجابات..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-9 py-2 bg-[#F7F6F2] border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#C5A059] text-right"
+                  className="moazen-widget w-full pl-8 pr-9 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#C5A059] text-right"
                 />
                 <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
               </div>
@@ -356,7 +356,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                   setSelectedQuestion(q);
                   setScreenMode('question-detail');
                 }}
-                className="w-full text-right bg-white hover:bg-[#FAF9F5] p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                className="moazen-widget w-full text-right p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-[#F7F6F2] text-[#104B40] font-bold text-xs flex items-center justify-center shrink-0">
@@ -380,10 +380,10 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
         {/* VIEW 2: INDEPENDENT INTERACTIVE QUIZ PAGE */}
         {screenMode === 'quiz' && (
           <div className="space-y-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+            <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
               <button
                 onClick={() => setScreenMode('index')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
                 <span>العودة إلى فهرس المسابقات</span>
@@ -395,7 +395,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
 
             {!isQuizComplete && currentQ ? (
               <div className="space-y-4">
-                <div className="bg-white rounded-2xl p-4 shadow-xs border border-gray-100 flex items-center justify-between text-xs font-bold">
+                <div className="moazen-widget rounded-2xl p-4 shadow-xs border border-gray-100 flex items-center justify-between text-xs font-bold">
                   <div className="flex items-center gap-2">
                     <span className="bg-[#C5A059]/15 text-[#9A7732] px-3 py-1 rounded-full">
                       السؤال {currentQIndex + 1} من {filteredQuestions.length}
@@ -411,7 +411,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 space-y-4">
+                <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 space-y-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-base sm:text-lg font-bold font-cairo text-[#172A28] leading-relaxed flex-1">
                       {currentQ.question}
@@ -474,7 +474,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                   </div>
 
                   {isAnswered && (
-                    <div className="bg-[#F7F6F2] border border-[#C5A059]/30 rounded-xl p-3.5 space-y-3 animate-fadeIn">
+                    <div className="moazen-widget border border-[#C5A059]/30 rounded-xl p-3.5 space-y-3 animate-fadeIn">
                       <p className="text-xs text-[#172A28] leading-relaxed font-medium">
                         <strong className="font-bold text-[#9A7732] block mb-1">الفائدة العلمية:</strong>
                         {currentQ.explanation}
@@ -490,7 +490,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl p-6 shadow-xs border border-gray-100 text-center space-y-4">
+              <div className="moazen-widget rounded-2xl p-6 shadow-xs border border-gray-100 text-center space-y-4">
                 <div className="w-16 h-16 bg-[#C5A059]/15 text-[#C5A059] rounded-full flex items-center justify-center mx-auto">
                   <Award className="w-9 h-9" />
                 </div>
@@ -523,13 +523,13 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
         {/* VIEW 3: INDEPENDENT QUESTION DETAIL PAGE */}
         {screenMode === 'question-detail' && selectedQuestion && (
           <div className="space-y-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+            <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
               <button
                 onClick={() => {
                   setSelectedQuestion(null);
                   setScreenMode('index');
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
                 <span>العودة إلى فهرس الأسئلة ({filteredQuestions.length})</span>
@@ -539,7 +539,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
               </span>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-right">
+            <div className="moazen-widget p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-right">
               <span className="text-[11px] text-gray-400 font-bold block">
                 السؤال رقم {currentDetailIdx + 1} من {filteredQuestions.length}
               </span>
@@ -567,7 +567,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                 })}
               </div>
 
-              <div className="bg-[#FAF9F5] p-4 rounded-2xl border border-[#C5A059]/30 space-y-1.5">
+              <div className="moazen-widget p-4 rounded-2xl border border-[#C5A059]/30 space-y-1.5">
                 <span className="text-xs font-bold text-[#9A7732] block">الشرح والفائدة العلمية:</span>
                 <p className="text-xs sm:text-sm text-[#172A28] leading-relaxed">
                   {selectedQuestion.explanation}
@@ -600,7 +600,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                     setSelectedQuestion(filteredQuestions[currentDetailIdx - 1]);
                   }
                 }}
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4 text-[#C5A059]" />
                 <span>السؤال السابق</span>
@@ -612,7 +612,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
                     setSelectedQuestion(filteredQuestions[currentDetailIdx + 1]);
                   }
                 }}
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
               >
                 <span>السؤال التالي</span>
                 <ChevronLeft className="w-4 h-4 text-[#C5A059]" />

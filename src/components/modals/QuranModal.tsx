@@ -354,9 +354,14 @@ export const QuranModal: React.FC<QuranModalProps> = ({
         setCurrentPage(initialPage);
       }
       setShowIndex(true);
-      setIndexView('hub');
+      if (initialTab === 'juz') setIndexView('juzs');
+      else if (initialTab === 'surah') setIndexView('surahs');
+      else if (initialTab === 'tafseer') setIndexView('tafseer');
+      else if (initialTab === 'sheikh') setIndexView('sheikh');
+      else if (initialTab === 'search') setIndexView('search');
+      else setIndexView('hub');
     }
-  }, [isOpen, initialPage]);
+  }, [isOpen, initialPage, initialTab]);
 
   // Save bookmarks
   useEffect(() => {
@@ -1094,25 +1099,25 @@ export const QuranModal: React.FC<QuranModalProps> = ({
             {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               {/* Quranic Ayah Text */}
-              <div className="bg-white rounded-2xl p-4 border border-amber-900/15 shadow-2xs">
-                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 mb-2 inline-block">
+              <div className="moazen-widget rounded-2xl p-4 shadow-2xs">
+                <span className="text-[10px] font-bold text-[#104B40] bg-white/80 px-2 py-0.5 rounded-md border border-emerald-900/15 mb-2 inline-block">
                   النص القرآني الكريم:
                 </span>
-                <p className="font-quran text-base sm:text-lg font-bold text-emerald-950 leading-loose">
+                <p className="font-quran text-base sm:text-lg font-bold text-[#104B40] leading-loose">
                   {activeTafseerAyah.ayahText}{' '}
-                  <span className="text-amber-700 text-sm font-quran">
+                  <span className="text-[#8a6214] text-sm font-quran">
                     ﴿{toArabicDigits(activeTafseerAyah.numberInSurah)}﴾
                   </span>
                 </p>
               </div>
 
               {/* Complete Tafseer Text (Zero Truncation) */}
-              <div className="bg-white rounded-2xl p-4 sm:p-5 border border-emerald-900/15 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+              <div className="moazen-widget rounded-2xl p-4 sm:p-5 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between pb-1.5 border-b border-emerald-950/10">
                   <span className="text-xs font-black text-[#104B40]">
                     بيان التفسير ومعاني الكلمات:
                   </span>
-                  <span className="text-[10px] text-gray-500 font-sans">
+                  <span className="text-[10px] text-[#4B5B58] font-sans">
                     معتمد بدون أي اختصار
                   </span>
                 </div>
@@ -1122,7 +1127,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                     <div className="w-6 h-6 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <p className="text-xs sm:text-sm text-gray-800 leading-relaxed font-sans font-medium whitespace-pre-wrap">
+                  <p className="text-xs sm:text-sm text-[#172A28] leading-relaxed font-sans font-medium whitespace-pre-wrap">
                     {activeTafseerAyah.tafseerText}
                   </p>
                 )}
@@ -1224,20 +1229,20 @@ export const QuranModal: React.FC<QuranModalProps> = ({
             </button>
           </div>
 
-          {/* HUB VIEW (ORGANIZED BUTTONS / CARDS - Requirement 4) */}
+          {/* HUB VIEW (SIDE-BY-SIDE MULTI-COLUMN GRID) */}
           {indexView === 'hub' && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
-              <div className="max-w-xl mx-auto space-y-3 pb-8">
+              <div className="max-w-2xl mx-auto space-y-3 pb-8">
                 {/* Last Read Bookmark Quick Resume Card */}
-                <div className="bg-gradient-to-r from-[#104B40] via-[#145548] to-[#104B40] text-white rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3">
+                <div className="moazen-widget rounded-3xl p-4 shadow-xs flex items-center justify-between gap-3">
                   <div className="flex-1 text-right">
-                    <span className="text-[10px] font-bold text-amber-300 bg-white/10 px-2 py-0.5 rounded-full inline-block mb-1">
+                    <span className="text-[10px] font-black text-[#104B40] bg-white/80 border border-emerald-950/10 px-2.5 py-0.5 rounded-full inline-block mb-1">
                       آخر موضع قراءة محفوظ
                     </span>
-                    <h3 className="font-black text-sm sm:text-base font-quran text-white">
+                    <h3 className="font-black text-base sm:text-lg font-quran text-[#104B40]">
                       سورة {lastReadMeta.surahName} (صفحة {lastReadPageNumber})
                     </h3>
-                    <p className="text-xs text-white/80 font-sans mt-0.5">
+                    <p className="text-xs text-[#4B5B58] font-bold font-sans mt-0.5">
                       الجزء {lastReadMeta.juzNumber} • الحزب {Math.ceil(lastReadMeta.juzNumber * 2)}
                     </p>
                   </div>
@@ -1247,161 +1252,141 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                       goToPage(lastReadPageNumber);
                       setShowIndex(false);
                     }}
-                    className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black text-xs shadow-md flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shrink-0"
+                    className="px-4 py-2.5 rounded-2xl bg-[#104B40] hover:bg-[#0B3D35] text-white font-black text-xs shadow-md flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shrink-0"
                   >
                     <span>متابعة القراءة</span>
-                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <Play className="w-3.5 h-3.5 fill-current text-amber-300" />
                   </button>
                 </div>
 
-                {/* THE 6 MAIN REORGANIZED QURAN SECTION BUTTONS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {/* Button 1: فهرس السور (114 سورة) */}
-                  <div
+                {/* SIDE-BY-SIDE GRID OF QURAN SECTIONS */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-0.5">
+                  {/* Card 1: فهرس السور */}
+                  <button
+                    type="button"
                     onClick={() => setIndexView('surahs')}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-[#0B4D3F] text-amber-300 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <BookOpen className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <h4 className="text-sm font-black text-[#172A28]">
-                          المصحف الشريف (السور)
-                        </h4>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          فهرس الـ 114 سورة بالرسم العثماني
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-[#104B40] text-amber-300 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <BookOpen className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-[#104B40] transition-colors" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                        السور (114)
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        فهرس المصحف العثماني
+                      </p>
+                    </div>
+                  </button>
 
-                  {/* Button 2: الأجزاء والأحزاب (30 جزءاً) */}
-                  <div
+                  {/* Card 2: الأجزاء والأحزاب */}
+                  <button
+                    type="button"
                     onClick={() => setIndexView('juzs')}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-teal-800 text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <Puzzle className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <h4 className="text-sm font-black text-[#172A28]">
-                          الأجزاء والأحزاب (30)
-                        </h4>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          تصفح القرآن حسب الأجزاء والأرباع
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-teal-800 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <Puzzle className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-[#104B40] transition-colors" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                        الأجزاء (30)
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        الأحزاب والأرباع
+                      </p>
+                    </div>
+                  </button>
 
-                  {/* Button 3: التفسير الميسر لكامل المصحف (6236 آية بدون إنترنت) */}
-                  <div
+                  {/* Card 3: التفسير الميسر */}
+                  <button
+                    type="button"
                     onClick={() => setIndexView('tafseer')}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-amber-300/80 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group bg-gradient-to-r from-amber-50/40 to-white"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-[#9B7B32] text-amber-200 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <Sparkles className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-black text-[#172A28]">
-                            التفسير الميسر الشامل
-                          </h4>
-                          <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
-                            كامل
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          تفسير جميع آيات المصحف (6236 آية) بدون إنترنت
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-[#9B7B32] text-amber-100 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <Sparkles className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-amber-600" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                        التفسير الميسر
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        6236 آية بدون إنترنت
+                      </p>
+                    </div>
+                  </button>
 
-                  {/* Button 4: معلم ومحفظ القرآن الذكي «شيخي» */}
-                  <div
+                  {/* Card 4: شيخي الذكي AI */}
+                  <button
+                    type="button"
                     onClick={() => setIndexView('sheikh')}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-emerald-300/80 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group bg-gradient-to-r from-emerald-50/40 to-white"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px] border-[#C5A059]/60"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0D4E41] to-[#07362C] text-amber-300 flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <Cpu className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-black text-[#172A28]">
-                            معلم القرآن الذكي «شيخي»
-                          </h4>
-                          <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                            AI
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          التلقين والتحفيظ الصوتي التفاعلي
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0D4E41] to-[#07362C] text-amber-300 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <Cpu className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-[#104B40]" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#104B40]">
+                        الشيخ الذكي AI
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        تسميع صفحات وآيات
+                      </p>
+                    </div>
+                  </button>
 
-                  {/* Button 5: البحث في آيات المصحف الشريف */}
-                  <div
+                  {/* Card 5: البحث في الآيات */}
+                  <button
+                    type="button"
                     onClick={() => setIndexView('search')}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-800 text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <Search className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <h4 className="text-sm font-black text-[#172A28]">البحث في الآيات</h4>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          بحث فوري في نصوص القرآن الـ 6236
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-800 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <Search className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-[#104B40] transition-colors" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                        البحث القرآني
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        بحث فوري في الآيات
+                      </p>
+                    </div>
+                  </button>
 
-                  {/* Button 6: الفواصل والعلامات المرجعية */}
-                  <div
+                  {/* Card 6: العلامات المرجعية */}
+                  <button
+                    type="button"
                     onClick={() => setShowBookmarks(true)}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-4 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
+                    className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3.5 shadow-2xs flex flex-col items-center justify-center text-center gap-2 cursor-pointer transition-all active:scale-[0.98] group min-h-[126px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform">
-                        <Bookmark className="w-6 h-6" />
-                      </div>
-                      <div className="text-right">
-                        <h4 className="text-sm font-black text-[#172A28]">
-                          العلامات المرجعية ({bookmarks.length})
-                        </h4>
-                        <p className="text-[11px] text-gray-500 font-sans mt-0.5">
-                          الصفحات والفواصل التي تم حفظها
-                        </p>
-                      </div>
+                    <div className="w-11 h-11 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                      <Bookmark className="w-5 h-5" />
                     </div>
-                    <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-[#104B40] transition-colors" />
-                  </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-[#172A28]">
+                        الفواصل ({bookmarks.length})
+                      </h4>
+                      <p className="text-[10.5px] text-[#4B5B58] font-bold mt-0.5 line-clamp-1">
+                        المواضع المحفوظة
+                      </p>
+                    </div>
+                  </button>
                 </div>
 
                 {/* Quick Jump Action Bar */}
-                <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs flex items-center justify-between">
+                <div className="moazen-widget rounded-2xl p-3 shadow-2xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FastForward className="w-4 h-4 text-[#104B40]" />
-                    <span className="text-xs font-bold text-gray-800">
+                    <span className="text-xs font-bold text-[#172A28]">
                       الانتقال السريع لرقم صفحة محددة (1 - 604):
                     </span>
                   </div>
                   <button
                     onClick={() => setShowJumpDialog(true)}
-                    className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold cursor-pointer transition-all"
+                    className="px-3 py-1.5 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold cursor-pointer transition-all"
                   >
                     انتقال سريع...
                   </button>
@@ -1410,82 +1395,85 @@ export const QuranModal: React.FC<QuranModalProps> = ({
             </div>
           )}
 
-          {/* DEDICATED SUBPAGE 1: SURAHS LIST */}
+          {/* DEDICATED SUBPAGE 1: SURAHS SIDE-BY-SIDE GRID */}
           {indexView === 'surahs' && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
-              <div className="max-w-xl mx-auto space-y-2 pb-8">
+              <div className="max-w-3xl mx-auto space-y-3 pb-8">
                 {/* Search Bar inside Surahs */}
                 <div className="relative mb-2">
-                  <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-2.5" />
+                  <Search className="w-4 h-4 text-[#104B40]/60 absolute right-3.5 top-2.5" />
                   <input
                     type="text"
                     placeholder="ابحث باسم السورة أو رقمها (مثال: الكهف، 18)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2 text-xs sm:text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B4D3F] shadow-2xs"
+                    className="moazen-widget w-full pr-10 pl-4 py-2 text-xs sm:text-sm rounded-xl focus:outline-none focus:border-[#0B4D3F] shadow-2xs"
                   />
                 </div>
 
-                {filteredSurahs.map((surah) => (
-                  <div
-                    key={surah.number}
-                    onClick={() => {
-                      goToPage(surah.startPage);
-                      setShowIndex(false);
-                    }}
-                    className="bg-white hover:bg-emerald-50/50 rounded-2xl p-3 border border-gray-200/80 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-[#E5F5EC] text-[#147A57] flex items-center justify-center shrink-0">
-                      <ChevronLeft className="w-5 h-5" />
-                    </div>
-
-                    <div className="text-right flex-1 px-3">
-                      <div className="font-black text-sm text-[#172A28]">سورة {surah.name}</div>
-                      <div className="text-xs text-gray-500 font-sans">
-                        {surah.numberOfAyahs} آية • صفحة {surah.startPage}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {filteredSurahs.map((surah) => (
+                    <button
+                      type="button"
+                      key={surah.number}
+                      onClick={() => {
+                        goToPage(surah.startPage);
+                        setShowIndex(false);
+                      }}
+                      className="moazen-widget hover:border-[#C5A059] rounded-2xl p-3 shadow-2xs flex flex-col items-center text-center justify-between gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                    >
+                      <div className="w-full flex items-center justify-between">
+                        <span className="text-[10px] font-black text-[#104B40] bg-white/80 px-2 py-0.5 rounded-lg border border-emerald-950/10">
+                          ص {surah.startPage}
+                        </span>
+                        <IslamicStarBadge number={surah.number} />
                       </div>
-                    </div>
 
-                    <div className="font-quran text-lg sm:text-xl font-bold text-[#172A28] px-2 select-none">
-                      سُورَةُ {SURAH_CALLIGRAPHY_NAMES[surah.number] || surah.name}
-                    </div>
+                      <div className="font-quran text-base sm:text-lg font-black text-[#104B40] leading-snug select-none">
+                        سُورَةُ {SURAH_CALLIGRAPHY_NAMES[surah.number] || surah.name}
+                      </div>
 
-                    <IslamicStarBadge number={surah.number} />
-                  </div>
-                ))}
+                      <div className="w-full flex items-center justify-between text-[10.5px] font-bold text-[#4B5B58] border-t border-emerald-950/10 pt-1.5">
+                        <span>{surah.numberOfAyahs} آية</span>
+                        <span className="text-[#104B40]">سورة {surah.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* DEDICATED SUBPAGE 2: JUZS LIST */}
+          {/* DEDICATED SUBPAGE 2: JUZS SIDE-BY-SIDE GRID */}
           {indexView === 'juzs' && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
-              <div className="max-w-xl mx-auto space-y-2 pb-8">
-                {filteredJuz.map((juz) => (
-                  <div
-                    key={juz.number}
-                    onClick={() => {
-                      goToPage(juz.startPage);
-                      setShowIndex(false);
-                    }}
-                    className="flex items-center justify-between p-3.5 bg-white hover:bg-emerald-50/50 rounded-2xl border border-gray-200/80 transition-all cursor-pointer active:scale-[0.99] shadow-2xs"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-[#E5F5EC] text-[#147A57] flex items-center justify-center shrink-0">
-                      <ChevronLeft className="w-5 h-5" />
-                    </div>
-
-                    <div className="text-right flex-1 px-3">
-                      <h4 className="font-black text-sm sm:text-base font-quran text-[#172A28]">
+              <div className="max-w-3xl mx-auto pb-8">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {filteredJuz.map((juz) => (
+                    <button
+                      type="button"
+                      key={juz.number}
+                      onClick={() => {
+                        goToPage(juz.startPage);
+                        setShowIndex(false);
+                      }}
+                      className="moazen-widget hover:border-[#C5A059] flex flex-col items-center text-center justify-between gap-2 p-3.5 rounded-2xl transition-all cursor-pointer active:scale-[0.98] shadow-2xs"
+                    >
+                      <div className="w-full flex items-center justify-between">
+                        <span className="text-[10px] font-black text-[#104B40] bg-white/80 px-2 py-0.5 rounded-lg border border-emerald-950/10">
+                          ص {juz.startPage}
+                        </span>
+                        <IslamicStarBadge number={juz.number} />
+                      </div>
+                      <h4 className="font-black text-sm sm:text-base font-quran text-[#104B40]">
                         {juz.name}
                       </h4>
-                      <span className="text-xs text-gray-500 font-sans">
+                      <span className="text-[10.5px] text-[#4B5B58] font-bold font-sans">
                         يبدأ من صفحة {juz.startPage}
                       </span>
-                    </div>
-
-                    <IslamicStarBadge number={juz.number} />
-                  </div>
-                ))}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -1496,20 +1484,20 @@ export const QuranModal: React.FC<QuranModalProps> = ({
               <div className="max-w-xl mx-auto space-y-3 pb-8 text-right">
                 {/* Search across Tafseer */}
                 <div className="relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3" />
+                  <Search className="w-4 h-4 text-[#104B40]/60 absolute right-3.5 top-3" />
                   <input
                     type="text"
                     placeholder="ابحث في نص التفسير الميسر لكامل المصحف (6236 آية)..."
                     value={tafseerSearchQuery}
                     onChange={(e) => setTafseerSearchQuery(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:border-[#104B40] shadow-2xs"
+                    className="moazen-widget w-full pr-10 pl-4 py-2.5 rounded-2xl text-xs sm:text-sm focus:outline-none focus:border-[#104B40] shadow-2xs"
                   />
                 </div>
 
                 {/* If searching tafseer */}
                 {tafseerSearchQuery.trim().length >= 2 ? (
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-gray-500 block px-1">
+                    <span className="text-xs font-bold text-[#4B5B58] block px-1">
                       نتائج البحث في التفسير الميسر ({tafseerSearchResults.length}):
                     </span>
                     {tafseerSearchResults.map((res, i) => {
@@ -1523,15 +1511,15 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                               setShowIndex(false);
                             }
                           }}
-                          className="bg-white rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-1.5 cursor-pointer hover:bg-emerald-50/40"
+                          className="moazen-widget rounded-2xl p-3.5 shadow-2xs space-y-1.5 cursor-pointer hover:border-[#C5A059]"
                         >
                           <div className="flex items-center justify-between text-xs font-bold text-[#104B40]">
                             <span>
                               سورة {surahObj?.name || res.surahNumber} • الآية {res.numberInSurah}
                             </span>
-                            <span className="text-[10px] text-gray-500">فتح في المصحف ←</span>
+                            <span className="text-[10px] text-[#4B5B58]">فتح في المصحف ←</span>
                           </div>
-                          <p className="text-xs text-gray-700 leading-relaxed font-sans">
+                          <p className="text-xs text-[#172A28] leading-relaxed font-sans">
                             {res.text}
                           </p>
                         </div>
@@ -1543,7 +1531,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">
+                        <label className="text-xs font-bold text-[#104B40] block mb-1">
                           اختر السورة:
                         </label>
                         <select
@@ -1552,7 +1540,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                             setSelectedTafseerSurah(Number(e.target.value));
                             setSelectedTafseerAyah(1);
                           }}
-                          className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
+                          className="moazen-widget w-full p-2.5 rounded-xl text-xs font-bold text-[#172A28] focus:outline-none"
                         >
                           {QURAN_SURAHS.map((s) => (
                             <option key={s.number} value={s.number}>
@@ -1563,13 +1551,13 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">
+                        <label className="text-xs font-bold text-[#104B40] block mb-1">
                           اختر رقم الآية:
                         </label>
                         <select
                           value={selectedTafseerAyah}
                           onChange={(e) => setSelectedTafseerAyah(Number(e.target.value))}
-                          className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
+                          className="moazen-widget w-full p-2.5 rounded-xl text-xs font-bold text-[#172A28] focus:outline-none"
                         >
                           {Array.from(
                             {
@@ -1588,8 +1576,8 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                     </div>
 
                     {/* Display Selected Ayah Tafseer */}
-                    <div className="bg-white rounded-3xl p-5 border border-amber-900/15 shadow-2xs space-y-3">
-                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <div className="moazen-widget rounded-3xl p-5 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-emerald-950/10 pb-2">
                         <div className="flex items-center gap-2">
                           <BookOpen className="w-5 h-5 text-[#104B40]" />
                           <h3 className="font-bold font-quran text-base text-[#104B40]">
@@ -1621,7 +1609,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                         <span className="text-xs font-black text-[#104B40] block">
                           • التفسير الميسر كاملاً (مجمع الملك فهد):
                         </span>
-                        <p className="text-xs sm:text-sm text-gray-800 leading-relaxed font-sans whitespace-pre-wrap">
+                        <p className="text-xs sm:text-sm text-[#172A28] leading-relaxed font-sans whitespace-pre-wrap">
                           {browserTafseerText || 'جاري تحميل التفسير...'}
                         </p>
                       </div>
@@ -1634,8 +1622,8 @@ export const QuranModal: React.FC<QuranModalProps> = ({
 
           {/* DEDICATED SUBPAGE 4: SMART SHEIKH TUTOR */}
           {indexView === 'sheikh' && (
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
-              <div className="max-w-xl mx-auto pb-8">
+            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3">
+              <div className="max-w-2xl mx-auto pb-8">
                 <SmartSheikhTutor
                   initialSurah={meta.surahNumber}
                   initialAyah={1}
@@ -1651,31 +1639,31 @@ export const QuranModal: React.FC<QuranModalProps> = ({
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3">
               <div className="max-w-xl mx-auto space-y-2 pb-8">
                 <div className="relative mb-2">
-                  <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-2.5" />
+                  <Search className="w-4 h-4 text-[#104B40]/60 absolute right-3.5 top-2.5" />
                   <input
                     type="text"
                     placeholder="ابحث في كامل آيات القرآن الـ 6236 (مثال: نصر الله، إياك نعبد)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2 text-xs sm:text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B4D3F] shadow-2xs"
+                    className="moazen-widget w-full pr-10 pl-4 py-2 text-xs sm:text-sm rounded-xl focus:outline-none focus:border-[#0B4D3F] shadow-2xs"
                   />
                 </div>
 
                 {isSearching ? (
-                  <div className="py-12 text-center text-xs text-gray-500 font-bold">
+                  <div className="py-12 text-center text-xs text-[#4B5B58] font-bold">
                     جاري البحث في المصحف الشريف...
                   </div>
                 ) : searchQuery.trim().length < 2 ? (
-                  <div className="py-12 text-center text-xs text-gray-400 font-sans">
+                  <div className="py-12 text-center text-xs text-[#4B5B58] font-sans">
                     اكتب كلمتين أو أكثر للبحث في كامل آيات القرآن الكريم (6236 آية)
                   </div>
                 ) : searchResults.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-gray-500">
+                  <div className="py-12 text-center text-xs text-[#4B5B58]">
                     لم يتم العثور على نتائج مطابقة لـ «{searchQuery}»
                   </div>
                 ) : (
                   <>
-                    <div className="text-xs text-gray-500 font-bold px-1 text-right">
+                    <div className="text-xs text-[#104B40] font-bold px-1 text-right">
                       تم العثور على {searchResults.length} نتيجة:
                     </div>
                     {searchResults.map((res, idx) => (
@@ -1685,17 +1673,17 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                           goToPage(res.page);
                           setShowIndex(false);
                         }}
-                        className="p-3.5 bg-white hover:bg-emerald-50/60 rounded-2xl border border-gray-100 transition-all cursor-pointer text-right space-y-1 shadow-xs"
+                        className="moazen-widget p-3.5 hover:border-[#C5A059] rounded-2xl transition-all cursor-pointer text-right space-y-1 shadow-xs"
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-xs font-bold text-[#104B40] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/50">
+                          <span className="text-xs font-bold text-[#104B40] bg-white/80 px-2.5 py-0.5 rounded-md border border-emerald-950/15">
                             صفحة {res.page}
                           </span>
-                          <span className="font-bold text-emerald-950 font-quran text-sm">
+                          <span className="font-bold text-[#104B40] font-quran text-sm">
                             سورة {res.surahName} • الآية {res.ayahNumberInSurah}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-800 font-quran leading-relaxed">
+                        <p className="text-sm text-[#172A28] font-quran leading-relaxed">
                           {res.text}
                         </p>
                       </div>
@@ -1709,11 +1697,11 @@ export const QuranModal: React.FC<QuranModalProps> = ({
           {/* Quick Jump Dialog */}
           {showJumpDialog && (
             <div className="fixed inset-0 z-70 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-              <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-emerald-900/20 text-[#172A28] text-right space-y-4">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="moazen-widget w-full max-w-sm rounded-3xl p-5 shadow-2xl text-right space-y-4">
+                <div className="flex items-center justify-between border-b border-emerald-950/10 pb-3">
                   <button
                     onClick={() => setShowJumpDialog(false)}
-                    className="p-1 rounded-full hover:bg-gray-100 text-gray-500 cursor-pointer"
+                    className="p-1 rounded-full hover:bg-white/60 text-[#104B40] cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1724,7 +1712,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-700 block">
+                  <label className="text-xs font-bold text-[#172A28] block">
                     أدخل رقم الصفحة (1 - 604):
                   </label>
                   <div className="flex items-center gap-2">
@@ -1735,7 +1723,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                       placeholder="مثال: 1"
                       value={jumpPageInput}
                       onChange={(e) => setJumpPageInput(e.target.value)}
-                      className="flex-1 px-3 py-2 text-center text-sm font-bold bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B4D3F]"
+                      className="flex-1 px-3 py-2 text-center text-sm font-bold bg-white/85 border border-emerald-950/15 rounded-xl focus:outline-none focus:border-[#0B4D3F]"
                     />
                     <button
                       onClick={() => {
@@ -1753,8 +1741,8 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-gray-100">
-                  <label className="text-xs font-bold text-gray-700 block mb-2">
+                <div className="pt-2 border-t border-emerald-950/10">
+                  <label className="text-xs font-bold text-[#172A28] block mb-2">
                     أو اختر السورة مباشرة:
                   </label>
                   <select
@@ -1767,7 +1755,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                         setShowIndex(false);
                       }
                     }}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-[#0B4D3F]"
+                    className="w-full bg-white/85 border border-emerald-950/15 rounded-xl p-2.5 text-xs font-bold text-[#172A28] focus:outline-none focus:border-[#0B4D3F]"
                   >
                     <option value="">-- اختر السورة من القائمة --</option>
                     {QURAN_SURAHS.map((s) => (
@@ -1814,7 +1802,7 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                 bookmarks.map((bm) => (
                   <div
                     key={bm.id}
-                    className="p-3 bg-white rounded-xl border border-gray-100 flex items-center justify-between shadow-2xs hover:border-emerald-300 transition-colors"
+                    className="moazen-widget p-3 rounded-xl flex items-center justify-between shadow-2xs hover:border-[#C5A059] transition-colors"
                   >
                     <div
                       onClick={() => {
@@ -1824,10 +1812,10 @@ export const QuranModal: React.FC<QuranModalProps> = ({
                       }}
                       className="flex-1 cursor-pointer"
                     >
-                      <h4 className="font-extrabold text-xs font-quran text-emerald-950">
+                      <h4 className="font-extrabold text-xs font-quran text-[#104B40]">
                         سورة {bm.surahName}
                       </h4>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-500 font-sans mt-0.5">
+                      <div className="flex items-center gap-2 text-[10px] text-[#4B5B58] font-sans mt-0.5">
                         <span>الجزء {bm.juzNumber}</span>
                         <span>•</span>
                         <span>صفحة {bm.page}</span>

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 data class QuizQuestion(
     val id: Int,
@@ -133,30 +134,31 @@ fun QuizScreen(onBack: () -> Unit) {
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 24.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(GoldAccent.copy(alpha = 0.2f)),
+                                .background(MoazenGold.copy(alpha = 0.22f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(40.dp))
+                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(40.dp))
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
                             text = "بارك الله فيك!",
-                            color = GoldAccent,
+                            color = MoazenInkEmerald,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -165,7 +167,7 @@ fun QuizScreen(onBack: () -> Unit) {
 
                         Text(
                             text = "أتممت مسابقة المعرفة الإسلامية بنجاح",
-                            color = TextSecondary,
+                            color = MoazenInkMuted,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
                         )
@@ -174,15 +176,16 @@ fun QuizScreen(onBack: () -> Unit) {
 
                         Text(
                             text = "$score / ${questions.size}",
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 36.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
 
                         Text(
                             text = if (score >= 6) "ممتاز! معرفة إسلامية متميزة ما شاء الله" else "جيد جدًا! واصل القراءة والتعلم وطلب العلم",
-                            color = GoldLight,
+                            color = MoazenGoldDark,
                             fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(top = 8.dp)
                         )
@@ -197,11 +200,11 @@ fun QuizScreen(onBack: () -> Unit) {
                                 score = 0
                                 quizCompleted = false
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("إعادة المسابقة", color = EmeraldDeep, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("إعادة المسابقة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }
@@ -229,14 +232,14 @@ fun QuizScreen(onBack: () -> Unit) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(EmeraldSurfaceLight)
+                                .background(MoazenCardStart)
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = currentQ.category,
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -256,19 +259,23 @@ fun QuizScreen(onBack: () -> Unit) {
 
                 // Question Card
                 item {
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                    MoazenWidgetCard(
+                        cornerRadius = 20.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        ) {
                             Text(
                                 text = currentQ.question,
-                                color = TextPrimary,
+                                color = MoazenInkPrimary,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 lineHeight = 26.sp,
-                                textAlign = TextAlign.Right
+                                textAlign = TextAlign.Right,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
@@ -280,64 +287,101 @@ fun QuizScreen(onBack: () -> Unit) {
                     val isSelected = selectedOption == optIndex
                     val isCorrect = optIndex == currentQ.correctIndex
 
-                    val (containerColor, borderColor, textColor) = when {
-                        !isAnswered -> if (isSelected) Triple(EmeraldSurfaceLight, GoldAccent, TextPrimary) else Triple(EmeraldSurface, Color.Transparent, TextPrimary)
-                        isCorrect -> Triple(Color(0xFF0F5132), Color(0xFF28A745), Color.White)
-                        isSelected && !isCorrect -> Triple(Color(0xFF58151C), Color(0xFFDC3545), Color.White)
-                        else -> Triple(EmeraldSurface, Color.Transparent, TextSecondary)
+                    val onOptionClick: () -> Unit = {
+                        if (!isAnswered) {
+                            selectedOption = optIndex
+                            isAnswered = true
+                            if (optIndex == currentQ.correctIndex) {
+                                score++
+                            }
+                        }
                     }
 
-                    Card(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = containerColor),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !isAnswered) {
-                                selectedOption = optIndex
-                                isAnswered = true
-                                if (optIndex == currentQ.correctIndex) {
-                                    score++
-                                }
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    if (isAnswered && (isCorrect || isSelected)) {
+                        val bgColor = if (isCorrect) Color(0xFFD1FAE5) else Color(0xFFFEE2E2)
+                        val bdrColor = if (isCorrect) Color(0xFF059669) else Color(0xFFDC2626)
+                        val txtColor = if (isCorrect) Color(0xFF065F46) else Color(0xFF991B1B)
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = bgColor,
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, bdrColor),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isAnswered && isCorrect) Color(0xFF28A745) else EmeraldSurfaceLight),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(bdrColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${optIndex + 1}",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = "${optIndex + 1}",
-                                    color = if (isAnswered && isCorrect) Color.White else GoldAccent,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = optionText,
+                                    color = txtColor,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Right
+                                )
+                                Icon(
+                                    imageVector = if (isCorrect) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    tint = bdrColor
                                 )
                             }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Text(
-                                text = optionText,
-                                color = textColor,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Right
-                            )
-
-                            if (isAnswered) {
-                                if (isCorrect) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF28A745))
-                                } else if (isSelected) {
-                                    Icon(Icons.Default.Cancel, contentDescription = null, tint = Color(0xFFDC3545))
+                        }
+                    } else {
+                        MoazenWidgetCard(
+                            cornerRadius = 14.dp,
+                            borderColor = if (isSelected) MoazenGoldDark else MoazenCardBorder,
+                            borderWidth = if (isSelected) 1.5.dp else 1.dp,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = if (!isAnswered) onOptionClick else null
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(MoazenInkEmerald.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${optIndex + 1}",
+                                        color = MoazenInkEmerald,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Text(
+                                    text = optionText,
+                                    color = if (isAnswered) MoazenInkMuted else MoazenInkPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Right
+                                )
                             }
                         }
                     }
@@ -346,21 +390,20 @@ fun QuizScreen(onBack: () -> Unit) {
                 // Explanation & Next Button
                 if (isAnswered) {
                     item {
-                        Card(
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = EmeraldSurfaceLight),
+                        MoazenWidgetCard(
+                            cornerRadius = 14.dp,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("فائدة علمية", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("فائدة علمية", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = currentQ.explanation,
-                                    color = TextSecondary,
+                                    color = MoazenInkPrimary,
                                     fontSize = 13.sp,
                                     lineHeight = 20.sp,
                                     textAlign = TextAlign.Right

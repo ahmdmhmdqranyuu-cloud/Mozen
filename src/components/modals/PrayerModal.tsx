@@ -10,11 +10,13 @@ import {
   ChevronRight,
   BellRing,
   Play,
-  Square
+  Square,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { CityLocation, PrayerKey, UserProfile } from '../../types';
 import {
   calculatePrayerTimes,
+  calculateNightThirds,
   getNextPrayerInfo,
   getActiveIqamaCountdown,
   DEFAULT_IQAMA_MINUTES,
@@ -34,6 +36,7 @@ interface PrayerModalProps {
   onTogglePrayerToday: (prayer: PrayerKey) => void;
   onUpdateIqamaVoice?: (voice: string) => void;
   onOpenLocationSettings?: () => void;
+  onOpenPrayerSettings?: (prayerKey: PrayerKey) => void;
 }
 
 const QADA_STORAGE_KEY = 'moazen_qada_counts_v1';
@@ -46,11 +49,12 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
   onTogglePrayerToday,
   onUpdateIqamaVoice,
   onOpenLocationSettings,
+  onOpenPrayerSettings,
 }) => {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [playingIqamaVoice, setPlayingIqamaVoice] = useState<string | null>(null);
   const [activeIqama, setActiveIqama] = useState<ActiveIqamaCountdown | null>(null);
-  const [qadaCounts, setQadaCounts] = useState<Record<PrayerKey, number>>(() => {
+  const [qadaCounts, setQadaCounts] = useState<Partial<Record<PrayerKey, number>>>(() => {
     try {
       const saved = localStorage.getItem(QADA_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
@@ -58,6 +62,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
     return {
       fajr: 0,
       sunrise: 0,
+      duha: 0,
       dhuhr: 0,
       asr: 0,
       maghrib: 0,
@@ -142,8 +147,16 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
     });
   };
 
-  const midnightTimeStr = '11:45 م';
-  const lastThirdStr = '02:30 ص';
+  const nightThirds = calculateNightThirds(
+    city,
+    new Date(),
+    user.calculationMethod || 'egypt',
+    user.asrJuristicMethod || 'standard',
+    user.manualPrayerAdjustments || {},
+    user.dstMode
+  );
+  const midnightTimeStr = nightThirds.midnightFormatted;
+  const lastThirdStr = nightThirds.lastThirdStartFormatted;
 
   return (
     <div className="fixed inset-0 z-50 bg-[#fcfbf7] flex flex-col overflow-hidden select-none animate-fadeIn">
@@ -245,7 +258,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           )}
 
           {/* Daily Schedule List */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
               <div>
                 <h4 className="text-xs font-bold text-gray-700">جدول صلوات اليوم ومواعيد الإقامة</h4>
@@ -262,19 +275,25 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
               const isChecked = user.prayersToday?.[prayer.key] || false;
               const isUpcoming = prayer.key === nextInfo.nextPrayer.key;
               const isIqamaActive = activeIqama?.prayerKey === prayer.key;
-              const intervalMins = prayer.key === 'maghrib' ? 7 : prayer.key === 'sunrise' ? 0 : 15;
+              const intervalMins =
+                prayer.key === 'maghrib'
+                  ? 7
+                  : prayer.key === 'sunrise' || prayer.key === 'duha'
+                  ? 0
+                  : 15;
               const iqamaStr =
                 intervalMins > 0 ? formatIqamaTime(prayer.timestamp, intervalMins) : null;
 
               return (
                 <div
                   key={prayer.key}
-                  className={`relative overflow-hidden flex items-center justify-between p-3 rounded-xl border transition-all bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] ${
+                  onClick={() => onOpenPrayerSettings?.(prayer.key)}
+                  className={`relative overflow-hidden flex items-center justify-between p-3 rounded-xl border transition-all bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] cursor-pointer ${
                     isIqamaActive
                       ? 'border-2 border-amber-400 ring-1 ring-amber-300'
                       : isUpcoming
                       ? 'border-2 border-[#C5A059] shadow-xs'
-                      : 'border-emerald-950/10'
+                      : 'border-emerald-950/10 hover:border-[#C5A059]/60'
                   }`}
                 >
                   <img
@@ -285,7 +304,10 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                   />
                   <div className="relative z-10 flex items-center gap-3">
                     <button
-                      onClick={() => onTogglePrayerToday(prayer.key)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTogglePrayerToday(prayer.key);
+                      }}
                       className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
                         isChecked
                           ? 'bg-[#C5A059] text-white'
@@ -297,7 +319,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-bold text-gray-800 block">
-                          صلاة {prayer.name}
+                          {prayer.key === 'sunrise' ? 'الشروق' : `صلاة ${prayer.name}`}
                         </span>
                         {isIqamaActive && (
                           <span className="text-[9px] font-black bg-amber-600 text-white px-1.5 py-0.2 rounded-md animate-pulse">
@@ -318,11 +340,28 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-left">
-                    <span className="text-sm font-extrabold font-sans text-gray-900 block">
-                      {prayer.time}
-                    </span>
-                    <span className="text-[9px] text-gray-400 block font-medium">الأذان</span>
+                  <div className="relative z-10 flex items-center gap-2.5 text-left">
+                    <div>
+                      <span className="text-sm font-extrabold font-sans text-gray-900 block">
+                        {prayer.time}
+                      </span>
+                      <span className="text-[9px] text-gray-400 block font-medium">
+                        {prayer.key === 'sunrise' || prayer.key === 'duha' ? 'التوقيت' : 'الأذان'}
+                      </span>
+                    </div>
+                    {onOpenPrayerSettings && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenPrayerSettings(prayer.key);
+                        }}
+                        className="p-1.5 rounded-lg bg-white/80 hover:bg-[#104B40] text-[#104B40] hover:text-white border border-emerald-950/10 transition-colors cursor-pointer"
+                        title={`إعدادات ${prayer.name}`}
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -330,7 +369,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           </div>
 
           {/* Iqama Audio & Files Integration Section */}
-          <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs space-y-3">
+          <div className="moazen-widget rounded-2xl p-4 border border-amber-200/80 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BellRing className="w-4 h-4 text-amber-600" />
@@ -392,7 +431,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           </div>
 
           {/* Qiyam & Tahajjud Timings */}
-          <div className="bg-[#faeee1]/70 rounded-2xl p-3 border border-amber-900/10 flex items-center justify-around text-center text-xs">
+          <div className="moazen-widget rounded-2xl p-3 border border-amber-900/10 flex items-center justify-around text-center text-xs">
             <div>
               <Moon className="w-4 h-4 mx-auto text-amber-800 mb-1" />
               <span className="text-gray-600 font-medium block">منتصف الليل الشرعي</span>
@@ -407,7 +446,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           </div>
 
           {/* Adhan Voices Preview */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs">
             <h4 className="text-xs font-bold text-gray-800 mb-2">
               الاستماع إلى الأذان بأصوات مختلفة:
             </h4>
@@ -446,7 +485,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           </div>
 
           {/* Qada' Tracker */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs">
             <h4 className="text-xs font-bold text-gray-800 mb-2">
               سجل قضاء الصلوات الفائتة (محفوظ محليًا):
             </h4>
@@ -455,7 +494,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                 const name = prayers.find((p) => p.key === key)?.name || key;
                 const count = qadaCounts[key] || 0;
                 return (
-                  <div key={key} className="bg-gray-50 p-2 rounded-xl border border-gray-200">
+                  <div key={key} className="moazen-widget p-2 rounded-xl border border-gray-200">
                     <span className="font-bold text-gray-700 block mb-1">{name}</span>
                     <div className="flex items-center justify-center gap-2">
                       <button

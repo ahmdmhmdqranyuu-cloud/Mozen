@@ -240,7 +240,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="فهرس الأذكار"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -330,7 +330,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
       {viewMode === 'index' ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2.5 pb-24 max-w-2xl mx-auto w-full">
           {/* Quick Top Card */}
-          <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
             <div>
               <h3 className="text-sm font-black text-[#172A28] font-cairo">فهرس أبواب الأذكار والسبحة</h3>
               <p className="text-[11px] text-gray-500 mt-0.5">
@@ -406,7 +406,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
               setActiveTab('tasbih');
               setViewMode('detail');
             }}
-            className="w-full text-right bg-white hover:bg-[#FAF9F5] p-4 rounded-2xl border border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+            className="moazen-widget w-full text-right p-4 rounded-2xl border border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
           >
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-[#C5A059] text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
@@ -433,7 +433,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
         /* INDEPENDENT DETAIL PAGE FOR SELECTED AZKAR CATEGORY */
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 pb-24 max-w-2xl mx-auto w-full">
           {/* Top Status & Back to Vertical Index Card */}
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
@@ -441,7 +441,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                   setPlayingAudioTrack(null);
                   setViewMode('index');
                 }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[#104B40] font-bold cursor-pointer"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 <span>فهرس الأذكار</span>
@@ -484,7 +484,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
 
               <button
                 onClick={handleResetCategory}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F7F6F2] text-gray-600 hover:text-red-600 cursor-pointer font-bold"
+                className="moazen-widget flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-gray-600 hover:text-red-600 cursor-pointer font-bold"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>تصفير</span>
@@ -518,7 +518,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                     </button>
                     <button
                       onClick={() => handleCopyDhikr(item)}
-                      className="p-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+                      className="moazen-widget p-1.5 rounded-xl text-gray-600 transition-colors cursor-pointer"
                       title="نسخ الذكر"
                     >
                       {copiedId === item.id ? (
@@ -529,7 +529,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                     </button>
                     <button
                       onClick={() => handleShareDhikr(item)}
-                      className="p-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+                      className="moazen-widget p-1.5 rounded-xl text-gray-600 transition-colors cursor-pointer"
                       title="مشاركة الذكر"
                     >
                       <Share2 className="w-3.5 h-3.5" />
@@ -542,7 +542,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                 </p>
 
                 {item.fadl && (
-                  <div className="mt-3 text-xs text-gray-700 bg-[#F7F6F2] p-3 rounded-xl leading-relaxed text-right border border-gray-100">
+                  <div className="moazen-widget mt-3 text-xs text-gray-700 p-3 rounded-xl leading-relaxed text-right border border-gray-100">
                     <span className="font-bold text-[#9A7732]">الفضل والثواب:</span> {item.fadl}
                   </div>
                 )}
@@ -588,14 +588,14 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
       ) : (
         /* INDEPENDENT DETAIL PAGE: السبحة الإلكترونية التفاعلية */
         <div className="flex-1 flex flex-col justify-between p-4 overflow-y-auto max-w-2xl mx-auto w-full space-y-4">
-          <div className="bg-white rounded-2xl p-4 shadow-xs border border-gray-100 space-y-3">
+          <div className="moazen-widget rounded-2xl p-4 shadow-xs border border-gray-100 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#172A28] block text-right">
                 اختر الذكر والتسبيح:
               </label>
               <button
                 onClick={() => setViewMode('index')}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1 px-2.5 py-1 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
                 <span>العودة إلى فهرس الأذكار</span>
@@ -638,7 +638,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-xs border border-gray-100 flex flex-col items-center justify-center my-auto">
+          <div className="moazen-widget rounded-2xl p-6 shadow-xs border border-gray-100 flex flex-col items-center justify-center my-auto">
             <div className="relative w-64 h-64 flex items-center justify-center">
               <div
                 className="absolute inset-0 transition-transform duration-300 ease-out"
@@ -690,7 +690,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between">
             <button
               onClick={handleResetTasbih}
               className="flex items-center gap-1 text-xs text-gray-600 hover:text-red-600 transition-colors cursor-pointer font-bold"

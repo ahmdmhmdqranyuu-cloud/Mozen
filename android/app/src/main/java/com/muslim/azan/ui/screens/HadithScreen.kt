@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.model.HadithItem
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun HadithScreen(
@@ -81,9 +82,8 @@ fun HadithScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(hadiths, key = { it.id }) { h ->
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -94,7 +94,7 @@ fun HadithScreen(
                         ) {
                             Text(
                                 text = "الحديث رقم ${h.id} • ${h.title}",
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -109,7 +109,7 @@ fun HadithScreen(
                                     context.startActivity(Intent.createChooser(sendIntent, "مشاركة الحديث الشريف"))
                                 }
                             ) {
-                                Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = TextSecondary)
+                                Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = MoazenInkMuted)
                             }
                         }
 
@@ -117,7 +117,7 @@ fun HadithScreen(
 
                         Text(
                             text = h.hadithArabic,
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 15.sp,
                             lineHeight = 26.sp,
                             textAlign = TextAlign.Right,
@@ -128,7 +128,7 @@ fun HadithScreen(
 
                         Text(
                             text = "المصدر: ${h.source}",
-                            color = TextSecondary,
+                            color = MoazenInkMuted,
                             fontSize = 12.sp
                         )
 
@@ -136,9 +136,10 @@ fun HadithScreen(
 
                         Text(
                             text = "الشرح المستفاد: ${h.sharh}",
-                            color = GoldLight,
+                            color = MoazenGoldDark,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Right,
                             modifier = Modifier.fillMaxWidth()
                         )

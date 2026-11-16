@@ -170,7 +170,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
             ) : (
               <button
                 onClick={() => setLayoutMode((m) => (m === 'vertical' ? 'grid' : 'vertical'))}
-                className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 text-xs font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1 px-2.5 py-2 rounded-xl text-[#172A28] border border-gray-200 text-xs font-bold cursor-pointer"
                 title="تغيير طريقة العرض"
               >
                 {layoutMode === 'vertical' ? (
@@ -188,7 +188,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="فهرس أسماء الله الحسنى"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -201,33 +201,33 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
         {!selectedName && (
           <>
             {/* Full Asmaa Allah Audio Player Banner with Complete Controls */}
-            <div className="max-w-2xl mx-auto w-full mb-3 bg-gradient-to-r from-[#104B40] via-[#145548] to-[#0D3E35] text-white p-3 sm:p-4 rounded-2xl shadow-sm border border-emerald-700/40">
+            <div className="moazen-widget max-w-2xl mx-auto w-full mb-3 p-3 sm:p-4 rounded-2xl shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform ${
                       isPlayingAsmaa
                         ? 'bg-amber-400 text-emerald-950 scale-105 shadow-md ring-2 ring-amber-300'
-                        : 'bg-amber-400/20 text-amber-300'
+                        : 'bg-[#104B40]/10 text-[#104B40] border border-[#104B40]/20'
                     }`}
                   >
                     <Sparkles className={`w-5 h-5 ${isPlayingAsmaa ? 'animate-spin' : ''}`} />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="text-xs sm:text-sm font-black font-cairo text-white truncate">
+                      <h4 className="text-xs sm:text-sm font-black font-cairo text-[#104B40] truncate">
                         تلاوة ونشيد أسماء الله الحسنى الـ 99
                       </h4>
-                      <span className="text-[9px] font-bold bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[9px] font-bold bg-[#C5A059]/20 text-[#7A591B] px-1.5 py-0.5 rounded-full">
                         صوت نقي (205 ث)
                       </span>
                       {isPlayingAsmaa && (
-                        <span className="text-[9px] font-bold bg-emerald-500/30 text-emerald-200 px-1.5 py-0.5 rounded-full animate-pulse">
+                        <span className="text-[9px] font-bold bg-emerald-600/15 text-emerald-800 px-1.5 py-0.5 rounded-full animate-pulse">
                           يعمل بالخلفية
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-white/80 font-sans truncate">
+                    <p className="text-[11px] text-[#4B5B58] font-sans truncate">
                       «نسألك يا من هو الله الذي لا إله إلا هو الرحمن الرحيم...»
                     </p>
                   </div>
@@ -251,8 +251,8 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                       isPlayingAsmaa
                         ? 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
                         : isPausedAsmaa
-                        ? 'bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black'
-                        : 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-black'
+                        : 'bg-[#104B40] hover:bg-[#0B3D35] text-white font-black'
                     }`}
                     title={isPlayingAsmaa ? 'إيقاف مؤقت' : isPausedAsmaa ? 'استئناف' : 'تشغيل'}
                   >
@@ -279,7 +279,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                     <button
                       type="button"
                       onClick={() => diskAudioPlayerService.restart()}
-                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-[#104B40]/10 hover:bg-[#104B40]/20 text-[#104B40] text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                       title="إعادة التشغيل من البداية"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -341,7 +341,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                 placeholder="ابحث في فهرس أسماء الله الحسنى أو معانيها..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-9 py-2 bg-[#F7F6F2] border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#C5A059] text-right"
+                className="moazen-widget w-full pl-9 pr-9 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#C5A059] text-right"
               />
               <Search className="w-4 h-4 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
               {search && (
@@ -418,7 +418,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                     setSelectedName(item);
                     setIsIndexOpen(false);
                   }}
-                  className="p-2.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-right flex items-center gap-2 cursor-pointer"
+                  className="moazen-widget p-2.5 rounded-xl text-right flex items-center gap-2 cursor-pointer"
                 >
                   <span className="w-6 h-6 rounded-lg bg-white text-[10px] font-bold text-[#C5A059] flex items-center justify-center shrink-0">
                     {item.number}
@@ -436,7 +436,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
       {/* VIEW 1: ORGANIZED VERTICAL INDEX (or optional grid) */}
       {!selectedName ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 max-w-2xl mx-auto w-full space-y-2.5">
-          <div className="bg-white rounded-2xl p-3 shadow-xs border border-gray-100 text-center">
+          <div className="moazen-widget rounded-2xl p-3 shadow-xs border border-gray-100 text-center">
             <p className="text-xs font-bold font-amiri text-[#172A28]">
               قال رسول الله ﷺ: «إِنَّ لِلَّهِ تِسْعَةً وَتِسْعِينَ اسْمًا مِائَةً إِلَّا وَاحِدًا، مَنْ أَحْصَاهَا دَخَلَ الْجَنَّةَ»
             </p>
@@ -448,7 +448,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                 <button
                   key={item.number}
                   onClick={() => setSelectedName(item)}
-                  className="w-full text-right bg-white hover:bg-[#FAF9F5] p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                  className="moazen-widget w-full text-right p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0">
@@ -470,7 +470,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                         e.stopPropagation();
                         handleSpeakName(item.name);
                       }}
-                      className="p-2 rounded-xl bg-[#F7F6F2] text-gray-500 hover:text-[#C5A059] hover:bg-gray-200 transition-colors"
+                      className="moazen-widget p-2 rounded-xl text-gray-500 hover:text-[#C5A059] transition-colors"
                       title="استمع للاسم"
                     >
                       <Volume2 className="w-4 h-4" />
@@ -486,7 +486,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                 <button
                   key={item.number}
                   onClick={() => setSelectedName(item)}
-                  className="p-3 rounded-2xl bg-white border border-gray-100 shadow-xs hover:border-[#C5A059] transition-all text-right flex flex-col justify-between cursor-pointer group min-h-[104px]"
+                  className="moazen-widget p-3 rounded-2xl border border-gray-100 shadow-xs hover:border-[#C5A059] transition-all text-right flex flex-col justify-between cursor-pointer group min-h-[104px]"
                 >
                   <div className="flex items-center justify-between w-full">
                     <span className="text-[10px] font-bold text-[#9A7732] bg-[#C5A059]/15 px-2 py-0.5 rounded-md font-sans">
@@ -522,10 +522,10 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
         /* VIEW 2: INDEPENDENT DEDICATED DETAIL PAGE FOR SELECTED NAME */
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 max-w-2xl mx-auto w-full space-y-4 animate-fadeIn">
           {/* Top Back Bar */}
-          <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
             <button
               onClick={() => setSelectedName(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
               <span>العودة إلى فهرس الأسماء الحسنى (99)</span>
@@ -535,8 +535,8 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
             </span>
           </div>
 
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-5">
-            <div className="text-center py-6 bg-[#FAF9F5] rounded-2xl border border-[#C5A059]/30 relative">
+          <div className="moazen-widget rounded-3xl p-6 shadow-sm border border-gray-100 space-y-5">
+            <div className="moazen-widget text-center py-6 rounded-2xl border border-[#C5A059]/30 relative">
               <button
                 onClick={() => handleSpeakName(selectedName.name)}
                 className="absolute left-4 top-4 p-2.5 rounded-xl bg-[#104B40] text-[#C5A059] hover:bg-[#0B3D35] transition-colors cursor-pointer"
@@ -551,7 +551,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
             </div>
 
             <div className="space-y-3 text-right">
-              <div className="bg-[#F7F6F2] p-4 rounded-2xl border border-gray-100">
+              <div className="moazen-widget p-4 rounded-2xl border border-gray-100">
                 <span className="text-xs font-bold text-[#9A7732] block mb-1.5 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-[#C5A059]" />
                   المعنى والتدبر الإيماني:
@@ -562,7 +562,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
               </div>
 
               {selectedName.quranReference && (
-                <div className="bg-[#FAF9F5] p-4 rounded-2xl border border-[#C5A059]/30">
+                <div className="moazen-widget p-4 rounded-2xl border border-[#C5A059]/30">
                   <span className="text-xs font-bold text-[#9A7732] block mb-1.5 flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-[#C5A059]" />
                     الشاهد من القرآن الكريم:
@@ -593,7 +593,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
 
               <button
                 onClick={() => handleCopy(selectedName)}
-                className="py-3 px-3 rounded-2xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="moazen-widget py-3 px-3 rounded-2xl text-[#172A28] border border-gray-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 {copiedId === selectedName.number ? (
                   <>
@@ -617,7 +617,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
               onClick={() => {
                 if (currentIdx > 0) setSelectedName(filteredNames[currentIdx - 1]);
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight className="w-4 h-4 text-[#C5A059]" />
               <span>الاسم السابق</span>
@@ -629,7 +629,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                   setSelectedName(filteredNames[currentIdx + 1]);
                 }
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
             >
               <span>الاسم التالي</span>
               <ChevronLeft className="w-4 h-4 text-[#C5A059]" />

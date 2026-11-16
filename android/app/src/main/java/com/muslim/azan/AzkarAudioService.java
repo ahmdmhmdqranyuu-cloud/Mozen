@@ -23,7 +23,10 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
+import android.app.AlarmManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -35,16 +38,18 @@ import android.widget.TextView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
+import com.muslim.azan.service.NativeAudioPlayerManager;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
 /**
  * Standard Android Foreground Service:
- * - Plays Azan, Iqama, and Azkar audio safely in the background upon AlarmManager triggers.
+ * - Plays Azan, Iqama, and Azkar audio safely in the background upon AlarmManager triggers or user tests.
  * - Renders a real WindowManager Floating Overlay above other apps when SYSTEM_ALERT_WINDOW is granted.
  * - Attaches a fullScreenIntent to AzanAlertActivity on prayer Azan alerts for locked screens.
- * - Supports Android 14, 15, and 16 (API 34-36) with FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK.
+ * - Broadcasts live playback/error status via ACTION_AUDIO_STATE_CHANGED for sound-test diagnostics.
  */
 public class AzkarAudioService extends Service implements MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener {
     private static final String TAG = "AzkarAudioService";
@@ -56,6 +61,11 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     public static final String ACTION_MUTE_AUDIO_ONLY = "com.muslim.azan.ACTION_MUTE_AUDIO_ONLY";
     public static final String ACTION_SHOW_OVERLAY_TEST = "com.muslim.azan.ACTION_SHOW_OVERLAY_TEST";
     public static final String ACTION_DISMISS_OVERLAY = "com.muslim.azan.ACTION_DISMISS_OVERLAY";
+    public static final String ACTION_AUDIO_STATE_CHANGED = "com.muslim.azan.AUDIO_STATE_CHANGED";
+
+    public static volatile boolean isPlayingNow = false;
+    public static volatile String activeTrackLabel = "";
+    public static volatile String lastAudioError = null;
 
     private MediaPlayer mediaPlayer;
     private PowerManager.WakeLock wakeLock;
@@ -66,6 +76,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private View overlayView;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean isOverlayOnlyTest = false;
+    private boolean currentDuaAfterPrayerEnabled = false;
+    private String currentPrayerName = "";
+    private final Runnable shortToneStopRunnable = () -> {
+        if (mediaPlayer != null) {
+            stopServiceCleanly();
+        }
+    };
     private final Runnable autoDismissOverlayTestRunnable = () -> {
         if (isOverlayOnlyTest && (mediaPlayer == null)) {
             removeFloatingOverlaySync();
@@ -78,7 +95,6 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         super.onCreate();
         createNotificationChannels();
 
-        // Immediately enter foreground on creation to comply with Android 12-16 FGS timing rules
         Notification initialNotification = buildNotification("تطبيق المؤذن", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
         startForegroundCompat(initialNotification);
 
@@ -107,6 +123,20 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 wakeLock.acquire(5 * 60 * 1000L);
             } catch (Exception ignored) {}
         }
+    }
+
+    private void publishAudioState(boolean playing, String label, String error) {
+        isPlayingNow = playing;
+        activeTrackLabel = label != null ? label : "";
+        lastAudioError = error;
+        try {
+            Intent b = new Intent(ACTION_AUDIO_STATE_CHANGED);
+            b.setPackage(getPackageName());
+            b.putExtra("playing", playing);
+            b.putExtra("label", activeTrackLabel);
+            b.putExtra("error", error);
+            sendBroadcast(b);
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -147,6 +177,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         isOverlayOnlyTest = false;
         mainHandler.removeCallbacks(autoDismissOverlayTestRunnable);
+        mainHandler.removeCallbacks(shortToneStopRunnable);
         ensureWakeLockHeld();
 
         String section = intent.getStringExtra("section");
@@ -155,11 +186,22 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         String audioTrackId = intent.getStringExtra("audioTrackId");
         String prayerName = intent.getStringExtra("prayerName");
         String cityName = intent.getStringExtra("cityName");
+        int volumePercent = intent.getIntExtra("volumePercent", 100);
+        String alertMode = intent.getStringExtra("alertMode");
+        if (alertMode == null || alertMode.isEmpty()) alertMode = "full_azan";
+        boolean silentDuringPrayer = intent.getBooleanExtra("silentDuringPrayer", false);
+        boolean duaAfterPrayerEnabled = intent.getBooleanExtra("duaAfterPrayerEnabled", false);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
+        boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
+
+        currentDuaAfterPrayerEnabled = duaAfterPrayerEnabled && ("prayer_azan".equals(section) || "iqama".equals(section));
+        currentPrayerName = prayerName != null ? prayerName : "";
 
         if (title == null || title.isEmpty()) {
             if ("prayer_azan".equals(section) && prayerName != null) {
                 title = "حان الآن موعد أذان " + prayerName;
+            } else if ("iqama".equals(section) && prayerName != null) {
+                title = "حان وقت إقامة صلاة " + prayerName;
             } else if ("prePrayerAlert".equals(section) && prayerName != null) {
                 title = "اقتربت صلاة " + prayerName;
             } else if ("morningAzkar".equals(section)) {
@@ -172,6 +214,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 title = "نداء المسحراتي المبارك";
             } else if ("iftar".equals(section)) {
                 title = "موعد أذان المغرب والإفطار";
+            } else if ("duha_prayer".equals(section)) {
+                title = "حان الآن وقت صلاة الضحى";
+            } else if ("dua_after".equals(section)) {
+                title = "الدعاء القصير بعد الأذان";
             } else {
                 title = "تطبيق المؤذن";
             }
@@ -187,7 +233,14 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         SharedPreferences prefs = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
         boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
-        boolean shouldPlayAudio = autoPlay && (!"prayer_azan".equals(section) || azanSoundEnabled);
+
+        if (silentDuringPrayer && !isTestAlarm && ("prayer_azan".equals(section) || "prePrayerAlert".equals(section))) {
+            activateSilentDuringPrayer(prefs);
+        }
+
+        boolean modePlaysSound = !"silent".equals(alertMode) && !"vibrate_only".equals(alertMode);
+        // Explicit user sound tests ALWAYS play even when the scheduled Azan mute switch is off
+        boolean shouldPlayAudio = isTestAlarm || (autoPlay && modePlaysSound && (!"prayer_azan".equals(section) || azanSoundEnabled || intent.hasExtra("prayerKey")));
 
         if (shouldPlayAudio) {
             Notification notification = buildNotification(title, body, section, cityName);
@@ -196,17 +249,72 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             if (manager != null) {
                 manager.notify(NOTIFICATION_ID, notification);
             }
-            // Show real Floating Overlay above other apps if SYSTEM_ALERT_WINDOW is granted
-            if ("prayer_azan".equals(section) || "prePrayerAlert".equals(section) || "iftar".equals(section)) {
+            if ("prayer_azan".equals(section) || "prePrayerAlert".equals(section) || "iftar".equals(section) || "iqama".equals(section)) {
                 showFloatingOverlay(title, body, false);
             }
-            playAudioSafely(audioTrackId, section, title, body);
+            playAudioSafely(audioTrackId, section, title, body, volumePercent, "short_tone".equals(alertMode));
         } else {
+            if ("vibrate_only".equals(alertMode)) {
+                triggerShortVibration();
+            }
             postVisualOnlyNotification(title, body, section);
+            if (currentDuaAfterPrayerEnabled) {
+                postDuaAfterPrayerNotification(currentPrayerName);
+            }
             stopServiceCleanly();
         }
 
         return START_NOT_STICKY;
+    }
+
+    private void activateSilentDuringPrayer(SharedPreferences prefs) {
+        try {
+            if (audioManager == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null && !nm.isNotificationPolicyAccessGranted()) {
+                    return;
+                }
+            }
+            int currentMode = audioManager.getRingerMode();
+            if (currentMode != AudioManager.RINGER_MODE_SILENT) {
+                prefs.edit().putInt("saved_prev_ringer_mode", currentMode).apply();
+                audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
+                AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+                if (am != null) {
+                    Intent restoreIntent = new Intent(this, AzkarAlarmReceiver.class);
+                    restoreIntent.setAction("com.muslim.azan.ACTION_RESTORE_RINGER");
+                    PendingIntent pi = PendingIntent.getBroadcast(
+                            this,
+                            99115,
+                            restoreIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                    );
+                    long restoreAt = System.currentTimeMillis() + 15 * 60 * 1000L;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, restoreAt, pi);
+                    } else {
+                        am.set(AlarmManager.RTC_WAKEUP, restoreAt, pi);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to toggle silent mode during prayer", e);
+        }
+    }
+
+    private void triggerShortVibration() {
+        try {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createWaveform(new long[]{0, 400, 200, 400}, -1));
+            } else {
+                @SuppressWarnings("deprecation")
+                long[] pattern = {0, 400, 200, 400};
+                v.vibrate(pattern, -1);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void showFloatingOverlay(String title, String body, boolean overlayTestMode) {
@@ -371,19 +479,29 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
-    private void playAudioSafely(String audioTrackId, String section, String title, String body) {
+    private void playAudioSafely(String audioTrackId, String section, String title, String body, int volumePercent, boolean shortToneMode) {
         stopAudioAndCleanUp();
+        try {
+            NativeAudioPlayerManager.INSTANCE.stop();
+        } catch (Exception ignored) {}
 
         String resolvedFileName = resolveAudioFileName(audioTrackId, section);
         if (resolvedFileName == null) {
             Log.w(TAG, "No audio file resolved for track: " + audioTrackId);
+            publishAudioState(false, title, "تعذر العثور على الملف الصوتي المحدد");
             finishWithVisualFallback(title, body, section);
             return;
+        }
+
+        String volumeWarning = null;
+        if (audioManager != null && audioManager.getStreamVolume(AudioManager.STREAM_ALARM) == 0) {
+            volumeWarning = "تنبيه: مستوى صوت المنبه في الهاتف مضبوط على صفر، ارفع صوت المنبه لسماع الأذان";
         }
 
         requestAudioFocus();
 
         try {
+            float scalarVol = Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setAudioAttributes(
                     new AudioAttributes.Builder()
@@ -391,9 +509,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                             .build()
             );
-            mediaPlayer.setVolume(1.0f, 1.0f);
+            mediaPlayer.setVolume(scalarVol, scalarVol);
 
-            // 1. Try to open from Assets (audio/...)
             boolean assetLoaded = false;
             try {
                 AssetFileDescriptor afd = getAssets().openFd("audio/" + resolvedFileName);
@@ -409,7 +526,6 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 } catch (Exception ignored) {}
             }
 
-            // 2. Fallback: Copy from assets input stream to cache if openFd failed due to APK compression
             if (!assetLoaded) {
                 InputStream is = null;
                 FileOutputStream fos = null;
@@ -445,7 +561,6 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 }
             }
 
-            // 3. Check permanent local app files directory (for downloaded voices)
             if (!assetLoaded) {
                 File localFile = new File(getFilesDir(), "media/audio/" + resolvedFileName);
                 if (!localFile.exists()) {
@@ -462,14 +577,20 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 mediaPlayer.setOnErrorListener(this);
                 mediaPlayer.prepare();
                 mediaPlayer.start();
+                if (shortToneMode) {
+                    mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
+                }
                 Log.d(TAG, "Audio started playing successfully: " + resolvedFileName);
+                publishAudioState(true, title + " (" + resolvedFileName + ")", volumeWarning);
             } else {
                 Log.e(TAG, "Audio file not found: " + resolvedFileName);
+                publishAudioState(false, title, "لم يتم العثور على الملف الصوتي: " + resolvedFileName);
                 finishWithVisualFallback(title, body, section);
             }
 
         } catch (Exception e) {
             Log.e(TAG, "Failed playing audio file: " + resolvedFileName, e);
+            publishAudioState(false, title, "تعذر تشغيل الصوت: " + e.getMessage());
             finishWithVisualFallback(title, body, section);
         }
     }
@@ -485,24 +606,59 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
     private void stopServiceCleanly() {
         mainHandler.removeCallbacks(autoDismissOverlayTestRunnable);
+        mainHandler.removeCallbacks(shortToneStopRunnable);
         isOverlayOnlyTest = false;
         stopAudioAndCleanUp();
         removeFloatingOverlay();
         releaseWakeLock();
+        publishAudioState(false, "", null);
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         stopSelf();
     }
 
+    private boolean assetExistsInAudio(String fileName) {
+        if (fileName == null || fileName.isEmpty()) return false;
+        try {
+            InputStream is = getAssets().open("audio/" + fileName);
+            is.close();
+            return true;
+        } catch (Exception ignored) {}
+        try {
+            InputStream is = getAssets().open(fileName);
+            is.close();
+            return true;
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     private String resolveAudioFileName(String audioTrackId, String section) {
         if (audioTrackId != null && !audioTrackId.isEmpty()) {
-            if (audioTrackId.endsWith(".mp3") || audioTrackId.endsWith(".wav")) {
-                return audioTrackId;
+            String clean = audioTrackId.trim();
+            if (clean.equals("azkar_morning") || clean.equals("azkar_morning.mp3")) {
+                return "azkar_sabah.mp3";
             }
-            return audioTrackId + ".mp3";
+            if (clean.equals("azkar_evening") || clean.equals("azkar_evening.mp3")) {
+                return "azkar_massa.mp3";
+            }
+            if (clean.equals("ibrahim_madani") || clean.equals("ibrahim_madani.mp3")) {
+                return "madinah.mp3";
+            }
+            if (clean.equals("duha_surah") || clean.equals("duha_surah.mp3")) {
+                return assetExistsInAudio("duha_surah.mp3") ? "duha_surah.mp3" : "qiyam_first_third.mp3";
+            }
+            if (clean.equals("dua_after_azan") || clean.equals("dua_after_azan.mp3")) {
+                return assetExistsInAudio("dua_after_azan.mp3") ? "dua_after_azan.mp3" : "salawat_1.mp3";
+            }
+            if (clean.endsWith(".mp3") || clean.endsWith(".wav")) {
+                return clean;
+            }
+            return clean + ".mp3";
         }
 
         if ("prayer_azan".equals(section)) {
             return "makkah.mp3";
+        } else if ("iqama".equals(section)) {
+            return "iqama_1.mp3";
         } else if ("prePrayerAlert".equals(section)) {
             return "pre_prayer_15m.mp3";
         } else if ("morningAzkar".equals(section)) {
@@ -515,6 +671,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             return "musaharati_1.mp3";
         } else if ("iftar".equals(section)) {
             return "iftar_cannon.mp3";
+        } else if ("duha_prayer".equals(section)) {
+            return assetExistsInAudio("duha_surah.mp3") ? "duha_surah.mp3" : "qiyam_first_third.mp3";
+        } else if ("dua_after".equals(section)) {
+            return assetExistsInAudio("dua_after_azan.mp3") ? "dua_after_azan.mp3" : "salawat_1.mp3";
         }
 
         return "makkah.mp3";
@@ -683,15 +843,29 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
+    private void postDuaAfterPrayerNotification(String prayerName) {
+        String label = (prayerName != null && !prayerName.isEmpty()) ? " (" + prayerName + ")" : "";
+        postVisualOnlyNotification(
+                "دعاء بعد الأذان والصلاة" + label,
+                "اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلَاةِ الْقَائِمَةِ آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ وَابْعَثْهُ مَقَامًا مَحْمُودًا الَّذِي وَعَدْتَهُ.",
+                "duaAfterPrayer"
+        );
+    }
+
     @Override
     public void onCompletion(MediaPlayer mp) {
         Log.d(TAG, "Audio playback completed successfully");
+        if (currentDuaAfterPrayerEnabled) {
+            postDuaAfterPrayerNotification(currentPrayerName);
+            currentDuaAfterPrayerEnabled = false;
+        }
         stopServiceCleanly();
     }
 
     @Override
     public boolean onError(MediaPlayer mp, int what, int extra) {
         Log.e(TAG, "MediaPlayer error: what=" + what + ", extra=" + extra);
+        publishAudioState(false, "", "خطأ في مشغل الصوت (what=" + what + ", extra=" + extra + ")");
         stopServiceCleanly();
         return true;
     }
@@ -702,6 +876,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         stopAudioAndCleanUp();
         removeFloatingOverlaySync();
         releaseWakeLock();
+        isPlayingNow = false;
         super.onDestroy();
     }
 

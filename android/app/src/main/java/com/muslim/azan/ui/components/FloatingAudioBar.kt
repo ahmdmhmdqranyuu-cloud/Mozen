@@ -47,76 +47,79 @@ fun FloatingAudioBar() {
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            // Mini player bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EmeraldSurfaceLight)
-                    .clickable { showFullSheet = true }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Mini player bar (Unified Home Quran Mint style)
+            MoazenWidgetCard(
+                cornerRadius = 16.dp,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { showFullSheet = true }
             ) {
-                // Circular icon
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(GoldDark),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "مشغل الصوت",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                    // Circular icon
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MoazenInkEmerald),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = "مشغل الصوت",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = title,
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = subtitle,
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = title,
+                            color = MoazenInkPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = subtitle,
+                            color = MoazenInkMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                // Play / Pause
-                IconButton(
-                    onClick = { NativeAudioPlayerManager.togglePlayPause() }
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "تشغيل أو إيقاف",
-                        tint = GoldAccent,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                    // Play / Pause
+                    IconButton(
+                        onClick = { NativeAudioPlayerManager.togglePlayPause() }
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "تشغيل أو إيقاف",
+                            tint = MoazenInkEmerald,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
 
-                // Close button
-                IconButton(
-                    onClick = { NativeAudioPlayerManager.stop() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "إغلاق",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // Close button
+                    IconButton(
+                        onClick = { NativeAudioPlayerManager.stop() }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "إغلاق",
+                            tint = MoazenInkMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
@@ -136,8 +139,8 @@ fun FloatingAudioBar() {
     if (showFullSheet) {
         ModalBottomSheet(
             onDismissRequest = { showFullSheet = false },
-            containerColor = EmeraldDeep,
-            contentColor = TextPrimary
+            containerColor = MoazenCardEnd,
+            contentColor = MoazenInkPrimary
         ) {
             Column(
                 modifier = Modifier
@@ -149,13 +152,13 @@ fun FloatingAudioBar() {
                     modifier = Modifier
                         .size(100.dp)
                         .clip(CircleShape)
-                        .background(EmeraldSurfaceLight),
+                        .background(MoazenInkEmerald.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.MenuBook,
                         contentDescription = null,
-                        tint = GoldAccent,
+                        tint = MoazenInkEmerald,
                         modifier = Modifier.size(50.dp)
                     )
                 }
@@ -164,14 +167,14 @@ fun FloatingAudioBar() {
 
                 Text(
                     text = title,
-                    color = TextPrimary,
+                    color = MoazenInkPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Text(
                     text = subtitle,
-                    color = TextSecondary,
+                    color = MoazenInkMuted,
                     fontSize = 14.sp
                 )
 
@@ -183,9 +186,9 @@ fun FloatingAudioBar() {
                         NativeAudioPlayerManager.seekTo(newProg)
                     },
                     colors = SliderDefaults.colors(
-                        thumbColor = GoldAccent,
-                        activeTrackColor = GoldAccent,
-                        inactiveTrackColor = CardBorder
+                        thumbColor = MoazenInkEmerald,
+                        activeTrackColor = MoazenInkEmerald,
+                        inactiveTrackColor = MoazenCardBorder
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -196,12 +199,12 @@ fun FloatingAudioBar() {
                 ) {
                     Text(
                         text = formatMs(posMs),
-                        color = TextSecondary,
+                        color = MoazenInkMuted,
                         fontSize = 12.sp
                     )
                     Text(
                         text = formatMs(durMs),
-                        color = TextSecondary,
+                        color = MoazenInkMuted,
                         fontSize = 12.sp
                     )
                 }
@@ -219,7 +222,7 @@ fun FloatingAudioBar() {
                             if (durMs > 0) NativeAudioPlayerManager.seekTo(newPos.toFloat() / durMs)
                         }
                     ) {
-                        Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = TextPrimary)
+                        Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = MoazenInkPrimary)
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
@@ -229,12 +232,12 @@ fun FloatingAudioBar() {
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(GoldAccent)
+                            .background(MoazenInkEmerald)
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "تشغيل أو إيقاف",
-                            tint = EmeraldDeep,
+                            tint = Color.White,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -247,7 +250,7 @@ fun FloatingAudioBar() {
                             if (durMs > 0) NativeAudioPlayerManager.seekTo(newPos.toFloat() / durMs)
                         }
                     ) {
-                        Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = TextPrimary)
+                        Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = MoazenInkPrimary)
                     }
                 }
 

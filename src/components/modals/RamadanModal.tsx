@@ -327,7 +327,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
             {activeTab !== 'index' && (
               <button
                 onClick={() => setActiveTab('index')}
-                className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 text-xs font-bold cursor-pointer"
+                className="moazen-widget flex items-center gap-1 px-2.5 py-2 rounded-xl text-[#172A28] border border-gray-200 text-xs font-bold cursor-pointer"
               >
                 <span>الفهرس</span>
               </button>
@@ -355,7 +355,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           <div className="bg-white px-4 py-2 border-b border-gray-200 flex items-center justify-between shrink-0" dir="rtl">
             <button
               onClick={() => setActiveTab('index')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
               <span>العودة إلى فهرس رمضان الرئيسي</span>
@@ -369,7 +369,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {/* VERTICAL INDEX VIEW (Main Page of Ramadan Section) */}
           {activeTab === 'index' && (
             <div className="space-y-2.5" dir="rtl">
-              <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
+              <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-[#172A28] font-cairo">فهرس أقسام وعناصر شهر رمضان</h3>
                   <p className="text-[11px] text-gray-500 mt-0.5">
@@ -435,7 +435,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className="w-full text-right bg-white hover:bg-[#FAF9F5] p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                  className="moazen-widget w-full text-right p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
@@ -465,17 +465,17 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {activeTab === 'zakat' && (
             <div className="space-y-3.5 text-right" dir="rtl">
               {/* Top Result & Summary Banner */}
-              <div className="bg-gradient-to-br from-[#104B40] via-[#0E3F35] to-[#082A23] text-white p-4 rounded-2xl shadow-md border border-[#C5A059]/40 space-y-3">
+              <div className="moazen-widget p-4 rounded-2xl shadow-md space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-[#C5A059]/20 border border-[#C5A059]/40 flex items-center justify-center text-[#C5A059]">
+                    <div className="w-9 h-9 rounded-xl bg-[#104B40]/10 border border-[#104B40]/20 flex items-center justify-center text-[#104B40]">
                       <Calculator className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-black font-cairo text-amber-200">
+                      <h3 className="text-sm font-black font-cairo text-[#104B40]">
                         نتيجة حساب الزكاة الشرعية (2.5%)
                       </h3>
-                      <span className="text-[10px] text-emerald-100 block">
+                      <span className="text-[10px] text-[#4B5B58] block">
                         ربع العشر (2.5%) عند بلوغ النصاب ومرور الحول القمري (الهجري)
                       </span>
                     </div>
@@ -484,7 +484,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   <button
                     type="button"
                     onClick={handleResetZakatCalculator}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#104B40]/10 hover:bg-[#104B40]/20 text-[#104B40] text-xs font-bold transition-colors cursor-pointer"
                     title="إعادة الحساب وتصفير القيم"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -493,19 +493,19 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                 </div>
 
                 {/* Main Zakat Result Box */}
-                <div className="bg-white/10 rounded-2xl p-3.5 border border-white/15 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="moazen-widget-sub rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <span className="text-[11px] text-emerald-100 block font-bold">
+                    <span className="text-[11px] text-[#4B5B58] block font-bold">
                       إجمالي الزكاة المستحقة الواجب إخراجها:
                     </span>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <span className="text-2xl sm:text-3xl font-black font-mono text-[#C5A059]">
+                      <span className="text-2xl sm:text-3xl font-black font-mono text-[#104B40]">
                         {totalZakatDue.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
                       </span>
-                      <span className="text-xs font-bold text-amber-200">{currencySymbol}</span>
+                      <span className="text-xs font-bold text-[#9A7732]">{currencySymbol}</span>
                     </div>
                   </div>
 
@@ -513,8 +513,8 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                     <span
                       className={`text-[11px] font-bold px-3 py-1 rounded-full inline-flex items-center gap-1.5 w-fit ${
                         isZakatDue
-                          ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40'
-                          : 'bg-amber-500/25 text-amber-200 border border-amber-400/40'
+                          ? 'bg-emerald-600/15 text-emerald-800 border border-emerald-700/25'
+                          : 'bg-[#C5A059]/20 text-[#7A591B] border border-[#C5A059]/40'
                       }`}
                     >
                       {isZakatDue
@@ -525,7 +525,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                         ? 'أدخل قيم الأموال بالأسفل لبدء الحساب'
                         : 'لم يبلغ النصاب الشرعي بعد'}
                     </span>
-                    <span className="text-[10px] text-emerald-200 font-mono">
+                    <span className="text-[10px] text-[#4B5B58] font-mono">
                       إجمالي الوعاء الزكوي:{' '}
                       {grandTotalZakatableWealth.toLocaleString('en-US', {
                         maximumFractionDigits: 2,
@@ -541,23 +541,23 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
 
                 {/* Category Breakdown Pills */}
                 <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                  <div className="bg-black/20 rounded-xl p-2 border border-white/10">
-                    <span className="text-[10px] text-emerald-200 block">زكاة المال والنقود</span>
-                    <span className="text-xs font-black font-mono text-amber-300 mt-0.5 block">
+                  <div className="moazen-widget-sub rounded-xl p-2">
+                    <span className="text-[10px] text-[#4B5B58] block">زكاة المال والنقود</span>
+                    <span className="text-xs font-black font-mono text-[#104B40] mt-0.5 block">
                       {cashZakatDue.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
                       {currencySymbol}
                     </span>
                   </div>
-                  <div className="bg-black/20 rounded-xl p-2 border border-white/10">
-                    <span className="text-[10px] text-emerald-200 block">زكاة الذهب والفضة</span>
-                    <span className="text-xs font-black font-mono text-amber-300 mt-0.5 block">
+                  <div className="moazen-widget-sub rounded-xl p-2">
+                    <span className="text-[10px] text-[#4B5B58] block">زكاة الذهب والفضة</span>
+                    <span className="text-xs font-black font-mono text-[#104B40] mt-0.5 block">
                       {metalsZakatDue.toLocaleString('en-US', { maximumFractionDigits: 2 })}{' '}
                       {currencySymbol}
                     </span>
                   </div>
-                  <div className="bg-black/20 rounded-xl p-2 border border-white/10">
-                    <span className="text-[10px] text-emerald-200 block">الأسهم والعقارات</span>
-                    <span className="text-xs font-black font-mono text-amber-300 mt-0.5 block">
+                  <div className="moazen-widget-sub rounded-xl p-2">
+                    <span className="text-[10px] text-[#4B5B58] block">الأسهم والعقارات</span>
+                    <span className="text-xs font-black font-mono text-[#104B40] mt-0.5 block">
                       {stocksRealEstateZakatDue.toLocaleString('en-US', {
                         maximumFractionDigits: 2,
                       })}{' '}
@@ -568,7 +568,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               </div>
 
               {/* Nisab & Hawl Settings Card */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <Info className="w-4 h-4 text-[#104B40]" />
@@ -601,7 +601,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={gold24PricePerGram}
                       onChange={(e) => setGold24PricePerGram(e.target.value)}
                       placeholder="مثال: 4100"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                     <span className="text-[10px] text-gray-500 mt-0.5 block">
                       نصاب الذهب (85 جرام عيار 24) ={' '}
@@ -620,7 +620,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={silverPricePerGram}
                       onChange={(e) => setSilverPricePerGram(e.target.value)}
                       placeholder="مثال: 50"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                     <span className="text-[10px] text-gray-500 mt-0.5 block">
                       نصاب الفضة (595 جرام) ={' '}
@@ -657,7 +657,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                     </button>
                   </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer bg-[#FAF9F5] px-3 py-1.5 rounded-xl border border-gray-200">
+                  <label className="moazen-widget flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-xl border border-gray-200">
                     <input
                       type="checkbox"
                       checked={hawlCompleted}
@@ -672,7 +672,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               </div>
 
               {/* SECTION 1: زكاة المال (Cash, Bank Savings, Deposits) */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#104B40] flex items-center justify-center">
@@ -703,7 +703,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={cashAndBank}
                       onChange={(e) => setCashAndBank(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -717,7 +717,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={depositsAndBonds}
                       onChange={(e) => setDepositsAndBonds(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -731,7 +731,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={receivableDebts}
                       onChange={(e) => setReceivableDebts(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -752,7 +752,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               </div>
 
               {/* SECTION 2: زكاة الذهب والفضة (Gold 24k, 21k, 18k & Silver) */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-amber-50 text-[#9A7732] flex items-center justify-center">
@@ -785,7 +785,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={gold24Grams}
                       onChange={(e) => setGold24Grams(e.target.value)}
                       placeholder="0 جرام"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
                     />
                   </div>
 
@@ -799,7 +799,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={gold21Grams}
                       onChange={(e) => setGold21Grams(e.target.value)}
                       placeholder="0 جرام"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
                     />
                   </div>
 
@@ -813,7 +813,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={gold18Grams}
                       onChange={(e) => setGold18Grams(e.target.value)}
                       placeholder="0 جرام"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
                     />
                   </div>
 
@@ -827,7 +827,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={silverGrams}
                       onChange={(e) => setSilverGrams(e.target.value)}
                       placeholder="0 جرام"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#C5A059]"
                     />
                   </div>
                 </div>
@@ -850,7 +850,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               </div>
 
               {/* SECTION 3: زكاة الأسهم والعقارات والأراضي (Stocks, Commercial Real Estate & Land) */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center">
@@ -885,7 +885,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={tradingStocksValue}
                       onChange={(e) => setTradingStocksValue(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -899,7 +899,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={commercialRealEstateValue}
                       onChange={(e) => setCommercialRealEstateValue(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -913,7 +913,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={tradingLandValue}
                       onChange={(e) => setTradingLandValue(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
 
@@ -927,12 +927,12 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                       value={savedRentalIncome}
                       onChange={(e) => setSavedRentalIncome(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
+                      className="moazen-widget w-full border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-[#172A28] focus:outline-none focus:border-[#104B40]"
                     />
                   </div>
                 </div>
 
-                <div className="bg-[#FAF9F5] p-3 rounded-xl border border-gray-200/70 text-[11px] text-gray-600 leading-relaxed">
+                <div className="moazen-widget p-3 rounded-xl border border-gray-200/70 text-[11px] text-gray-600 leading-relaxed">
                   <strong className="text-[#104B40]">تنبيه فقهي مهم:</strong> العقار السكني الشخصي
                   أو السيارة الخاصة لا زكاة في عينها، أما العقارات والأراضي المشتراة بنية التجارة
                   والبيع فتجب الزكاة في قيمتها السوقية الكاملة (2.5%)، والعقارات المؤجرة تجب الزكاة
@@ -1056,19 +1056,19 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {activeTab === 'tracker' && (
             <div className="space-y-3">
               {/* Summary Stats */}
-              <div className="bg-gradient-to-r from-[#104B40] to-[#0c392c] text-white p-4 rounded-2xl shadow-sm text-right">
-                <h4 className="text-xs font-bold text-amber-200">مفكرة إنجاز شهر رمضان المبارك</h4>
-                <p className="text-[11px] text-emerald-100 mt-1 leading-relaxed">
+              <div className="moazen-widget p-4 rounded-2xl shadow-sm text-right">
+                <h4 className="text-xs font-bold text-[#104B40]">مفكرة إنجاز شهر رمضان المبارك</h4>
+                <p className="text-[11px] text-[#4B5B58] mt-1 leading-relaxed">
                   تتبّع صيامك وصلاتك وتلاوتك يوماً بيوم. تُحفظ بياناتك محلياً على جهازك دون الحاجة لحساب.
                 </p>
                 <div className="grid grid-cols-2 gap-2 mt-3 text-center">
-                  <div className="bg-white/10 p-2 rounded-xl">
-                    <span className="text-base font-black text-amber-300 block">{totalFastedDays} / 30</span>
-                    <span className="text-[10px] text-emerald-100">أيام الصيام المنجزة</span>
+                  <div className="moazen-widget-sub p-2 rounded-xl">
+                    <span className="text-base font-black text-[#104B40] block">{totalFastedDays} / 30</span>
+                    <span className="text-[10px] text-[#4B5B58]">أيام الصيام المنجزة</span>
                   </div>
-                  <div className="bg-white/10 p-2 rounded-xl">
-                    <span className="text-base font-black text-amber-300 block">{totalTaraweehDays} / 30</span>
-                    <span className="text-[10px] text-emerald-100">ليالي التراويح والقيام</span>
+                  <div className="moazen-widget-sub p-2 rounded-xl">
+                    <span className="text-base font-black text-[#9A7732] block">{totalTaraweehDays} / 30</span>
+                    <span className="text-[10px] text-[#4B5B58]">ليالي التراويح والقيام</span>
                   </div>
                 </div>
               </div>
@@ -1087,7 +1087,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   return (
                     <div
                       key={day.dayNumber}
-                      className="bg-white p-3 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2"
+                      className="moazen-widget p-3 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-sans text-gray-400">
@@ -1180,19 +1180,19 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {/* TAB 3: THE LAST 10 NIGHTS & LAYLAT AL-QADR */}
           {activeTab === 'last10' && (
             <div className="space-y-3">
-              <div className="bg-gradient-to-br from-[#0a231c] via-[#104b3a] to-[#1a382c] text-white p-4 rounded-2xl shadow-md text-right space-y-2">
+              <div className="moazen-widget p-4 rounded-2xl shadow-md text-right space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] bg-amber-400 text-emerald-950 font-black px-2.5 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-[#C5A059] text-emerald-950 font-black px-2.5 py-0.5 rounded-full">
                     خيرٌ من ألف شهر
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black font-quran text-amber-200">
+                    <h3 className="text-sm font-black font-quran text-[#104B40]">
                       العشر الأواخر وليلة القدر
                     </h3>
-                    <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
+                    <Star className="w-4 h-4 text-[#C5A059] fill-[#C5A059]" />
                   </div>
                 </div>
-                <p className="text-[11px] text-emerald-100 leading-relaxed font-sans">
+                <p className="text-[11px] text-[#4B5B58] leading-relaxed font-sans">
                   كان النبي ﷺ إذا دخلت العشر الأواخر شد مئزره، وأحيا ليله، وأيقظ أهله حرصاً على إدراك ليلة القدر التي قال الله تعالى عنها: {`{لَيْلَةُ الْقَدْرِ خَيْرٌ مِّنْ أَلْفِ شَهْرٍ}`}.
                 </p>
               </div>
@@ -1225,7 +1225,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   ].map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-white border border-gray-200/80 text-right shadow-xs flex items-center justify-between"
+                      className="moazen-widget p-3 rounded-xl border border-gray-200/80 text-right shadow-xs flex items-center justify-between"
                     >
                       <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
                       <div>
@@ -1242,7 +1242,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               </div>
 
               {/* Suggested Worship Schedule */}
-              <div className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2">
+              <div className="moazen-widget p-3.5 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2">
                 <h4 className="text-xs font-black text-gray-800">برنامج إحياء العشر الأواخر:</h4>
                 <ul className="text-[11px] text-gray-600 space-y-1.5 list-disc list-inside">
                   <li>الاعتكاف أو لزوم المسجد ما تيسر بعد صلاة العشاء والتراويح.</li>
@@ -1269,7 +1269,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                 {ramadanDuas.map((d, idx) => (
                   <div
                     key={idx}
-                    className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2"
+                    className="moazen-widget p-3.5 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
@@ -1323,16 +1323,16 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {/* TAB 5: KHATMA PLANNER IN RAMADAN */}
           {activeTab === 'khatma' && (
             <div className="space-y-3 text-right">
-              <div className="bg-gradient-to-r from-[#104B40] to-[#0B3D35] text-white p-4 rounded-2xl shadow-sm space-y-2">
-                <h4 className="text-xs font-bold text-amber-200">جدول ختم القرآن الكريم في رمضان</h4>
-                <p className="text-[11px] text-emerald-100 leading-relaxed font-sans">
+              <div className="moazen-widget p-4 rounded-2xl shadow-sm space-y-2">
+                <h4 className="text-xs font-bold text-[#104B40]">جدول ختم القرآن الكريم في رمضان</h4>
+                <p className="text-[11px] text-[#4B5B58] leading-relaxed font-sans">
                   القرآن الكريم 604 صفحات، مقسم إلى 30 جزءاً. يمكنك اختيار وتيرة الختمة التي تناسبك:
                 </p>
               </div>
 
               {/* Options of Khatma */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="bg-white p-3 rounded-2xl border border-emerald-200 shadow-xs text-center space-y-1">
+                <div className="moazen-widget p-3 rounded-2xl border border-emerald-200 shadow-xs text-center space-y-1">
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
                     ختمة واحدة (30 يوماً)
                   </span>
@@ -1340,7 +1340,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   <p className="text-[10px] text-gray-500">20 صفحة في اليوم (4 صفحات بعد كل صلاة مكتوبة)</p>
                 </div>
 
-                <div className="bg-white p-3 rounded-2xl border border-amber-200 shadow-xs text-center space-y-1">
+                <div className="moazen-widget p-3 rounded-2xl border border-amber-200 shadow-xs text-center space-y-1">
                   <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
                     ختمتان (15 يوماً لكل ختمة)
                   </span>
@@ -1348,7 +1348,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   <p className="text-[10px] text-gray-500">40 صفحة في اليوم (8 صفحات بعد كل صلاة مكتوبة)</p>
                 </div>
 
-                <div className="bg-white p-3 rounded-2xl border border-teal-200 shadow-xs text-center space-y-1">
+                <div className="moazen-widget p-3 rounded-2xl border border-teal-200 shadow-xs text-center space-y-1">
                   <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full">
                     ثلاث ختمات (10 أيام لكل ختمة)
                   </span>
@@ -1373,7 +1373,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
           {/* TAB 6: FIQH OF FASTING, VIRTUES OF RAMADAN & LAYLAT AL-QADR */}
           {activeTab === 'fiqh' && (
             <div className="space-y-3 text-right" dir="rtl">
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
+              <div className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs">
                 <h3 className="text-sm font-black text-[#104B40] font-cairo">
                   موسوعة فقه الصيام وفضائل رمضان وليلة القدر وزكاة الفطر
                 </h3>
@@ -1385,7 +1385,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
               {RAMADAN_FIQH_ENCYCLOPEDIA.map((sec) => (
                 <div
                   key={sec.id}
-                  className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5"
+                  className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5"
                 >
                   <h4 className="text-sm font-black text-[#172A28] font-cairo border-b border-gray-100 pb-2">
                     {sec.title}
@@ -1393,7 +1393,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   <p className="text-xs text-gray-700 leading-relaxed">{sec.summary}</p>
                   <ul className="space-y-1.5 text-xs text-gray-800">
                     {sec.details.map((r, i) => (
-                      <li key={i} className="bg-[#F7F6F2] p-2.5 rounded-xl leading-relaxed">
+                      <li key={i} className="moazen-widget p-2.5 rounded-xl leading-relaxed">
                         ✦ {r}
                       </li>
                     ))}

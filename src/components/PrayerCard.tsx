@@ -22,8 +22,9 @@ interface PrayerCardProps {
   calculationMethod?: string;
   asrJuristicMethod?: 'standard' | 'hanafi';
   manualAdjustments?: Partial<Record<PrayerKey, number>>;
-  iqamaIntervals?: Record<PrayerKey, number>;
+  iqamaIntervals?: Partial<Record<PrayerKey, number>>;
   onOpenPrayerModal: () => void;
+  onOpenPrayerSettings?: (prayerKey: PrayerKey) => void;
   onOpenCitySelector: () => void;
 }
 
@@ -48,6 +49,7 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
   manualAdjustments = {},
   iqamaIntervals = DEFAULT_IQAMA_MINUTES,
   onOpenPrayerModal,
+  onOpenPrayerSettings,
   onOpenCitySelector,
 }) => {
   const t = getTranslation(language);
@@ -70,6 +72,8 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
         return t.fajr;
       case 'sunrise':
         return t.sunrise;
+      case 'duha':
+        return t.duha || 'الضحى';
       case 'dhuhr':
         return t.dhuhr;
       case 'asr':
@@ -121,11 +125,15 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
     };
     window.addEventListener('dstModeChanged', handleDstUpdate);
     window.addEventListener('locationUpdated', handleLocUpdate);
+    window.addEventListener('prayerTimesUpdated', handleDstUpdate);
+    window.addEventListener('prayerSettingsUpdated', handleDstUpdate);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       clearInterval(interval);
       window.removeEventListener('dstModeChanged', handleDstUpdate);
       window.removeEventListener('locationUpdated', handleLocUpdate);
+      window.removeEventListener('prayerTimesUpdated', handleDstUpdate);
+      window.removeEventListener('prayerSettingsUpdated', handleDstUpdate);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [city, calculationMethod, asrJuristicMethod, manualAdjustments, iqamaIntervals, dstMode]);
@@ -160,6 +168,13 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
         return (
           <svg className={`w-3 h-3 mx-auto ${colorClass} stroke-current`} fill="none" viewBox="0 0 24 24" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m6.364 1.636l-2.121 2.121M21 12h-3M4 12H1m4.757-5.243L3.636 4.636M7 16a5 5 0 0 1 10 0M3 20h18" />
+          </svg>
+        );
+      case 'duha':
+        return (
+          <svg className={`w-3 h-3 mx-auto ${colorClass} stroke-current`} fill="none" viewBox="0 0 24 24" strokeWidth="2">
+            <circle cx="12" cy="13" r="3.5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v2.5M6.34 7.34l1.77 1.77M17.66 7.34l-1.77 1.77M3.5 14h2M18.5 14h2M4 19h16" />
           </svg>
         );
       case 'dhuhr':
@@ -199,7 +214,7 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
   const methodLabel = SHORT_METHOD_NAMES[calculationMethod] || SHORT_METHOD_NAMES.egypt;
 
   return (
-    <div className="relative mx-2.5 sm:mx-3.5 -mt-2.5 bg-white rounded-2xl px-2 py-1.5 sm:px-2.5 sm:py-2 shadow-lg border border-gray-100/80 transition-all select-none shrink-0">
+    <div className="moazen-widget relative mx-2.5 sm:mx-3.5 -mt-2.5 rounded-2xl px-2 py-1.5 sm:px-2.5 sm:py-2 shadow-lg transition-all select-none shrink-0">
       {/* Top row: City Location, Calculation Method & DST badge */}
       <div className="flex items-center justify-between mb-1 px-1 gap-1">
         {activeIqama ? (
@@ -234,10 +249,9 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
 
       {/* Main Prayer Times Display */}
       <div className="flex items-stretch gap-1">
-        {/* 6 Prayer Columns — Compact height with crystal clear prayer names */}
+        {/* 7 Prayer Columns (including Duha) — Tap any widget to open Advanced Settings for that prayer */}
         <div
-          onClick={onOpenPrayerModal}
-          className="flex-1 min-w-0 grid grid-cols-6 gap-1 items-stretch justify-items-center py-0 cursor-pointer"
+          className="flex-1 min-w-0 grid grid-cols-7 gap-0.5 sm:gap-1 items-stretch justify-items-center py-0"
         >
           {prayers.map((prayer) => {
             const isIqamaActiveForThis = activeIqama?.prayerKey === prayer.key;
@@ -248,12 +262,21 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
             return (
               <div
                 key={prayer.key}
-                className={`relative w-full min-h-[44px] sm:min-h-[48px] flex flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-xl bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] overflow-hidden transition-all active:scale-95 ${
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenPrayerSettings) {
+                    onOpenPrayerSettings(prayer.key);
+                  } else {
+                    onOpenPrayerModal();
+                  }
+                }}
+                title={`إعدادات ${localizedName} المتقدمة`}
+                className={`relative w-full min-h-[46px] sm:min-h-[50px] flex flex-col items-center justify-center gap-0.5 py-1 px-0.5 rounded-xl bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] overflow-hidden transition-all active:scale-95 cursor-pointer ${
                   isIqamaActiveForThis
                     ? 'border-2 border-amber-500 shadow-xs ring-1 ring-amber-400/50'
                     : isHighlight
                     ? 'border-2 border-[#C5A059] shadow-xs ring-1 ring-[#C5A059]/40'
-                    : 'border border-emerald-950/10 hover:border-emerald-950/20'
+                    : 'border border-emerald-950/10 hover:border-[#C5A059]/60'
                 }`}
               >
                 {/* Unified subtle mosque background watermark matching Quran, Hadith, and Dua widgets */}
@@ -268,21 +291,21 @@ export const PrayerCard: React.FC<PrayerCardProps> = ({
                   {getPrayerIcon(prayer.key, isHighlight)}
                 </div>
                 <span
-                  className={`relative z-10 text-[9.5px] sm:text-[10px] leading-none truncate max-w-full ${
+                  className={`relative z-10 text-[8.5px] sm:text-[9.5px] leading-tight text-center whitespace-nowrap ${
                     isHighlight ? 'font-black text-[#104B40]' : 'font-extrabold text-[#172A28]'
                   }`}
                 >
                   {localizedName}
                 </span>
                 <span
-                  className={`relative z-10 text-[9.5px] sm:text-[10px] leading-none font-sans tabular-nums mt-0.5 ${
+                  className={`relative z-10 text-[8.5px] sm:text-[9.5px] leading-none font-sans tabular-nums mt-0.5 whitespace-nowrap ${
                     isHighlight ? 'font-black text-[#104B40]' : 'font-extrabold text-[#172A28]'
                   }`}
                 >
                   {prayer.time}
                 </span>
                 {isIqamaActiveForThis && (
-                  <span className="relative z-10 text-[6.5px] text-amber-800 font-black leading-none">
+                  <span className="relative z-10 text-[6px] text-amber-800 font-black leading-none">
                     {t.iqamaLabel}
                   </span>
                 )}

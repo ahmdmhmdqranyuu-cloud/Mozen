@@ -122,7 +122,17 @@ export const AZAN_VOICES: AzanVoiceOption[] = [
     filePath: '/audio/madinah.mp3',
     isFajrOnly: true,
   },
+  {
+    id: 'duha_surah',
+    name: 'سورة الضحى المباركة (لصلاة الضحى)',
+    muezzin: 'تلاوة مخصصة لوقت صلاة الضحى',
+    location: 'ملف صوتي مدمج',
+    filePath: '/assets/aistudio/AudioCutter__48k__3__809214b6.mp3',
+  },
 ];
+
+export const DUHA_AUDIO_FILE = '/assets/aistudio/AudioCutter__48k__3__809214b6.mp3';
+export const DUA_AFTER_AZAN_AUDIO_FILE = '/assets/aistudio/AudioCutter__48k__4__6d73c073.mp3';
 
 /**
  * Three dedicated embedded choices for Fajr Azan as specified in system prompt:
@@ -329,6 +339,7 @@ class SoundService {
   private currentCategory: string | null = null;
   private audioContext: AudioContext | null = null;
   private isSynthesizing = false;
+  private stopTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -479,7 +490,9 @@ class SoundService {
     voiceId: string = 'makkah',
     isFajrOrOnEnd?: boolean | (() => void),
     onEnd?: () => void,
-    onError?: (err: unknown) => void
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100,
+    maxDurationMs?: number
   ): boolean {
     let isFajr = false;
     let actualOnEnd = onEnd;
@@ -504,8 +517,26 @@ class SoundService {
     const selectedVoice =
       (isFajr ? FAJR_AZAN_VOICES.find((v) => v.id === voiceKey) : null) ||
       AZAN_VOICES.find((v) => v.id === voiceKey) ||
+      SALAWAT_AUDIO_OPTIONS.map((s) => ({
+        id: s.id,
+        name: s.title,
+        muezzin: s.description,
+        location: 'ملف محلي',
+        filePath: s.filePath,
+      })).find((s) => s.id === voiceKey) ||
+      (voiceKey === 'dua_after_azan'
+        ? {
+            id: 'dua_after_azan',
+            name: 'الدعاء القصير بعد الأذان',
+            muezzin: 'دعاء مأثور',
+            location: 'ملف صوتي مدمج',
+            filePath: DUA_AFTER_AZAN_AUDIO_FILE,
+          }
+        : null) ||
       (isFajr ? FAJR_AZAN_VOICES[0] : AZAN_VOICES[0]);
     const localAudioPath = selectedVoice.filePath;
+
+    const normalizedVol = Math.max(0, Math.min(1, volumePercent / 100));
 
     // Prevent interrupting if the exact same Azan is already actively playing
     if (
@@ -515,6 +546,7 @@ class SoundService {
       this.currentCategory === 'azan' &&
       this.currentVoiceId === selectedVoice.id
     ) {
+      this.currentAudio.volume = normalizedVol;
       return true;
     }
 
@@ -522,12 +554,19 @@ class SoundService {
 
     try {
       const audio = new Audio(localAudioPath);
-      audio.volume = 1.0;
+      audio.volume = normalizedVol;
       audio.loop = false;
       audio.preload = 'auto';
       this.currentAudio = audio;
       this.currentVoiceId = selectedVoice.id;
       this.currentCategory = 'azan';
+
+      if (maxDurationMs && maxDurationMs > 0) {
+        this.stopTimer = setTimeout(() => {
+          this.stopAudio();
+          if (actualOnEnd) actualOnEnd();
+        }, maxDurationMs);
+      }
 
       audio.onerror = (e) => {
         console.warn('Audio error loading:', localAudioPath, e);
@@ -541,6 +580,10 @@ class SoundService {
       };
 
       audio.onended = () => {
+        if (this.stopTimer) {
+          clearTimeout(this.stopTimer);
+          this.stopTimer = null;
+        }
         if (this.currentAudio === audio) {
           this.currentAudio = null;
           this.currentVoiceId = null;
@@ -571,6 +614,34 @@ class SoundService {
       if (actualOnEnd) actualOnEnd();
       if (onError) onError(err);
       return false;
+    }
+  }
+
+  /**
+   * Plays a subtle short "tick" tone when a recitation word error is detected
+   */
+  public playRecitationTick(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(340, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.095);
+      osc.onended = () => {
+        ctx.close().catch(() => {});
+      };
+    } catch {
+      // ignore audio context failures
     }
   }
 
@@ -689,7 +760,8 @@ class SoundService {
     trackId: string = 'unknown',
     category: string = 'general',
     onEnd?: () => void,
-    onError?: (err: unknown) => void
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
   ): boolean {
     // If Azan is currently playing, do not let an automatic reminder cut off the Azan; queue it right after Azan ends
     if (
@@ -703,7 +775,7 @@ class SoundService {
       activeAzanAudio.addEventListener(
         'ended',
         () => {
-          this.playTrack(filePath, trackId, category, onEnd, onError);
+          this.playTrack(filePath, trackId, category, onEnd, onError, volumePercent);
         },
         { once: true }
       );
@@ -721,7 +793,7 @@ class SoundService {
 
     try {
       const audio = new Audio(filePath);
-      audio.volume = 1.0;
+      audio.volume = Math.max(0, Math.min(1, volumePercent / 100));
       audio.loop = false;
       audio.preload = 'auto';
       this.currentAudio = audio;
@@ -819,8 +891,21 @@ class SoundService {
    * Pre-Prayer 15-Minute Warning:
    * Plays: «إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا»
    */
-  public playPrePrayerAlert(onEnd?: () => void, onError?: (err: unknown) => void): boolean {
-    return this.playTrack('/audio/pre_prayer_15m.mp3', 'pre_prayer_15m', 'pre_prayer', onEnd, onError);
+  public playPrePrayerAlert(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    trackId: string = 'pre_prayer_15m',
+    volumePercent: number = 100
+  ): boolean {
+    const fileMap: Record<string, string> = {
+      pre_prayer_15m: '/audio/pre_prayer_15m.mp3',
+      salawat_1: '/audio/salawat_1.mp3',
+      salawat_2: '/audio/salawat_2.mp3',
+      salawat_3: '/audio/salawat_3.mp3',
+      asmaa_allah_al_husna: '/audio/asmaa_allah_al_husna.mp3',
+    };
+    const path = fileMap[trackId] || '/audio/pre_prayer_15m.mp3';
+    return this.playTrack(path, trackId, 'pre_prayer', onEnd, onError, volumePercent);
   }
 
   /**
@@ -854,6 +939,35 @@ class SoundService {
     return this.playTrack('/audio/asmaa_allah_al_husna.mp3', 'asmaa_allah_al_husna', 'nasheed', onEnd, onError);
   }
 
+  /**
+   * Dedicated Duha prayer audio (Surah Ad-Duha attached file)
+   */
+  public playDuha(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
+  ): boolean {
+    return this.playTrack(DUHA_AUDIO_FILE, 'duha_surah', 'duha', onEnd, onError, volumePercent);
+  }
+
+  /**
+   * Dedicated short Dua audio after Azan (attached file)
+   */
+  public playDuaAfterAzan(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
+  ): boolean {
+    return this.playTrack(
+      DUA_AFTER_AZAN_AUDIO_FILE,
+      'dua_after_azan',
+      'dua_after',
+      onEnd,
+      onError,
+      volumePercent
+    );
+  }
+
   private customIqamaUrl: string | null = null;
 
 
@@ -868,19 +982,31 @@ class SoundService {
   public playIqama(
     voiceId: string = 'default_iqama',
     onEnd?: () => void,
-    onError?: (err: unknown) => void
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
   ): boolean {
     const selected =
       IQAMA_VOICES.find((v) => v.id === voiceId || v.filePath === voiceId) || IQAMA_VOICES[0];
     const path = this.customIqamaUrl || selected.filePath;
-    return this.playTrack(path, selected.id, 'iqama', onEnd, (err) => {
-      // Fallback: play melodious prayer chime / takbeer melody if file cannot be loaded
-      this.playOfflineSynthesizedAdhan(onEnd);
-      if (onError) onError(err);
-    });
+    return this.playTrack(
+      path,
+      selected.id,
+      'iqama',
+      onEnd,
+      (err) => {
+        // Fallback: play melodious prayer chime / takbeer melody if file cannot be loaded
+        this.playOfflineSynthesizedAdhan(onEnd);
+        if (onError) onError(err);
+      },
+      volumePercent
+    );
   }
 
   public stopAudio() {
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
     if (this.currentAudio) {
       try {
         this.currentAudio.pause();
@@ -892,7 +1018,7 @@ class SoundService {
       this.currentVoiceId = null;
       this.currentCategory = null;
     }
-    if ('speechSynthesis' in window) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     this.isSynthesizing = false;
@@ -903,7 +1029,7 @@ class SoundService {
     return !!(
       (this.currentAudio && !this.currentAudio.paused) ||
       this.isSynthesizing ||
-      ('speechSynthesis' in window && window.speechSynthesis.speaking)
+      (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking)
     );
   }
 

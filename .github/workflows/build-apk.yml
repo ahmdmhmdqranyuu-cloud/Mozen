@@ -10,6 +10,15 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      ci_test_sign_release:
+        description: 'Sign Release APK with debug key for test installation when Release Keystore secrets are absent'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   build-android:
@@ -27,7 +36,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Set up Android SDK 36 (Command-line Tools only, no legacy tools)
+      - name: Set up Android SDK 36 (Command-line Tools & Build Tools 36.0.0)
         run: |
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           if [ ! -d "$SDK_ROOT" ]; then
@@ -49,7 +58,7 @@ jobs:
           set +o pipefail
           yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses >/dev/null
           set -o pipefail
-          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Grant execute permission for gradlew
         run: |
@@ -61,6 +70,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          MANUAL_TEST_SIGN: ${{ inputs.ci_test_sign_release || 'false' }}
         run: |
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
             if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
@@ -78,15 +88,21 @@ jobs:
             echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
             echo "RELEASE_SIGNED=true" >> "$GITHUB_ENV"
+            echo "CI_SIGN_RELEASE_WITH_DEBUG=false" >> "$GITHUB_ENV"
+          elif [ "$MANUAL_TEST_SIGN" = "true" ]; then
+            echo "::notice::Release Keystore secrets not found; signing Release APK with debug key as requested for manual testing."
+            echo "RELEASE_SIGNED=test" >> "$GITHUB_ENV"
+            echo "CI_SIGN_RELEASE_WITH_DEBUG=true" >> "$GITHUB_ENV"
           else
             echo "::notice::KEYSTORE_BASE64 secret is not configured. Release APK will be built unsigned without generating a temporary/default keystore."
             echo "RELEASE_SIGNED=false" >> "$GITHUB_ENV"
+            echo "CI_SIGN_RELEASE_WITH_DEBUG=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Run JUnit Tests & Build Native Android APK (Debug & Release)
+      - name: Run JUnit Tests, Lint & Build Native Android APK (Debug & Release R8)
         working-directory: android
         run: |
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease --stacktrace
+          ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace
 
       - name: Verify Debug & Release APK Outputs
         run: |
@@ -101,13 +117,19 @@ jobs:
             exit 1
           fi
           ls -lh "$DEBUG_APK" "$RELEASE_APK"
-          DEBUG_BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$DEBUG_APK")
+          DEBUG_SIZE=$(du -h "$DEBUG_APK" | cut -f1)
+          RELEASE_SIZE=$(du -h "$RELEASE_APK" | cut -f1)
+          echo "DEBUG_APK_NAME=$(basename "$DEBUG_APK")" >> "$GITHUB_ENV"
+          echo "RELEASE_APK_NAME=$(basename "$RELEASE_APK")" >> "$GITHUB_ENV"
+          echo "DEBUG_APK_SIZE=$DEBUG_SIZE" >> "$GITHUB_ENV"
+          echo "RELEASE_APK_SIZE=$RELEASE_SIZE" >> "$GITHUB_ENV"
+          DEBUG_BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$DEBUG_APK")
           printf '%s\n' "$DEBUG_BADGING" | head -n 5
-          RELEASE_BADGING=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$RELEASE_APK")
+          RELEASE_BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$RELEASE_APK")
           printf '%s\n' "$RELEASE_BADGING" | head -n 5
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$DEBUG_APK"
-          if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$RELEASE_APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$DEBUG_APK"
+          if [ "${RELEASE_SIGNED:-false}" = "true" ] || [ "${RELEASE_SIGNED:-false}" = "test" ]; then
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$RELEASE_APK"
           fi
 
       - name: Write Build & Install Instructions Summary
@@ -115,11 +137,13 @@ jobs:
         run: |
           {
             echo "## نتائج بناء ملفات APK"
-            echo "- **AlMoazen-Debug-APK (\`app-debug.apk\`)**: موقّع وجاهز للتثبيت مباشرة على الهاتف."
+            echo "- **AlMoazen-Debug-APK (\`${DEBUG_APK_NAME:-AlMoazen-debug.apk}\` — ${DEBUG_APK_SIZE:-unknown})**: موقّع وجاهز للتثبيت مباشرة على الهاتف."
             if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
-              echo "- **AlMoazen-Release-APK (\`app-release.apk\`)**: موقّع بمفتاح الإصدار الحقيقي من GitHub Secrets وجاهز."
+              echo "- **AlMoazen-Release-APK (\`${RELEASE_APK_NAME:-AlMoazen-release.apk}\` — ${RELEASE_APK_SIZE:-unknown})**: مضغوط بتقنية R8 وموقّع بمفتاح الإصدار الحقيقي من GitHub Secrets."
+            elif [ "${RELEASE_SIGNED:-false}" = "test" ]; then
+              echo "- **AlMoazen-Release-APK (\`${RELEASE_APK_NAME:-AlMoazen-release.apk}\` — ${RELEASE_APK_SIZE:-unknown})**: مضغوط بتقنية R8 وموقّع تجريبياً بمفتاح التطوير للاختبار على الهاتف."
             else
-              echo "- **Release APK**: لم يتم رفعه لأن أسرار التوقيع الحقيقية (\`KEYSTORE_BASE64\`, \`KEYSTORE_PASSWORD\`, \`KEY_ALIAS\`, \`KEY_PASSWORD\`) غير مضافة في GitHub Secrets، ولا يمكن تثبيت APK غير موقّع على الهاتف. ثبّت \`AlMoazen-Debug-APK\` للتجربة على الهاتف، واحذف أي نسخة قديمة مثبتة مسبقًا إذا كان توقيعها مختلفًا."
+              echo "- **Release APK (\`${RELEASE_APK_NAME:-AlMoazen-release.apk}\` — ${RELEASE_APK_SIZE:-unknown})**: تم بناؤه وضغطه بـ R8، ولم يتم رفعه لأنه غير موقّع (أضف أسرار التوقيع الحقيقية أو اختر \`ci_test_sign_release: true\` عند التشغيل اليدوي)."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -131,9 +155,9 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Upload Release APK (Only when signed with real Secrets)
+      - name: Upload Release APK (Signed)
         uses: actions/upload-artifact@v4
-        if: success() && env.RELEASE_SIGNED == 'true'
+        if: success() && (env.RELEASE_SIGNED == 'true' || env.RELEASE_SIGNED == 'test')
         with:
           name: AlMoazen-Release-APK
           path: android/app/build/outputs/apk/release/*.apk

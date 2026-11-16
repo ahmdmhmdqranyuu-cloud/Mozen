@@ -62,8 +62,8 @@ public class BootReceiver extends BroadcastReceiver {
             try {
                 String latStr = prefs.getString("city_latitude", "21.4225");
                 String lngStr = prefs.getString("city_longitude", "39.8262");
-                lat = Double.parseDouble(latStr);
-                lng = Double.parseDouble(lngStr);
+                lat = PrayerTimeCalculator.sanitizeLatitude(Double.parseDouble(latStr));
+                lng = PrayerTimeCalculator.sanitizeLongitude(Double.parseDouble(lngStr));
             } catch (Exception ignored) {}
 
             String cityName = prefs.getString("city_name", "مكة المكرمة");
@@ -100,6 +100,59 @@ public class BootReceiver extends BroadcastReceiver {
             String musaharatiTime = prefs.getString("musaharati_time", "03:30");
             String musaharatiAudio = prefs.getString("musaharati_audio", "musaharati_1");
 
+            // Load per-prayer independent configurations (with fallback to global defaults)
+            String[] prayerKeys = {"fajr", "sunrise", "duha", "dhuhr", "asr", "maghrib", "isha"};
+            String[] prayerNames = {"الفجر", "الشروق", "صلاة الضحى", "الظهر", "العصر", "المغرب", "العشاء"};
+
+            int[] offsets = new int[prayerKeys.length];
+            boolean[] soundEnabledArr = new boolean[prayerKeys.length];
+            int[] volumePercentArr = new int[prayerKeys.length];
+            boolean[] preAlertEnabledArr = new boolean[prayerKeys.length];
+            int[] preAlertMinutesArr = new int[prayerKeys.length];
+            String[] preAlertVoiceArr = new String[prayerKeys.length];
+            boolean[] silentDuringArr = new boolean[prayerKeys.length];
+            String[] azanVoiceArr = new String[prayerKeys.length];
+            String[] alertModeArr = new String[prayerKeys.length];
+            String[] iqamaVoiceArr = new String[prayerKeys.length];
+            boolean[] duaAfterArr = new boolean[prayerKeys.length];
+
+            for (int i = 0; i < prayerKeys.length; i++) {
+                String k = prayerKeys[i];
+                boolean isObligatory = !("sunrise".equals(k) || "duha".equals(k));
+                boolean isDuha = "duha".equals(k);
+                int legacyOffset = Math.max(-60, Math.min(60, prefs.getInt("offset_" + k, 0)));
+                String defaultVoice = "fajr".equals(k) ? fajrVoice : (isObligatory ? azanVoice : (isDuha ? "duha_surah" : "salawat_1"));
+                offsets[i] = legacyOffset;
+                soundEnabledArr[i] = isObligatory ? azanSoundEnabled : isDuha;
+                volumePercentArr[i] = 100;
+                preAlertEnabledArr[i] = isObligatory && prePrayerAlertEnabled;
+                preAlertMinutesArr[i] = 15;
+                preAlertVoiceArr[i] = "pre_prayer_15m";
+                silentDuringArr[i] = false;
+                azanVoiceArr[i] = defaultVoice;
+                alertModeArr[i] = (isObligatory || isDuha) ? "full_azan" : "short_tone";
+                iqamaVoiceArr[i] = isObligatory ? "iqama_1" : "none";
+                duaAfterArr[i] = isObligatory;
+
+                String cfgRaw = prefs.getString("prayer_config_" + k, null);
+                if (cfgRaw != null && !cfgRaw.isEmpty()) {
+                    try {
+                        JSONObject cfg = new JSONObject(cfgRaw);
+                        offsets[i] = Math.max(-60, Math.min(60, cfg.optInt("offsetMinutes", legacyOffset)));
+                        soundEnabledArr[i] = cfg.optBoolean("soundEnabled", soundEnabledArr[i]);
+                        volumePercentArr[i] = Math.max(0, Math.min(100, cfg.optInt("volumePercent", 100)));
+                        preAlertEnabledArr[i] = cfg.optBoolean("preAlertEnabled", preAlertEnabledArr[i]);
+                        preAlertMinutesArr[i] = Math.max(1, Math.min(60, cfg.optInt("preAlertMinutes", 15)));
+                        preAlertVoiceArr[i] = cfg.optString("preAlertVoice", "pre_prayer_15m");
+                        silentDuringArr[i] = cfg.optBoolean("silentDuringPrayer", false);
+                        azanVoiceArr[i] = cfg.optString("azanVoice", defaultVoice);
+                        alertModeArr[i] = cfg.optString("alertMode", alertModeArr[i]);
+                        iqamaVoiceArr[i] = cfg.optString("iqamaVoice", iqamaVoiceArr[i]);
+                        duaAfterArr[i] = cfg.optBoolean("duaAfterPrayerEnabled", duaAfterArr[i]);
+                    } catch (Exception ignored) {}
+                }
+            }
+
             long nowMs = System.currentTimeMillis();
             TimeZone cityTz = (cityTimezoneId != null && !cityTimezoneId.trim().isEmpty())
                     ? TimeZone.getTimeZone(cityTimezoneId.trim())
@@ -110,7 +163,7 @@ public class BootReceiver extends BroadcastReceiver {
             JSONArray priorityArray = new JSONArray();
             JSONArray salawatArray = new JSONArray();
 
-            // 1. Schedule full 7 days for high-priority daily prayers, pre-prayer alerts, Azkar, and Musaharati
+            // 1. Schedule full 7 days for daily prayers (including Duha/Sunrise if enabled), pre-prayer alerts, Iqama, Azkar, and Musaharati
             for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
                 Calendar cityDayCal = (Calendar) cityNowCal.clone();
                 cityDayCal.add(Calendar.DAY_OF_YEAR, dayOffset);
@@ -125,12 +178,19 @@ public class BootReceiver extends BroadcastReceiver {
 
                 PrayerTimeCalculator.DailyPrayerTimes times = PrayerTimeCalculator.calculateDailyPrayers(
                         cityDayCal, lat, lng, tzOffsetHours, calcMethod, asrMethod
-                ).withOffsets(fajrOff, dhuhrOff, asrOff, maghribOff, ishaOff);
+                ).withOffsets(
+                        offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5], offsets[6]
+                );
+                if (dayOffset == 0) {
+                    Log.d(TAG, "Day0 inputs -> city=" + cityName + ", lat=" + lat + ", lng=" + lng
+                            + ", tz=" + tzOffsetHours + ", method=" + calcMethod + ", asr=" + asrMethod
+                            + ", validOrder=" + times.isChronologicallyValid());
+                }
 
-                String[] prayerKeys = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-                String[] prayerNames = {"الفجر", "الظهر", "العصر", "المغرب", "العشاء"};
                 int[] prayerMinutes = {
                         times.fajrMinutes,
+                        times.sunriseMinutes,
+                        times.duhaMinutes,
                         times.dhuhrMinutes,
                         times.asrMinutes,
                         times.maghribMinutes,
@@ -141,39 +201,72 @@ public class BootReceiver extends BroadcastReceiver {
                     String pKey = prayerKeys[pIdx];
                     String pName = prayerNames[pIdx];
                     int minutesFromMidnight = prayerMinutes[pIdx];
+                    boolean isObligatory = !("sunrise".equals(pKey) || "duha".equals(pKey));
 
                     long prayerEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, minutesFromMidnight);
-                    String prayerVoice = "fajr".equals(pKey) ? fajrVoice : azanVoice;
 
-                    if (prePrayerAlertEnabled) {
-                        long prePrayerEpochMs = prayerEpochMs - 15 * 60 * 1000L;
+                    if (preAlertEnabledArr[pIdx]) {
+                        int preMins = preAlertMinutesArr[pIdx];
+                        long prePrayerEpochMs = prayerEpochMs - preMins * 60 * 1000L;
                         if (prePrayerEpochMs > nowMs) {
                             JSONObject preObj = new JSONObject();
                             preObj.put("section", "prePrayerAlert");
                             preObj.put("prayerKey", pKey);
                             preObj.put("prayerName", pName);
                             preObj.put("cityName", cityName);
-                            preObj.put("title", "اقتربت صلاة " + pName);
-                            preObj.put("body", "«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي 15 دقيقة على أذان " + pName);
+                            preObj.put("title", "اقترب موعد " + pName);
+                            preObj.put("body", "«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي " + preMins + " دقيقة على " + pName);
                             preObj.put("triggerEpochMs", prePrayerEpochMs);
-                            preObj.put("audioTrackId", "pre_prayer_15m");
+                            preObj.put("audioTrackId", preAlertVoiceArr[pIdx]);
+                            preObj.put("volumePercent", volumePercentArr[pIdx]);
+                            preObj.put("alertMode", "full_azan");
                             preObj.put("autoPlay", true);
                             priorityArray.put(preObj);
                         }
                     }
 
-                    if (prayerEpochMs > nowMs) {
+                    boolean shouldScheduleMain = isObligatory || soundEnabledArr[pIdx] || silentDuringArr[pIdx];
+                    if (shouldScheduleMain && prayerEpochMs > nowMs) {
                         JSONObject azanObj = new JSONObject();
-                        azanObj.put("section", "prayer_azan");
+                        azanObj.put("section", isObligatory ? "prayer_azan" : "prePrayerAlert");
                         azanObj.put("prayerKey", pKey);
                         azanObj.put("prayerName", pName);
                         azanObj.put("cityName", cityName);
-                        azanObj.put("title", "حان الآن موعد أذان " + pName);
-                        azanObj.put("body", "الله أكبر • حان وقت صلاة " + pName + " حسب توقيت " + cityName);
+                        azanObj.put("title", isObligatory ? ("حان الآن موعد أذان " + pName) : ("حان الآن وقت " + pName));
+                        azanObj.put("body", isObligatory
+                                ? ("الله أكبر • حان وقت صلاة " + pName + " حسب توقيت " + cityName)
+                                : ("حان الآن وقت " + pName + " حسب توقيت " + cityName));
                         azanObj.put("triggerEpochMs", prayerEpochMs);
-                        azanObj.put("audioTrackId", prayerVoice);
-                        azanObj.put("autoPlay", azanSoundEnabled);
+                        azanObj.put("audioTrackId", azanVoiceArr[pIdx]);
+                        azanObj.put("volumePercent", volumePercentArr[pIdx]);
+                        azanObj.put("alertMode", alertModeArr[pIdx]);
+                        azanObj.put("silentDuringPrayer", silentDuringArr[pIdx]);
+                        azanObj.put("duaAfterPrayerEnabled", duaAfterArr[pIdx]);
+                        azanObj.put("autoPlay", soundEnabledArr[pIdx]);
                         priorityArray.put(azanObj);
+                    }
+
+                    // Schedule Iqama alert 10-15 min after Azan when enabled for obligatory prayers
+                    if (isObligatory && soundEnabledArr[pIdx] && iqamaVoiceArr[pIdx] != null
+                            && !iqamaVoiceArr[pIdx].isEmpty() && !"none".equals(iqamaVoiceArr[pIdx])
+                            && !"silent".equals(alertModeArr[pIdx]) && !"vibrate_only".equals(alertModeArr[pIdx])) {
+                        int iqamaDelayMins = "maghrib".equals(pKey) ? 7 : 15;
+                        long iqamaEpochMs = prayerEpochMs + iqamaDelayMins * 60 * 1000L;
+                        if (iqamaEpochMs > nowMs) {
+                            JSONObject iqamaObj = new JSONObject();
+                            iqamaObj.put("section", "iqama");
+                            iqamaObj.put("prayerKey", pKey);
+                            iqamaObj.put("prayerName", pName);
+                            iqamaObj.put("cityName", cityName);
+                            iqamaObj.put("title", "حان وقت إقامة صلاة " + pName);
+                            iqamaObj.put("body", "قد قامت الصلاة • حي على الصلاة في " + cityName);
+                            iqamaObj.put("triggerEpochMs", iqamaEpochMs);
+                            iqamaObj.put("audioTrackId", iqamaVoiceArr[pIdx]);
+                            iqamaObj.put("volumePercent", volumePercentArr[pIdx]);
+                            iqamaObj.put("alertMode", "full_azan");
+                            iqamaObj.put("autoPlay", true);
+                            priorityArray.put(iqamaObj);
+                        }
                     }
                 }
 

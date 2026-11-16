@@ -138,7 +138,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
 
         {/* View Mode Tabs: Compass vs Interactive Map */}
         <div className="px-4 pt-2.5 pb-1 bg-white border-b border-gray-100 shrink-0">
-          <div className="grid grid-cols-2 gap-2 bg-[#F7F6F2] p-1 rounded-xl border border-gray-200">
+          <div className="moazen-widget grid grid-cols-2 gap-2 p-1 rounded-xl border border-gray-200">
             <button
               type="button"
               onClick={() => setActiveTab('compass')}
@@ -173,7 +173,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
             /* COMPASS VIEW */
             <div className="flex-1 flex flex-col items-center justify-between">
               {/* Top Location and Angle summary */}
-              <div className="w-full bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+              <div className="moazen-widget w-full rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs text-gray-700">
                   <MapPin className="w-4 h-4 text-rose-500" />
                   <span className="font-bold">{city.name} - {city.country}</span>
@@ -289,7 +289,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               </div>
 
               {/* Bottom Distance & Tips */}
-              <div className="w-full bg-[#faeee1]/70 p-3.5 rounded-2xl border border-amber-900/10 text-right space-y-1 mt-auto">
+              <div className="moazen-widget w-full p-3.5 rounded-2xl border border-amber-900/10 text-right space-y-1 mt-auto">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-gray-600">المسافة إلى المسجد الحرام:</span>
                   <strong className="text-emerald-900 font-sans">
@@ -401,7 +401,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                 </svg>
 
                 {/* Floating trajectory info overlay card */}
-                <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-gray-200 text-xs flex items-center justify-between shadow-xs">
+                <div className="moazen-widget absolute bottom-2 left-2 right-2 backdrop-blur-xs p-2.5 rounded-xl border border-gray-200 text-xs flex items-center justify-between shadow-xs">
                   <div>
                     <span className="text-[10px] text-gray-500 block">خط المسار المكي المباشر:</span>
                     <strong className="text-emerald-950 font-black">
@@ -416,7 +416,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               </div>
 
               {/* Offline Map Cache Management Actions */}
-              <div className="p-3 bg-white rounded-2xl border border-gray-200/90 shadow-2xs space-y-2">
+              <div className="moazen-widget p-3 rounded-2xl border border-gray-200/90 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div>
                     <h5 className="font-bold text-gray-900">إدارة التخزين المؤقت للخرائط</h5>

@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenSubWidgetBox
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 data class RitualStep(
     val id: Int,
@@ -153,54 +155,56 @@ fun HajjScreen(onBack: () -> Unit) {
         ) {
             // Segmented Picker
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(EmeraldSurface)
-                        .padding(4.dp)
+                MoazenWidgetCard(
+                    cornerRadius = 14.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selectedTab == 0) GoldAccent else Color.Transparent)
-                            .clickable { selectedTab = 0 }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(4.dp)
                     ) {
-                        Text(
-                            text = "مناسك العمرة",
-                            color = if (selectedTab == 0) EmeraldDeep else TextSecondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedTab == 0) MoazenInkEmerald else Color.Transparent)
+                                .clickable { selectedTab = 0 }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "مناسك العمرة",
+                                color = if (selectedTab == 0) Color.White else MoazenInkMuted,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (selectedTab == 1) GoldAccent else Color.Transparent)
-                            .clickable { selectedTab = 1 }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "مناسك الحج",
-                            color = if (selectedTab == 1) EmeraldDeep else TextSecondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedTab == 1) MoazenInkEmerald else Color.Transparent)
+                                .clickable { selectedTab = 1 }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "مناسك الحج",
+                                color = if (selectedTab == 1) Color.White else MoazenInkMuted,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }
 
             // Introduction Card
             item {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -211,22 +215,22 @@ fun HajjScreen(onBack: () -> Unit) {
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(GoldAccent.copy(alpha = 0.15f)),
+                                .background(MoazenGold.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Mosque, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(26.dp))
+                            Icon(Icons.Default.Mosque, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(26.dp))
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
                                 text = if (selectedTab == 0) "دليل المعتمر خطوة بخطوة" else "أعمال الحج خطوة بخطوة",
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "دليل مبسط وموثوق وفق سنة النبي المصطفى ﷺ",
-                                color = TextSecondary,
+                                color = MoazenInkMuted,
                                 fontSize = 12.sp
                             )
                         }
@@ -238,12 +242,10 @@ fun HajjScreen(onBack: () -> Unit) {
             items(currentList) { step ->
                 var expanded by remember { mutableStateOf(false) }
 
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = !expanded }
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -254,12 +256,12 @@ fun HajjScreen(onBack: () -> Unit) {
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
-                                    .background(GoldAccent),
+                                    .background(MoazenInkEmerald),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "${step.id}",
-                                    color = EmeraldDeep,
+                                    color = Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -270,21 +272,22 @@ fun HajjScreen(onBack: () -> Unit) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = step.title,
-                                    color = TextPrimary,
+                                    color = MoazenInkPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = step.dayOrStage,
-                                    color = GoldLight,
-                                    fontSize = 12.sp
+                                    color = MoazenGoldDark,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
 
                             Icon(
                                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                 contentDescription = null,
-                                tint = TextSecondary
+                                tint = MoazenInkMuted
                             )
                         }
 
@@ -296,7 +299,7 @@ fun HajjScreen(onBack: () -> Unit) {
                             ) {
                                 Text(
                                     text = step.description,
-                                    color = TextPrimary,
+                                    color = MoazenInkPrimary,
                                     fontSize = 14.sp,
                                     lineHeight = 22.sp,
                                     textAlign = TextAlign.Right
@@ -304,21 +307,20 @@ fun HajjScreen(onBack: () -> Unit) {
 
                                 step.duaOrDhikr?.let { dua ->
                                     Spacer(modifier = Modifier.height(10.dp))
-                                    Card(
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = CardDefaults.cardColors(containerColor = EmeraldSurfaceLight),
+                                    MoazenSubWidgetBox(
+                                        cornerRadius = 12.dp,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(16.dp))
+                                                Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("الدعاء أو الذكر المستحب", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text("الدعاء أو الذكر المستحب", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                             }
                                             Spacer(modifier = Modifier.height(6.dp))
                                             Text(
                                                 text = dua,
-                                                color = GoldLight,
+                                                color = MoazenInkPrimary,
                                                 fontSize = 13.sp,
                                                 lineHeight = 22.sp,
                                                 fontWeight = FontWeight.Medium,
@@ -332,7 +334,7 @@ fun HajjScreen(onBack: () -> Unit) {
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = "💡 $note",
-                                        color = TextSecondary,
+                                        color = MoazenInkMuted,
                                         fontSize = 12.sp,
                                         lineHeight = 18.sp,
                                         textAlign = TextAlign.Right

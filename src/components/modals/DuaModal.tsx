@@ -173,7 +173,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="أبواب الأدعية"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -192,7 +192,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
                 placeholder="ابحث في فهرس الأدعية (160+ دعاء قرآني ونبوي وشامل)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-10 pl-8 py-2 text-xs bg-[#F7F6F2] border border-gray-200 rounded-xl focus:outline-none focus:border-[#C5A059] text-[#172A28]"
+                className="moazen-widget w-full pr-10 pl-8 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#C5A059] text-[#172A28]"
               />
               {searchQuery && (
                 <button
@@ -284,7 +284,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
       {/* VIEW 1: ORGANIZED VERTICAL INDEX OF DUAS */}
       {!selectedDua ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2.5 pb-24 max-w-2xl mx-auto w-full">
-          <div className="bg-white rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#C5A059]" />
               <span className="text-xs font-bold text-[#172A28]">
@@ -295,7 +295,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           {filteredDuas.length === 0 ? (
-            <div className="bg-white rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
+            <div className="moazen-widget rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
               لا توجد أدعية مطابقة للبحث في هذا القسم
             </div>
           ) : (
@@ -305,7 +305,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
                 <div
                   key={dua.id}
                   onClick={() => setSelectedDua(dua)}
-                  className="w-full text-right bg-white hover:bg-[#FAF9F5] p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                  className="moazen-widget w-full text-right p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0">
@@ -353,10 +353,10 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
         /* VIEW 2: INDEPENDENT DEDICATED DETAIL PAGE FOR SELECTED DUA */
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-24 max-w-2xl mx-auto w-full animate-fadeIn">
           {/* Top Back Bar */}
-          <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
             <button
               onClick={() => setSelectedDua(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
               <span>العودة إلى فهرس الأدعية ({filteredDuas.length})</span>
@@ -367,7 +367,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Main Dua Card */}
-          <div className="p-6 rounded-3xl bg-white border border-gray-100 shadow-sm space-y-5">
+          <div className="moazen-widget p-6 rounded-3xl border border-gray-100 shadow-sm space-y-5">
             <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3">
               <div>
                 <span className="text-[11px] text-gray-400 font-bold block">
@@ -391,13 +391,13 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
               </button>
             </div>
 
-            <div className="bg-[#FAF9F5] p-5 sm:p-6 rounded-2xl border border-[#C5A059]/30 shadow-inner">
+            <div className="moazen-widget p-5 sm:p-6 rounded-2xl border border-[#C5A059]/30 shadow-inner">
               <p className="text-xl sm:text-2xl font-bold font-amiri text-[#172A28] leading-[2.2] text-center break-words">
                 « {selectedDua.arabic} »
               </p>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-gray-600 bg-[#F7F6F2] px-4 py-2.5 rounded-xl">
+            <div className="moazen-widget flex items-center justify-between text-xs text-gray-600 px-4 py-2.5 rounded-xl">
               <span>
                 <strong className="text-[#104B40]">المصدر:</strong> {selectedDua.source}
               </span>
@@ -425,7 +425,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
 
               <button
                 onClick={() => handleCopyDua(selectedDua)}
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 text-xs font-bold transition-all cursor-pointer"
+                className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-[#172A28] border border-gray-200 text-xs font-bold transition-all cursor-pointer"
               >
                 {copiedId === selectedDua.id ? (
                   <>
@@ -451,7 +451,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
                   setSelectedDua(filteredDuas[currentDuaIndex - 1]);
                 }
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer transition-all"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer transition-all"
             >
               <ChevronRight className="w-4 h-4 text-[#C5A059]" />
               <span>الدعاء السابق</span>
@@ -464,7 +464,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
                   setSelectedDua(filteredDuas[currentDuaIndex + 1]);
                 }
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer transition-all"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer transition-all"
             >
               <span>الدعاء التالي</span>
               <ChevronLeft className="w-4 h-4 text-[#C5A059]" />

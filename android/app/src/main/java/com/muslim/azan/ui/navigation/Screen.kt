@@ -18,4 +18,7 @@ sealed class Screen(val route: String, val titleAr: String) {
     object Wallpapers : Screen("wallpapers", "الخلفيات الإسلامية")
     object Profile : Screen("profile", "الملف الشخصي والإحصائيات")
     object Settings : Screen("settings", "الإعدادات")
+    object PrayerSettings : Screen("prayer_settings/{prayerKey}", "إعدادات الصلاة المتقدمة") {
+        fun routeFor(prayerKey: String): String = "prayer_settings/$prayerKey"
+    }
 }

@@ -493,7 +493,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                     ? 'ابحث عن اسم نبي أو رسول أو معجزة...'
                     : 'ابحث في قصص الصالحين والصالحات والتابعين...'
                 }
-                className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl py-2 pr-9 pl-8 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
+                className="moazen-widget w-full border border-gray-200 rounded-xl py-2 pr-9 pl-8 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
               />
               <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
               {search && (
@@ -558,7 +558,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
       {/* VIEW 1: ORGANIZED VERTICAL INDEX (فهرس رأسي منظم — عنصر تحت الآخر) */}
       {viewMode === 'index' ? (
         <div className="flex-1 w-full overflow-y-auto overflow-x-hidden p-4 pb-24 space-y-2.5 max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
             <span className="text-xs font-bold text-[#172A28]">
               {sectionTab === 'prophets'
                 ? `الفهرس الرأسي لقصص الأنبياء والمرسلين (${filtered.length} قصة)`
@@ -571,7 +571,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
 
           {sectionTab === 'prophets' ? (
             filtered.length === 0 ? (
-              <div className="bg-white rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
+              <div className="moazen-widget rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
                 لا توجد قصص مطابقة لبحثك
               </div>
             ) : (
@@ -586,7 +586,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                       setSelectedProphet(prophet);
                       setViewMode('detail');
                     }}
-                    className="w-full text-right bg-white hover:bg-amber-50/40 p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059] shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                    className="moazen-widget w-full text-right p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059] shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
                   >
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <span className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
@@ -633,7 +633,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
               })
             )
           ) : filteredRighteous.length === 0 ? (
-            <div className="bg-white rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
+            <div className="moazen-widget rounded-2xl p-10 text-center text-gray-400 text-xs border border-gray-100">
               لا توجد قصص مطابقة لبحثك
             </div>
           ) : (
@@ -646,7 +646,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                     setSelectedRighteous(person);
                     setViewMode('detail');
                   }}
-                  className="w-full text-right bg-white hover:bg-amber-50/40 p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059] shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                  className="moazen-widget w-full text-right p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059] shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
                 >
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <span className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
@@ -688,7 +688,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
         /* VIEW 2A: INDEPENDENT DETAIL PAGE FOR PROPHET STORY */
         <div className="flex-1 w-full overflow-y-auto overflow-x-hidden p-4 pb-24 space-y-4 max-w-3xl mx-auto animate-fadeIn">
           {/* Top Back to Vertical Index Bar */}
-          <div className="bg-white rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between gap-2">
+          <div className="moazen-widget rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between gap-2">
             <button
               onClick={() => setViewMode('index')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold transition-colors cursor-pointer"
@@ -703,7 +703,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* White Hero Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {selectedProphet.isUlulAzm && (
@@ -716,7 +716,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => handleToggleFavorite(`prophet:${selectedProphet.id}`)}
-                  className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                  className="moazen-widget p-2 rounded-xl text-gray-700 transition-colors cursor-pointer"
                   title="إضافة للمفضلة"
                 >
                   <Heart
@@ -737,7 +737,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                 </button>
                 <button
                   onClick={() => handleCopyStory(selectedProphet)}
-                  className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                  className="moazen-widget p-2 rounded-xl text-gray-700 transition-colors cursor-pointer"
                   title="نسخ القصة"
                 >
                   {copiedId === selectedProphet.id ? (
@@ -764,22 +764,22 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 text-xs">
-              <div className="bg-[#F7F6F2] p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
+              <div className="moazen-widget p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
                 <MapPin className="w-4 h-4 text-[#C5A059] shrink-0" />
                 <span className="truncate font-medium">المكان: {selectedProphet.location}</span>
               </div>
-              <div className="bg-[#F7F6F2] p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
+              <div className="moazen-widget p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
                 <Clock className="w-4 h-4 text-[#C5A059] shrink-0" />
                 <span className="truncate font-medium">الحقبة: {selectedProphet.era}</span>
               </div>
-              <div className="bg-[#F7F6F2] p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
+              <div className="moazen-widget p-2.5 rounded-xl flex items-center gap-2 text-gray-700">
                 <BookOpen className="w-4 h-4 text-[#C5A059] shrink-0" />
                 <span className="truncate font-medium">ذُكر في القرآن: {selectedProphet.mentionedInQuranCount} مرة</span>
               </div>
             </div>
 
             {/* Quranic Witness Box */}
-            <div className="bg-[#F7F6F2] rounded-xl p-4 border border-[#C5A059]/30 text-center space-y-1.5">
+            <div className="moazen-widget rounded-xl p-4 border border-[#C5A059]/30 text-center space-y-1.5">
               <p className="text-base sm:text-lg font-bold font-amiri text-[#172A28] leading-loose break-words">
                 ﴿{selectedProphet.quranVerse}﴾
               </p>
@@ -790,7 +790,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* Summary White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-2.5 pb-2 border-b border-gray-100">
               <Sparkles className="w-4 h-4 text-[#C5A059]" />
               <span>خلاصة الرسالة والنبوة</span>
@@ -805,7 +805,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* Full Expanded Story White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <BookOpen className="w-4 h-4 text-[#C5A059]" />
               <span>القصة التفصيلية الكاملة</span>
@@ -830,7 +830,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
 
           {/* Miracles & Signs White Card */}
           {extra?.miracles && (
-            <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+            <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
               <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
                 <Award className="w-4 h-4 text-[#C5A059]" />
                 <span>المعجزات والآيات البينات</span>
@@ -839,7 +839,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                 {extra.miracles.map((m, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-xl bg-[#F7F6F2] border border-gray-100 text-sm text-gray-800 leading-relaxed break-words"
+                    className="moazen-widget p-3 rounded-xl border border-gray-100 text-sm text-gray-800 leading-relaxed break-words"
                   >
                     ✦ {m}
                   </div>
@@ -850,19 +850,19 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
 
           {/* Prophetic Dua or Wisdom White Card */}
           {extra?.duaOrWisdom && (
-            <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+            <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
               <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-2.5 pb-2 border-b border-gray-100">
                 <Sparkles className="w-4 h-4 text-[#C5A059]" />
                 <span>من دعائه وحكمته عليه السلام</span>
               </h3>
-              <p className="font-amiri text-lg font-bold text-[#172A28] leading-loose bg-[#F7F6F2] p-4 rounded-xl border border-[#C5A059]/30 break-words">
+              <p className="moazen-widget font-amiri text-lg font-bold text-[#172A28] leading-loose p-4 rounded-xl border border-[#C5A059]/30 break-words">
                 {extra.duaOrWisdom}
               </p>
             </div>
           )}
 
           {/* Key Events Timeline White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <Sparkles className="w-4 h-4 text-[#C5A059]" />
               <span>أبرز المحطات والأحداث المفصلية</span>
@@ -880,7 +880,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* Lessons Learned White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
               <span>الدروس والعبر المستفادة</span>
@@ -899,11 +899,11 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* Navigation Between Prophets White Card */}
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3 w-full">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3 w-full">
             <button
               onClick={() => prevProphet && setSelectedProphet(prevProphet)}
               disabled={!prevProphet}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
+              className="moazen-widget flex-1 py-2.5 px-3 rounded-xl disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
             >
               السابق: {prevProphet ? prevProphet.name : 'الأول'}
             </button>
@@ -920,7 +920,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
         /* VIEW 2B: INDEPENDENT DETAIL PAGE FOR RIGHTEOUS STORY */
         <div className="flex-1 w-full overflow-y-auto overflow-x-hidden p-4 pb-24 space-y-4 max-w-3xl mx-auto animate-fadeIn">
           {/* Top Back to Vertical Index Bar */}
-          <div className="bg-white rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between gap-2">
+          <div className="moazen-widget rounded-2xl p-3 shadow-xs border border-gray-100 flex items-center justify-between gap-2">
             <button
               onClick={() => setViewMode('index')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold transition-colors cursor-pointer"
@@ -934,7 +934,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
             </span>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs bg-[#C5A059]/15 text-[#9A7732] font-bold px-3 py-1 rounded-full">
@@ -945,7 +945,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => handleToggleFavorite(`righteous:${selectedRighteous.id}`)}
-                  className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                  className="moazen-widget p-2 rounded-xl text-gray-700 transition-colors cursor-pointer"
                   title="إضافة للمفضلة"
                 >
                   <Heart
@@ -966,7 +966,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
                 </button>
                 <button
                   onClick={() => handleCopyRighteous(selectedRighteous)}
-                  className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                  className="moazen-widget p-2 rounded-xl text-gray-700 transition-colors cursor-pointer"
                   title="نسخ القصة"
                 >
                   {copiedId === selectedRighteous.id ? (
@@ -991,12 +991,12 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
             <p className="text-sm font-bold text-[#C5A059] mb-3 break-words">
               {selectedRighteous.title}
             </p>
-            <p className="text-sm text-gray-700 bg-[#F7F6F2] p-3.5 rounded-xl border border-gray-200 leading-relaxed">
+            <p className="moazen-widget text-sm text-gray-700 p-3.5 rounded-xl border border-gray-200 leading-relaxed">
               {selectedRighteous.summary}
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <BookOpen className="w-4 h-4 text-[#C5A059]" />
               <span>القصة والسيرة التفصيلية</span>
@@ -1015,18 +1015,18 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {selectedRighteous.famousQuote && (
-            <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+            <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
               <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-2.5 pb-2 border-b border-gray-100">
                 <Sparkles className="w-4 h-4 text-[#C5A059]" />
                 <span>من درر أقواله ومآثره الخالدة</span>
               </h3>
-              <p className="font-amiri text-lg font-bold text-[#172A28] leading-loose bg-[#F7F6F2] p-4 rounded-xl border border-[#C5A059]/30 break-words">
+              <p className="moazen-widget font-amiri text-lg font-bold text-[#172A28] leading-loose p-4 rounded-xl border border-[#C5A059]/30 break-words">
                 {selectedRighteous.famousQuote}
               </p>
             </div>
           )}
 
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100 w-full overflow-hidden">
             <h3 className="text-sm font-bold text-[#172A28] flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
               <span>الدروس والعبر المستفادة</span>
@@ -1058,11 +1058,11 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
           </div>
 
           {/* Navigation Between Righteous Stories White Card */}
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3 w-full">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3 w-full">
             <button
               onClick={() => prevRighteous && setSelectedRighteous(prevRighteous)}
               disabled={!prevRighteous}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
+              className="moazen-widget flex-1 py-2.5 px-3 rounded-xl disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
             >
               السابق: {prevRighteous ? prevRighteous.name : 'الأول'}
             </button>

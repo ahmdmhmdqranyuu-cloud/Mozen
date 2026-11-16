@@ -4,7 +4,9 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -16,14 +18,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muslim.azan.R
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun TasbihScreen(
@@ -82,21 +89,22 @@ fun TasbihScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Dhikr selector chip
-        Text(
-            text = dhikrList[selectedDhikrIndex],
-            color = GoldAccent,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(EmeraldSurface)
-                .clickable {
-                    selectedDhikrIndex = (selectedDhikrIndex + 1) % dhikrList.size
-                    currentCount = 0
-                }
-                .padding(horizontal = 24.dp, vertical = 14.dp)
-        )
+        MoazenWidgetCard(
+            cornerRadius = 16.dp,
+            onClick = {
+                selectedDhikrIndex = (selectedDhikrIndex + 1) % dhikrList.size
+                currentCount = 0
+            }
+        ) {
+            Text(
+                text = dhikrList[selectedDhikrIndex],
+                color = MoazenInkEmerald,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -111,7 +119,9 @@ fun TasbihScreen(
                     },
                     label = { Text("$target تسبيحة") },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = GoldDark,
+                        containerColor = MoazenCardStart,
+                        labelColor = MoazenInkPrimary,
+                        selectedContainerColor = MoazenInkEmerald,
                         selectedLabelColor = Color.White
                     )
                 )
@@ -125,7 +135,8 @@ fun TasbihScreen(
             modifier = Modifier
                 .size(240.dp)
                 .clip(CircleShape)
-                .background(EmeraldSurfaceLight)
+                .background(Brush.linearGradient(colors = listOf(MoazenCardStart, MoazenCardEnd)))
+                .border(2.dp, MoazenGold.copy(alpha = 0.55f), CircleShape)
                 .clickable {
                     triggerVibration()
                     currentCount++
@@ -134,23 +145,32 @@ fun TasbihScreen(
                 },
             contentAlignment = Alignment.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_quran_widget_mosque),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = 0.09f,
+                modifier = Modifier.matchParentSize()
+            )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = currentCount.toString(),
-                    color = GoldAccent,
+                    color = MoazenInkEmerald,
                     fontSize = 52.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "من $targetCount",
-                    color = TextSecondary,
-                    fontSize = 16.sp
+                    color = MoazenInkMuted,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "المس للتسبيح",
-                    color = TextTertiary,
-                    fontSize = 12.sp
+                    color = MoazenGoldDark,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -163,19 +183,29 @@ fun TasbihScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Reset current count
-            Button(
-                onClick = { currentCount = 0 },
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSurface)
+            MoazenWidgetCard(
+                cornerRadius = 14.dp,
+                onClick = { currentCount = 0 }
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, tint = TextSecondary)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = "تصفير الدورة", color = TextSecondary)
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "تصفير الدورة", color = MoazenInkPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             // Total Lifetime Tasbihs
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "إجمالي التسبيحات", color = TextSecondary, fontSize = 12.sp)
-                Text(text = lifetimeCount.toString(), color = GoldAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            MoazenWidgetCard(cornerRadius = 14.dp) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(text = "إجمالي التسبيحات", color = MoazenInkMuted, fontSize = 11.sp)
+                    Text(text = lifetimeCount.toString(), color = MoazenInkEmerald, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

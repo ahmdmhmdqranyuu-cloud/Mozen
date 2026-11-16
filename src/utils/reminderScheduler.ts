@@ -16,8 +16,9 @@ import {
   MusaharatiSettings,
   IftarCannonSettings,
 } from '../types/reminders';
-import { CityLocation } from '../types';
+import { CityLocation, UserProfile } from '../types';
 import { calculatePrayerTimes, calculateNightThirds } from './prayerTimes';
+import { getPrayerConfig, loadStoredPrayerConfigs } from './prayerSettings';
 import { soundService } from './audioPlayer';
 
 const STORAGE_KEY = 'azan_comprehensive_reminders_v1';
@@ -92,12 +93,24 @@ export function getHijriMonthName(date: Date = new Date()): string {
   }
 }
 
+export interface RescheduleLogEntry {
+  timestamp: string;
+  reason: string;
+  cancelledTimers: number;
+  clearedFiredKeys: number;
+  scheduledSlots: number;
+  cityName: string;
+  methodId: string;
+}
+
 class ReminderScheduler {
   private settings: ComprehensiveRemindersSettings = DEFAULT_REMINDERS_SETTINGS;
   private currentCity: CityLocation | null = null;
+  private currentUserProfile: UserProfile | null = null;
   private checkIntervalId: ReturnType<typeof setInterval> | null = null;
   private activeTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private firedKeySet: Set<string> = new Set();
+  private rescheduleLog: RescheduleLogEntry[] = [];
   private listeners: Set<(settings: ComprehensiveRemindersSettings) => void> = new Set();
 
   constructor() {
@@ -105,6 +118,31 @@ class ReminderScheduler {
     this.loadFiredHistory();
     this.initVisibilityAndFocusListeners();
     this.startPeriodicTick();
+  }
+
+  private resolveUserProfile(): UserProfile | null {
+    if (this.currentUserProfile) return this.currentUserProfile;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('azan_user_profile');
+        if (raw) return JSON.parse(raw) as UserProfile;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  public getRescheduleLogs(): RescheduleLogEntry[] {
+    return [...this.rescheduleLog];
+  }
+
+  public getActiveTimerCount(): number {
+    return this.activeTimeouts.size;
+  }
+
+  public getFiredKeysSnapshot(): string[] {
+    return Array.from(this.firedKeySet);
   }
 
   public subscribe(listener: (settings: ComprehensiveRemindersSettings) => void): () => void {
@@ -120,9 +158,25 @@ class ReminderScheduler {
     return { ...this.settings };
   }
 
+  public setUserProfile(profile: UserProfile) {
+    this.currentUserProfile = profile;
+    if (profile.city) {
+      this.currentCity = profile.city;
+    }
+  }
+
   public setCity(city: CityLocation) {
+    const cityChanged =
+      !this.currentCity ||
+      this.currentCity.id !== city.id ||
+      this.currentCity.latitude !== city.latitude ||
+      this.currentCity.longitude !== city.longitude;
     this.currentCity = city;
-    this.rescheduleAll();
+    if (cityChanged) {
+      this.cancelAndRescheduleAll('city_changed');
+    } else {
+      this.rescheduleAll();
+    }
   }
 
   public updateSettings(
@@ -160,6 +214,7 @@ class ReminderScheduler {
   }
 
   private loadSettings() {
+    if (typeof localStorage === 'undefined') return;
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -218,6 +273,7 @@ class ReminderScheduler {
   }
 
   private saveSettings() {
+    if (typeof localStorage === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
     } catch (e) {
@@ -226,6 +282,7 @@ class ReminderScheduler {
   }
 
   private loadFiredHistory() {
+    if (typeof localStorage === 'undefined') return;
     try {
       const raw = localStorage.getItem(FIRED_STORAGE_KEY);
       if (raw) {
@@ -273,9 +330,79 @@ class ReminderScheduler {
   }
 
   /**
+   * Cancels all pending timers, clears stale prayer/pre-prayer fired keys on configuration change,
+   * recalculates schedules using the latest city/method/Asr/offsets/DST, and records a bounded log.
+   */
+  public cancelAndRescheduleAll(
+    reason: string = 'settings_changed',
+    profile?: UserProfile
+  ): { cancelledTimers: number; clearedFiredKeys: number; scheduledSlots: number } {
+    if (profile) {
+      this.setUserProfile(profile);
+    }
+
+    const cancelledTimers = this.activeTimeouts.size;
+    this.activeTimeouts.forEach((timeout) => clearTimeout(timeout));
+    this.activeTimeouts.clear();
+
+    let clearedFiredKeys = 0;
+    const keysToDelete: string[] = [];
+    this.firedKeySet.forEach((key) => {
+      if (
+        key.startsWith('preprayer_') ||
+        key.startsWith('prePrayerAlert_') ||
+        key.startsWith('iftarCannon_') ||
+        key.startsWith('qiyamFirstThird_') ||
+        key.startsWith('qiyamLastThird_')
+      ) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach((k) => {
+      this.firedKeySet.delete(k);
+      clearedFiredKeys++;
+    });
+
+    if (clearedFiredKeys > 0) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(
+            FIRED_STORAGE_KEY,
+            JSON.stringify(Array.from(this.firedKeySet).slice(-300))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const upcomingSlots = this.rescheduleAll();
+    const resolved = this.resolveUserProfile();
+
+    this.rescheduleLog.push({
+      timestamp: new Date().toISOString(),
+      reason,
+      cancelledTimers,
+      clearedFiredKeys,
+      scheduledSlots: upcomingSlots.length,
+      cityName: this.currentCity?.name || resolved?.city?.name || 'غير محدد',
+      methodId: resolved?.calculationMethod || 'egypt',
+    });
+    if (this.rescheduleLog.length > 40) {
+      this.rescheduleLog.splice(0, this.rescheduleLog.length - 40);
+    }
+
+    return {
+      cancelledTimers,
+      clearedFiredKeys,
+      scheduledSlots: upcomingSlots.length,
+    };
+  }
+
+  /**
    * Reschedules all active timers cleanly, clearing old timers first
    */
-  public rescheduleAll() {
+  public rescheduleAll(): ScheduledSlot[] {
     // Clear all existing timeouts to prevent duplicate triggers
     this.activeTimeouts.forEach((timeout) => clearTimeout(timeout));
     this.activeTimeouts.clear();
@@ -291,9 +418,9 @@ class ReminderScheduler {
       const diffMs = slot.triggerTime.getTime() - now.getTime();
       // If within the next 24 hours
       if (diffMs > 0 && diffMs < 24 * 3600000) {
-        const key = `${slot.section}_${slot.triggerTime.getTime()}`;
+        const key = `${slot.section}_${slot.prayerKey || 'slot'}_${slot.triggerTime.getTime()}`;
         const tId = setTimeout(() => {
-          const slotKey = `${slot.section}_${slot.triggerTime.toISOString().substring(0, 19)}`;
+          const slotKey = `${slot.section}_${slot.prayerKey || 'slot'}_${slot.triggerTime.toISOString().substring(0, 19)}`;
           if (!this.firedKeySet.has(slotKey)) {
             this.markAsFired(slotKey);
             this.triggerSlot(slot);
@@ -302,6 +429,8 @@ class ReminderScheduler {
         this.activeTimeouts.set(key, tId);
       }
     });
+
+    return upcomingSlots;
   }
 
   /**
@@ -491,7 +620,15 @@ class ReminderScheduler {
         return;
       }
 
-      const prayers = calculatePrayerTimes(this.currentCity!, baseDate);
+      const prof = this.resolveUserProfile();
+      const prayers = calculatePrayerTimes(
+        this.currentCity!,
+        baseDate,
+        prof?.calculationMethod || 'egypt',
+        prof?.asrJuristicMethod || 'standard',
+        prof?.manualPrayerAdjustments || {},
+        prof?.dstMode
+      );
       const maghribPrayer = prayers.find((p) => p.key === 'maghrib');
       if (!maghribPrayer) return;
 
@@ -516,16 +653,30 @@ class ReminderScheduler {
     const results: ScheduledSlot[] = [];
     if (!this.currentCity) return results;
 
-    const leadMins = this.settings.prePrayerAlert?.minutesBeforePrayer || 15;
-    const leadMs = leadMins * 60 * 1000;
+    const prof = this.resolveUserProfile();
+    const storedConfigs = loadStoredPrayerConfigs();
+    const defaultLeadMins = this.settings.prePrayerAlert?.minutesBeforePrayer || 15;
 
     [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
       baseDate.setDate(baseDate.getDate() + dayOffset);
-      const prayers = calculatePrayerTimes(this.currentCity!, baseDate);
+      const prayers = calculatePrayerTimes(
+        this.currentCity!,
+        baseDate,
+        prof?.calculationMethod || 'egypt',
+        prof?.asrJuristicMethod || 'standard',
+        prof?.manualPrayerAdjustments || {},
+        prof?.dstMode
+      );
 
       prayers.forEach((p) => {
-        if (p.key === 'sunrise') return;
+        if (p.key === 'sunrise' || p.key === 'duha') return;
+        const pCfg = prof ? getPrayerConfig(prof, p.key) : storedConfigs[p.key];
+        const preEnabled = pCfg?.preAlertEnabled ?? (this.settings.prePrayerAlert?.enabled !== false);
+        if (!preEnabled) return;
+
+        const leadMins = pCfg?.preAlertMinutes ?? defaultLeadMins;
+        const leadMs = Math.max(1, leadMins) * 60 * 1000;
         const triggerTime = new Date(p.timestamp.getTime() - leadMs);
 
         results.push({
@@ -533,7 +684,8 @@ class ReminderScheduler {
           title: `اقتربت صلاة ${p.name}`,
           body: `«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي ${leadMins} دقيقة على أذان ${p.name}`,
           triggerTime,
-          audioTrackId: this.settings.prePrayerAlert?.audioFile || 'pre_prayer_15m',
+          audioTrackId:
+            pCfg?.preAlertVoice || this.settings.prePrayerAlert?.audioFile || 'pre_prayer_15m',
           autoPlay: this.settings.prePrayerAlert?.autoPlaySound !== false,
           prayerKey: p.key,
           prayerName: p.name,
@@ -549,10 +701,19 @@ class ReminderScheduler {
     const results: ScheduledSlot[] = [];
     if (!this.currentCity) return results;
 
+    const prof = this.resolveUserProfile();
+
     [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
       baseDate.setDate(baseDate.getDate() + dayOffset);
-      const nightThirds = calculateNightThirds(this.currentCity!, baseDate);
+      const nightThirds = calculateNightThirds(
+        this.currentCity!,
+        baseDate,
+        prof?.calculationMethod || 'egypt',
+        prof?.asrJuristicMethod || 'standard',
+        prof?.manualPrayerAdjustments || {},
+        prof?.dstMode
+      );
 
       if (this.settings.qiyam?.firstThirdEnabled) {
         results.push({
@@ -587,18 +748,41 @@ class ReminderScheduler {
     const now = new Date();
     const upcoming = this.calculateUpcomingSlots(now);
 
-    // Smart 15-Minute Pre-Prayer Alert & Live Countdown Broadcast
+    // Smart Per-Prayer Pre-Alert & Live Countdown Broadcast
     if (this.currentCity) {
       try {
-        const prayers = calculatePrayerTimes(this.currentCity, now);
-        const leadMins = this.settings.prePrayerAlert?.minutesBeforePrayer || 15;
-        const leadMs = leadMins * 60 * 1000;
+        let savedProfile: UserProfile | null = null;
+        try {
+          const profRaw = localStorage.getItem('azan_user_profile');
+          if (profRaw) savedProfile = JSON.parse(profRaw);
+        } catch {
+          // ignore
+        }
+
+        const storedConfigs = loadStoredPrayerConfigs();
+        const prayers = calculatePrayerTimes(
+          this.currentCity,
+          now,
+          savedProfile?.calculationMethod,
+          savedProfile?.asrJuristicMethod || 'standard',
+          savedProfile?.manualPrayerAdjustments || {},
+          savedProfile?.dstMode
+        );
 
         prayers.forEach((p) => {
-          if (p.key === 'sunrise') return;
+          if (p.key === 'sunrise' || p.key === 'duha') return;
+
+          const pCfg = savedProfile
+            ? getPrayerConfig(savedProfile, p.key)
+            : storedConfigs[p.key];
+          const preEnabled =
+            pCfg?.preAlertEnabled ?? (this.settings.prePrayerAlert?.enabled !== false);
+          const leadMins =
+            pCfg?.preAlertMinutes ?? (this.settings.prePrayerAlert?.minutesBeforePrayer || 15);
+          const leadMs = Math.max(1, leadMins) * 60 * 1000;
           const diffToPrayerMs = p.timestamp.getTime() - now.getTime();
 
-          // Continuous live countdown broadcast when within 15 minutes
+          // Continuous live countdown broadcast when within configured minutes before prayer
           if (diffToPrayerMs > 0 && diffToPrayerMs <= leadMs) {
             const totalSec = Math.floor(diffToPrayerMs / 1000);
             const m = Math.floor(totalSec / 60);
@@ -623,13 +807,18 @@ class ReminderScheduler {
               );
             }
 
-            // Audio alert exactly when reaching 15 minutes before prayer
-            const pDateKey = `preprayer15_${p.key}_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            // Audio alert once at configured lead time before prayer
+            const pDateKey = `preprayer_${leadMins}_${p.key}_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             if (!this.firedKeySet.has(pDateKey)) {
               this.markAsFired(pDateKey);
-              if (this.settings.prePrayerAlert?.enabled) {
-                if (this.settings.prePrayerAlert.autoPlaySound !== false) {
-                  soundService.playPrePrayerAlert();
+              if (preEnabled) {
+                if (this.settings.prePrayerAlert?.autoPlaySound !== false) {
+                  soundService.playPrePrayerAlert(
+                    undefined,
+                    undefined,
+                    pCfg?.preAlertVoice || 'pre_prayer_15m',
+                    pCfg?.volumePercent ?? 100
+                  );
                 }
                 this.sendNotification(
                   `اقتربت صلاة ${p.name}`,
@@ -822,20 +1011,23 @@ class ReminderScheduler {
         let savedFajrVoice = 'abdulbasit_fajr';
         let prayerAzanVoices: Record<string, string> = {};
         let extRaw: Record<string, unknown> = {};
-        let userCalcMethod = 'umm_al_qura';
-        let userAsrMethod = 'standard';
+        let userCalcMethod = 'egypt';
+        let userAsrMethod: 'standard' | 'hanafi' = 'standard';
+        let resolvedProf: UserProfile | null = this.resolveUserProfile();
 
         try {
           const rawStr = localStorage.getItem('moazen_extended_setup_settings_v1');
           if (rawStr) extRaw = JSON.parse(rawStr);
-          const profStr = localStorage.getItem('azan_user_profile');
-          if (profStr) {
-            const prof = JSON.parse(profStr);
-            if (prof.azanVoice) savedAzanVoice = prof.azanVoice;
-            if (prof.fajrAzanVoice) savedFajrVoice = prof.fajrAzanVoice;
-            if (prof.prayerAzanVoices) prayerAzanVoices = prof.prayerAzanVoices;
-            if (prof.calculationMethod) userCalcMethod = prof.calculationMethod;
-            if (prof.asrJuristicMethod) userAsrMethod = prof.asrJuristicMethod;
+          if (!resolvedProf) {
+            const profStr = localStorage.getItem('azan_user_profile');
+            if (profStr) resolvedProf = JSON.parse(profStr) as UserProfile;
+          }
+          if (resolvedProf) {
+            if (resolvedProf.azanVoice) savedAzanVoice = resolvedProf.azanVoice;
+            if (resolvedProf.fajrAzanVoice) savedFajrVoice = resolvedProf.fajrAzanVoice;
+            if (resolvedProf.prayerAzanVoices) prayerAzanVoices = resolvedProf.prayerAzanVoices;
+            if (resolvedProf.calculationMethod) userCalcMethod = resolvedProf.calculationMethod;
+            if (resolvedProf.asrJuristicMethod) userAsrMethod = resolvedProf.asrJuristicMethod;
           }
         } catch {
           // ignore
@@ -844,53 +1036,71 @@ class ReminderScheduler {
         const prayerAlerts = (extRaw.prayerAlerts as Record<string, boolean>) || {};
         const azanSoundEnabled = extRaw.azanSoundEnabled !== false;
 
-        // Schedule actual Prayer Azan times for full 7 days continuously
+        // Schedule actual Prayer Azan times for full 7 days continuously using user's exact method/Asr/offsets/DST
         if (this.currentCity) {
           [0, 1, 2, 3, 4, 5, 6].forEach((dayOffset) => {
             const d = new Date();
             d.setDate(d.getDate() + dayOffset);
-            const prayers = calculatePrayerTimes(this.currentCity!, d);
+            const prayers = calculatePrayerTimes(
+              this.currentCity!,
+              d,
+              userCalcMethod,
+              userAsrMethod,
+              resolvedProf?.manualPrayerAdjustments || {},
+              resolvedProf?.dstMode
+            );
             prayers.forEach((p) => {
               if (p.key === 'sunrise') return;
-              if (prayerAlerts[p.key] === false) return;
+              const pCfg = resolvedProf ? getPrayerConfig(resolvedProf, p.key) : undefined;
+              const isDuha = p.key === 'duha';
+              if (!isDuha && prayerAlerts[p.key] === false) return;
+              if (pCfg && pCfg.soundEnabled === false) return;
               if (p.timestamp.getTime() <= Date.now()) return;
 
-              const iqamaMinutes = p.key === 'maghrib' ? 7 : 15;
-              const customVoice = prayerAzanVoices[p.key];
-              const trackId = customVoice || (p.key === 'fajr' ? savedFajrVoice : savedAzanVoice);
+              const iqamaMinutes =
+                resolvedProf?.iqamaIntervals?.[p.key] ?? (p.key === 'maghrib' ? 7 : 15);
+              const customVoice = pCfg?.azanVoice || prayerAzanVoices[p.key];
+              const trackId =
+                customVoice ||
+                (p.key === 'fajr' ? savedFajrVoice : isDuha ? 'duha_surah' : savedAzanVoice);
 
-              // 15-Minute Pre-Prayer Alert Slot: purely background audio & notification
-              const fifteenMinsBeforeEpoch = p.timestamp.getTime() - 15 * 60 * 1000;
-              if (fifteenMinsBeforeEpoch > Date.now()) {
-                payload.push({
-                  section: 'prePrayerAlert',
-                  prayerKey: p.key,
-                  prayerName: p.name,
-                  cityName: this.currentCity!.name,
-                  title: `اقتربت صلاة ${p.name}`,
-                  body: `«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي 15 دقيقة على أذان ${p.name}`,
-                  triggerEpochMs: fifteenMinsBeforeEpoch,
-                  audioTrackId: 'pre_prayer_15m',
-                  autoPlay: true,
-                  floatingWindowEnabled: false,
-                  lockScreenEnabled: false,
-                  wakeScreenEnabled: false,
-                  repeatIntervalMs: 0,
-                });
+              // Pre-Prayer Alert Slot based on per-prayer config
+              if (!isDuha && (pCfg?.preAlertEnabled ?? true)) {
+                const preLead = pCfg?.preAlertMinutes || 15;
+                const preEpoch = p.timestamp.getTime() - preLead * 60 * 1000;
+                if (preEpoch > Date.now()) {
+                  payload.push({
+                    section: 'prePrayerAlert',
+                    prayerKey: p.key,
+                    prayerName: p.name,
+                    cityName: this.currentCity!.name,
+                    title: `اقتربت صلاة ${p.name}`,
+                    body: `«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي ${preLead} دقيقة على أذان ${p.name}`,
+                    triggerEpochMs: preEpoch,
+                    audioTrackId: pCfg?.preAlertVoice || 'pre_prayer_15m',
+                    autoPlay: true,
+                    floatingWindowEnabled: false,
+                    lockScreenEnabled: false,
+                    wakeScreenEnabled: false,
+                    repeatIntervalMs: 0,
+                  });
+                }
               }
 
-              // Prayer Azan Slot: background audio with standard notification (no lockscreen popup)
+              // Prayer Azan / Duha Slot
               payload.push({
-                section: 'prayer_azan',
+                section: isDuha ? 'duha_prayer' : 'prayer_azan',
                 prayerKey: p.key,
                 prayerName: p.name,
                 cityName: this.currentCity!.name,
-                iqamaDurationMinutes: iqamaMinutes,
-                title: `حان الآن موعد أذان ${p.name}`,
-                body: `الله أكبر • حان وقت صلاة ${p.name} حسب توقيت ${this.currentCity!.name}`,
+                iqamaDurationMinutes: isDuha ? 0 : iqamaMinutes,
+                title: isDuha ? 'حان الآن وقت صلاة الضحى' : `حان الآن موعد أذان ${p.name}`,
+                body: isDuha
+                  ? 'صلاة الأوابين: ركعتا الضحى نورٌ وبركة في يومك'
+                  : `الله أكبر • حان وقت صلاة ${p.name} حسب توقيت ${this.currentCity!.name}`,
                 triggerEpochMs: p.timestamp.getTime(),
                 audioTrackId: trackId,
-                autoPlay: azanSoundEnabled,
+                autoPlay: isDuha ? true : azanSoundEnabled,
                 floatingWindowEnabled: false,
                 lockScreenEnabled: false,
                 wakeScreenEnabled: false,
@@ -905,6 +1115,7 @@ class ReminderScheduler {
 
         // Also permanently sync base config with Android so BootReceiver can recalculate autonomously
         if (typeof targetBridge.syncNativePrayerConfig === 'function') {
+          const adj = resolvedProf?.manualPrayerAdjustments || {};
           const configPayload = {
             city_latitude: this.currentCity?.latitude || 21.4225,
             city_longitude: this.currentCity?.longitude || 39.8262,
@@ -914,6 +1125,13 @@ class ReminderScheduler {
             azan_voice: savedAzanVoice,
             fajr_voice: savedFajrVoice,
             azanSoundEnabled,
+            offset_fajr: adj.fajr ?? 0,
+            offset_sunrise: adj.sunrise ?? 0,
+            offset_duha: adj.duha ?? 0,
+            offset_dhuhr: adj.dhuhr ?? 0,
+            offset_asr: adj.asr ?? 0,
+            offset_maghrib: adj.maghrib ?? 0,
+            offset_isha: adj.isha ?? 0,
             pre_prayer_alert_enabled: this.settings.prePrayerAlert?.enabled !== false,
             salawat_enabled: this.settings.salawat.enabled,
             salawat_time: this.settings.salawat.startTime || '08:00',

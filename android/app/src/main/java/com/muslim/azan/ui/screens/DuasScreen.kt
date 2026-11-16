@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.model.DuaItem
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun DuasScreen(
@@ -66,9 +67,8 @@ fun DuasScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(duas, key = { it.id }) { dua ->
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -79,7 +79,7 @@ fun DuasScreen(
                         ) {
                             Text(
                                 text = dua.title,
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -95,7 +95,7 @@ fun DuasScreen(
                                     Icon(
                                         imageVector = if (dua.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                         contentDescription = "مفضلة",
-                                        tint = if (dua.isFavorite) GoldAccent else TextSecondary
+                                        tint = if (dua.isFavorite) MoazenGoldDark else MoazenInkMuted
                                     )
                                 }
 
@@ -109,7 +109,7 @@ fun DuasScreen(
                                         context.startActivity(Intent.createChooser(intent, "مشاركة الدعاء"))
                                     }
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = TextSecondary)
+                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = MoazenInkMuted)
                                 }
                             }
                         }
@@ -118,9 +118,10 @@ fun DuasScreen(
 
                         Text(
                             text = dua.arabicText,
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 17.sp,
                             lineHeight = 30.sp,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Right,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -129,7 +130,7 @@ fun DuasScreen(
 
                         Text(
                             text = "المصدر: ${dua.source}",
-                            color = TextSecondary,
+                            color = MoazenInkMuted,
                             fontSize = 11.sp
                         )
                     }

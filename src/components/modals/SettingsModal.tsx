@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   ChevronRight,
   ChevronLeft,
@@ -26,6 +26,8 @@ import {
   FolderOpen,
   Save,
   AlertTriangle,
+  Search,
+  RefreshCw,
 } from 'lucide-react';
 import { TimeSliderPicker } from '../common/TimeSliderPicker';
 import {
@@ -40,9 +42,13 @@ import {
 import {
   searchWorldCities,
   getWorldCountries,
+  getWorldRegionsForCountry,
+  searchGlobalLocationsOnline,
   detectSmartGpsLocation,
   savePersistentLocation,
+  getLastSuccessfulGpsLocation,
   resetAllFirstTimeOnboardingFlags,
+  WorldCity,
 } from '../../data/worldCitiesData';
 import { EGYPT_GOVERNORATES_DATA } from '../../data/egyptLocationsData';
 import { PermissionsModal, resetFirstRunPermissionsState } from './PermissionsModal';
@@ -55,6 +61,8 @@ import {
   AZAN_VOICES,
   FAJR_AZAN_VOICES,
   IQAMA_VOICES,
+  DUHA_AUDIO_FILE,
+  DUA_AFTER_AZAN_AUDIO_FILE,
   soundService,
   SALAWAT_AUDIO_OPTIONS,
 } from '../../utils/audioPlayer';
@@ -90,7 +98,62 @@ interface SettingsModalProps {
   onOpenFirstTimeSetup?: () => void;
   onLogoutReset?: () => void;
   onTriggerTestSmartAzanWidget?: () => void;
+  onOpenPrayerSettings?: (prayerKey: PrayerKey) => void;
 }
+
+const AutoFitBannerTitle: React.FC<{ text: string; isRootTitle?: boolean }> = ({
+  text,
+  isRootTitle = false,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [fontSize, setFontSize] = useState<number>(isRootTitle ? 28 : 20);
+
+  const fitText = useCallback(() => {
+    const box = containerRef.current;
+    const span = textRef.current;
+    if (!box || !span) return;
+
+    const maxWidth = Math.max(40, box.clientWidth - 10);
+    const maxHeight = Math.max(18, box.clientHeight - 4);
+    const maxPx = isRootTitle ? Math.min(34, Math.floor(maxHeight * 0.85)) : Math.min(26, Math.floor(maxHeight * 0.78));
+    const minPx = 10;
+
+    let size = Math.max(minPx, maxPx);
+    span.style.fontSize = `${size}px`;
+    span.style.whiteSpace = text.length <= 16 ? 'nowrap' : 'normal';
+
+    while (size > minPx && (span.scrollWidth > maxWidth || span.scrollHeight > maxHeight)) {
+      size -= 1;
+      span.style.fontSize = `${size}px`;
+    }
+    setFontSize(size);
+  }, [text, isRootTitle]);
+
+  useEffect(() => {
+    fitText();
+    const box = containerRef.current;
+    if (!box || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => fitText());
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [fitText]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full flex items-center justify-center text-center px-1.5 overflow-hidden"
+    >
+      <span
+        ref={textRef}
+        style={{ fontSize: `${fontSize}px` }}
+        className="font-cairo font-black text-amber-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] leading-[1.12] text-center block max-w-full break-words"
+      >
+        {text}
+      </span>
+    </div>
+  );
+};
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -107,6 +170,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenFirstTimeSetup,
   onLogoutReset,
   onTriggerTestSmartAzanWidget,
+  onOpenPrayerSettings,
 }) => {
   // Navigation: null = Main Settings Overview, string = Dedicated Subpage of that widget
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
@@ -170,10 +234,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // City & Country & Offline Egypt Governorate search
   const [selectedEgyptGovId, setSelectedEgyptGovId] = useState<string>('gov_cairo');
   const [egyptSearchQuery, setEgyptSearchQuery] = useState<string>('');
-  const [selectedCountry, setSelectedCountry] = useState<string>('مصر');
+  const [selectedCountry, setSelectedCountry] = useState<string>(user.city?.country || '');
+  const [selectedState, setSelectedState] = useState<string>('');
   const [citySearch, setCitySearch] = useState('');
+  const [onlineSearchResults, setOnlineSearchResults] = useState<WorldCity[]>([]);
+  const [onlineSearching, setOnlineSearching] = useState(false);
+  const [onlineSearchNotice, setOnlineSearchNotice] = useState<string | null>(null);
   const [detectingGps, setDetectingGps] = useState(false);
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [pendingGpsCity, setPendingGpsCity] = useState<CityLocation | null>(null);
+  const [lastSavedGps, setLastSavedGps] = useState<CityLocation | null>(() =>
+    getLastSuccessfulGpsLocation()
+  );
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState(user.name || 'أحمد محمد');
   const [saveStatusBanner, setSaveStatusBanner] = useState<{
@@ -181,10 +254,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     message: string;
   } | null>(null);
 
-  const worldCountries = useMemo(() => getWorldCountries(), []);
+  const worldCountries = useMemo(() => getWorldCountries(), [onlineSearchResults]);
+  const worldRegions = useMemo(
+    () => (selectedCountry ? getWorldRegionsForCountry(selectedCountry) : []),
+    [selectedCountry, onlineSearchResults]
+  );
   const filteredCities = useMemo(
-    () => searchWorldCities(citySearch, selectedCountry || undefined),
-    [citySearch, selectedCountry]
+    () => searchWorldCities(citySearch, selectedCountry || undefined, selectedState || undefined),
+    [citySearch, selectedCountry, selectedState, onlineSearchResults]
   );
 
   const selectedEgyptGov = useMemo(
@@ -239,9 +316,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           city_latitude: user.city?.latitude || 21.4225,
           city_longitude: user.city?.longitude || 39.8262,
           city_name: user.city?.name || 'مكة المكرمة',
-          calc_method: user.calculationMethod || 'umm_al_qura',
-          asr_method: user.asrMethod || 'standard',
-          azan_voice: user.azanVoice || 'abdulbasit',
+          calc_method: user.calculationMethod || 'makkah',
+          asr_method: user.asrJuristicMethod || 'standard',
+          azan_voice: user.azanVoice || 'makkah',
           fajr_voice: user.fajrAzanVoice || 'abdulbasit_fajr',
           azanSoundEnabled: user.autoPlayAzan !== false,
           pre_prayer_alert_enabled: reminderSettings.prePrayerAlert?.enabled !== false,
@@ -304,29 +381,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         ? '✓ تم تفعيل التوقيت الصيفي (+60 دقيقة) وتحديث مواقيت الصلاة'
         : '✓ تم تفعيل التوقيت الشتوي القياسي وتحديث مواقيت الصلاة'
     );
-  };
-
-  const handleAdjustPrayerMinutes = (prayerKey: PrayerKey, delta: number) => {
-    if (!onUpdateUser) return;
-    onUpdateUser((prev) => {
-      const currentAdj = prev.manualPrayerAdjustments || {
-        fajr: 0,
-        sunrise: 0,
-        dhuhr: 0,
-        asr: 0,
-        maghrib: 0,
-        isha: 0,
-      };
-      const newVal = (currentAdj[prayerKey] || 0) + delta;
-      return {
-        ...prev,
-        manualPrayerAdjustments: {
-          ...currentAdj,
-          [prayerKey]: newVal,
-        },
-      };
-    });
-    showToast(`✓ تم تعديل وقت صلاة ${prayerKey} بـ ${delta > 0 ? '+1' : '-1'} دقيقة`);
   };
 
   const handleUpdateReminder = (
@@ -403,23 +457,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const applyLocationToApp = (city: CityLocation, sourceLabel?: string) => {
+    onUpdateCity(city);
+    savePersistentLocation(city);
+    if (city.recommendedMethod) {
+      onUpdateCalculationMethod(city.recommendedMethod);
+    }
+    setSelectedCountry(city.country);
+    setSelectedState(city.state || '');
+    window.dispatchEvent(new CustomEvent('prayerTimesUpdated'));
+    showToast(
+      `✓ تم اعتماد الموقع وتحديث المواقيت والقبلة والتقويم: ${city.name}${
+        sourceLabel ? ` (${sourceLabel})` : ''
+      }`
+    );
+  };
+
   const handleDetectGps = () => {
     setDetectingGps(true);
     setGpsNotice(null);
+    setGpsError(null);
 
     detectSmartGpsLocation(
       (detectedCity, message) => {
         setDetectingGps(false);
-        onUpdateCity(detectedCity);
-        setSelectedCountry(detectedCity.country);
+        setPendingGpsCity(detectedCity);
+        setLastSavedGps(getLastSuccessfulGpsLocation());
         setGpsNotice(message);
-        showToast(`✓ تم تحديث الموقع إلى ${detectedCity.name}`);
       },
       (errorMsg) => {
         setDetectingGps(false);
-        setGpsNotice(errorMsg);
-      }
+        setGpsError(errorMsg);
+        setLastSavedGps(getLastSuccessfulGpsLocation());
+      },
+      { autoSaveActiveLocation: false }
     );
+  };
+
+  const handleOnlineWorldSearch = async () => {
+    const q = citySearch.trim();
+    if (q.length < 2) {
+      setOnlineSearchNotice('اكتب حرفين على الأقل للبحث العالمي عبر OpenStreetMap.');
+      return;
+    }
+    setOnlineSearching(true);
+    setOnlineSearchNotice(null);
+    const countryCode = worldCountries.find((c) => c.country === selectedCountry)?.countryCode;
+    const results = await searchGlobalLocationsOnline(q, countryCode);
+    setOnlineSearching(false);
+    setOnlineSearchResults(results);
+    if (results.length === 0) {
+      setOnlineSearchNotice('لم يتم العثور على نتائج إضافية أونلاين أو الاتصال غير متاح حاليًا.');
+    } else {
+      setOnlineSearchNotice(`✓ تم العثور على ${results.length} موقع إضافي وحفظها محليًا للاستخدام دون إنترنت.`);
+    }
   };
 
   const toggleGroup = (groupId: string) => {
@@ -458,24 +549,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     : '--:--';
   const iftarTimeFormatted = todayMaghribPrayer?.time || '--:--';
 
-  const prayerLabels: { key: PrayerKey; name: string }[] = [
-    { key: 'fajr', name: 'الفجر' },
-    { key: 'sunrise', name: 'الشروق' },
-    { key: 'dhuhr', name: 'الظهر' },
-    { key: 'asr', name: 'العصر' },
-    { key: 'maghrib', name: 'المغرب' },
-    { key: 'isha', name: 'العشاء' },
-  ];
-
-  // All 9 Widgets: Note that widget #1 profile icon is now the privacy policy icon as requested!
+  // All 10 Widgets (including dedicated About App section)
   const widgetsList = [
     {
       id: 'profile',
       order: 1,
       title: t.settingsProfile,
       subtitle: user.name || 'أحمد محمد',
-      // User requirement 3: Replace profile icon with privacy policy icon
-      iconImg: '/assets/settings_icons/icon_privacy.jpg',
+      iconImg: '/assets/aistudio/1794629378091_86ac864e.jpg',
       badge: isRtl ? 'الحساب' : 'Profile',
       color: 'from-emerald-700 to-teal-800',
     },
@@ -523,7 +604,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         AZAN_VOICES.find((v) => v.id === user.azanVoice)?.name ||
         'عبد الباسط عبد الصمد'
       }`,
-      iconImg: '/assets/settings_icons/icon_azan.jpg',
+      iconImg: '/assets/aistudio/1794629551290_c4ed90c5.jpg',
       badge: isRtl ? 'أصوات ومواقيت' : 'Azan Audio',
       color: 'from-teal-800 to-emerald-900',
     },
@@ -556,13 +637,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       subtitle: isRtl
         ? 'المصادر المعتمدة • حماية بياناتك وأمانها دون إنترنت'
         : 'Verified Sources • 100% Offline',
-      iconImg: '/assets/settings_icons/icon_profile.jpg',
+      iconImg: '/assets/aistudio/1794629233882_237cc7a3.jpg',
       badge: isRtl ? 'أمان تام' : 'Privacy',
       color: 'from-emerald-900 to-teal-950',
     },
     {
-      id: 'about_reset',
+      id: 'about_app',
       order: 9,
+      title: isRtl ? 'حول التطبيق' : 'About App',
+      subtitle: isRtl
+        ? 'أنا مسلم بلس • المصادر الشرعية والإصدار والمزايا'
+        : 'Ana Muslim Plus • Version, Sources & Features',
+      iconImg: '/assets/aistudio/1794629416999_a48d32bb.jpg',
+      badge: isRtl ? 'معلومات التطبيق' : 'About',
+      color: 'from-emerald-800 to-teal-950',
+    },
+    {
+      id: 'about_reset',
+      order: 10,
       title: isRtl ? 'تسجيل الخروج وإعادة الضبط' : 'Logout & Reset App',
       subtitle: isRtl
         ? 'إعادة ضبط التطبيق إلى حالته الأولى والخروج'
@@ -584,8 +676,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           dir={isRtl ? 'rtl' : 'ltr'}
         >
           <div className="flex-1 flex flex-col">
-            {/* TOP DECORATIVE BANNER (With centered «الإعدادات» inside the green rectangle) */}
-            <div className="relative w-full h-32 sm:h-44 md:h-52 shrink-0 overflow-hidden bg-gradient-to-r from-[#0C3D33] via-[#104B40] to-[#0A342C]">
+            {/* TOP DECORATIVE BANNER (Compact in overview so all 10 stacked widgets fit on one screen) */}
+            <div
+              className={`relative w-full shrink-0 overflow-hidden bg-gradient-to-r from-[#0C3D33] via-[#104B40] to-[#0A342C] transition-all ${
+                !activeWidgetId ? 'h-[76px] sm:h-[88px] md:h-24' : 'h-32 sm:h-40 md:h-44'
+              }`}
+            >
               <img
                 src="/assets/settings/settings_top_banner.jpg"
                 alt="المسجد والأنوار"
@@ -593,17 +689,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/30 pointer-events-none" />
 
-              {/* Word «الإعدادات» centered inside the green cartouche rectangle in banner center */}
-              <div className="absolute bottom-2 sm:bottom-3.5 md:bottom-5 left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center justify-center w-[62%] sm:w-[50%] md:w-[44%] max-w-md h-8 sm:h-10 md:h-12 text-center">
-                {activeWidgetId && currentActiveWidget ? (
-                  <span className="font-cairo font-black text-xl sm:text-2xl md:text-3xl text-amber-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] tracking-wider block truncate py-0.5 leading-none">
-                    {currentActiveWidget.title}
-                  </span>
-                ) : (
-                  <span className="font-cairo font-black text-2xl sm:text-3xl md:text-4xl text-amber-100 drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)] tracking-wide block truncate leading-none">
-                    الإعدادات
-                  </span>
-                )}
+              {/* Word «الإعدادات» centered horizontally and vertically inside the green cartouche box */}
+              <div className="absolute bottom-[6%] left-1/2 -translate-x-1/2 pointer-events-none select-none flex items-center justify-center w-[46%] sm:w-[44%] md:w-[42%] max-w-[360px] h-[38%]">
+                <AutoFitBannerTitle
+                  text={activeWidgetId && currentActiveWidget ? currentActiveWidget.title : 'الإعدادات'}
+                  isRootTitle={!(activeWidgetId && currentActiveWidget)}
+                />
               </div>
 
               {/* Quick close button in upper corner */}
@@ -612,10 +703,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   soundService.stopAudio();
                   onClose();
                 }}
-                className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-all active:scale-95 cursor-pointer shadow-lg border border-white/20"
+                className="absolute top-2.5 left-2.5 z-20 w-8 h-8 rounded-full bg-black/45 hover:bg-black/65 text-white flex items-center justify-center backdrop-blur-xs transition-all active:scale-95 cursor-pointer shadow-lg border border-white/20"
                 title={t.closeBtn}
               >
-                <X className="w-5 h-5 text-white" />
+                <X className="w-4 h-4 text-white" />
               </button>
 
               {/* Subpage Back Button */}
@@ -627,7 +718,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setActiveWidgetId(null);
                     setExpandedGroup(null);
                   }}
-                  className="absolute top-3 right-3 z-20 px-3.5 py-1.5 rounded-full bg-black/45 hover:bg-black/65 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-all active:scale-95 cursor-pointer shadow-lg border border-white/20"
+                  className="absolute top-2.5 right-2.5 z-20 px-3 py-1 rounded-full bg-black/45 hover:bg-black/65 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-xs transition-all active:scale-95 cursor-pointer shadow-lg border border-white/20"
                 >
                   <ChevronRight className="w-4 h-4" />
                   <span>الرجوع</span>
@@ -640,7 +731,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   setActiveWidgetId('language_appearance');
                   setExpandedGroup('lang_group_1');
                 }}
-                className="absolute top-3 left-14 z-20 px-2.5 py-1.5 rounded-full bg-black/45 hover:bg-black/65 text-white text-xs font-bold flex items-center gap-1 backdrop-blur-xs transition-all cursor-pointer shadow-lg border border-white/20"
+                className="absolute top-2.5 left-12 z-20 px-2 py-1 rounded-full bg-black/45 hover:bg-black/65 text-white text-xs font-bold flex items-center gap-1 backdrop-blur-xs transition-all cursor-pointer shadow-lg border border-white/20"
                 title="تغيير اللغة"
               >
                 <Languages className="w-3.5 h-3.5" />
@@ -650,18 +741,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* SAVE NOTIFICATION TOAST */}
             {azkarSaveToast && (
-              <div className="bg-[#104B40] text-white text-xs font-bold py-2.5 px-4 text-center shrink-0 shadow-md animate-fadeIn sticky top-0 z-30">
+              <div className="bg-[#104B40] text-white text-xs font-bold py-2 px-4 text-center shrink-0 shadow-md animate-fadeIn sticky top-0 z-30">
                 {toastMessage}
               </div>
             )}
 
             {/* CONTENT AREA */}
-            <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-4 flex-1">
-              {/* VIEW MODE 1: MAIN SETTINGS OVERVIEW (All 9 Widgets uncollapsed and visible as cards) */}
+            <div
+              className={`max-w-5xl mx-auto w-full px-3 sm:px-5 flex-1 flex flex-col justify-center ${
+                !activeWidgetId ? 'py-1.5 sm:py-2' : 'py-3 sm:py-5'
+              }`}
+            >
+              {/* VIEW MODE 1: MAIN SETTINGS OVERVIEW (All 10 widgets stacked vertically, fitting cleanly on 1 screen without scrolling) */}
               {!activeWidgetId ? (
-                <div className="space-y-3 pb-6 animate-fadeIn">
-                  {/* VISIBLE UNCOLLAPSED WIDGET CARDS GRID */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="animate-fadeIn max-w-2xl mx-auto w-full">
+                  <div className="flex flex-col gap-1 sm:gap-1.5">
                     {widgetsList.map((sec) => (
                       <div
                         key={sec.id}
@@ -669,37 +763,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           setActiveWidgetId(sec.id);
                           setExpandedGroup(null);
                         }}
-                        className="bg-white hover:bg-emerald-50/40 rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group hover:border-[#104B40]/40"
+                        className="moazen-widget rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 border border-gray-200/90 shadow-2xs flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group hover:border-[#104B40]/40"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {/* Widget Icon Container */}
-                          <div className="w-14 h-14 rounded-2xl bg-[#FAF8F5] border border-[#104B40]/15 shadow-2xs p-1 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                          {/* Compact Dark Square Icon Frame filled edge-to-edge */}
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#0B1412] border border-[#1C2A27] shadow-sm p-0 shrink-0 overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
                             <img
                               src={sec.iconImg}
                               alt={sec.title}
-                              className="w-full h-full object-cover rounded-xl"
+                              className="w-full h-full object-cover scale-[1.16] object-center block"
                             />
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-gray-100 text-[#104B40]">
-                                #{sec.order}
-                              </span>
-                              <h4 className="text-xs sm:text-sm font-black text-[#172A28] truncate">
-                                {sec.title}
-                              </h4>
-                            </div>
-                            <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5 font-sans">
-                              {sec.subtitle}
-                            </p>
+                          <span className="text-[9px] sm:text-[10px] font-black w-5 h-5 rounded-md bg-gray-100 text-[#104B40] flex items-center justify-center shrink-0">
+                            {sec.order}
+                          </span>
+
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <h4 className="text-[11.5px] sm:text-[13px] font-black text-[#172A28] leading-tight truncate">
+                              {sec.title}
+                            </h4>
+                            <span className="hidden sm:inline text-[11px] text-gray-400 truncate font-sans">
+                              — {sec.subtitle}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Open Arrow Button */}
-                        <div className="w-7 h-7 rounded-full bg-[#FAF8F5] border border-gray-200 group-hover:bg-[#104B40] group-hover:text-white group-hover:border-[#104B40] text-gray-500 flex items-center justify-center shrink-0 transition-colors mr-2">
-                          <ChevronLeft className="w-4 h-4" />
-                        </div>
+                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 group-hover:text-[#104B40] shrink-0 mr-1" />
                       </div>
                     ))}
                   </div>
@@ -709,13 +799,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="space-y-3 pb-6 animate-fadeIn">
                   {/* Subpage Breadcrumb Header Card */}
                   {currentActiveWidget && (
-                    <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs flex items-center justify-between">
+                    <div className="moazen-widget rounded-2xl p-3 border border-gray-200/90 shadow-2xs flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-[#FAF8F5] border border-[#104B40]/20 p-1 shrink-0">
+                        <div className="w-16 h-16 rounded-2xl bg-[#0B1412] border-2 border-[#1C2A27] p-0 shrink-0 overflow-hidden flex items-center justify-center">
                           <img
                             src={currentActiveWidget.iconImg}
                             alt={currentActiveWidget.title}
-                            className="w-full h-full object-contain rounded-lg"
+                            className="w-full h-full object-cover scale-[1.16] object-center block"
                           />
                         </div>
                         <div>
@@ -748,7 +838,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'profile' && (
                   <div className="space-y-2.5">
                     {/* Group 1: Username & Profile Name */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('profile_name')}
@@ -794,7 +884,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     {/* Group 2: First-Time Onboarding Wizard */}
                     {onOpenFirstTimeSetup && (
-                      <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                      <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                         <button
                           type="button"
                           onClick={() => toggleGroup('profile_setup')}
@@ -831,7 +921,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'permissions' && (
                   <div className="space-y-2.5">
                     {/* Group 1: Battery Whitelist */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('perm_battery')}
@@ -866,7 +956,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 );
                               }
                             }}
-                            className="w-full p-2.5 bg-white hover:bg-emerald-50 border border-[#104B40]/30 rounded-xl text-xs font-bold text-[#104B40] flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                            className="moazen-widget w-full p-2.5 border border-[#104B40]/30 rounded-xl text-xs font-bold text-[#104B40] flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                           >
                             <ShieldCheck className="w-4 h-4 text-[#104B40]" />
                             <span>فتح إعدادات تحسين البطارية على هاتفك</span>
@@ -876,7 +966,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 2: Exact Alarms */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('perm_alarms')}
@@ -908,7 +998,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 showToast('التنبيهات الدقيقة: مفعّلة عبر AlarmManager');
                               }
                             }}
-                            className="w-full p-2.5 bg-white hover:bg-emerald-50 border border-[#104B40]/30 rounded-xl text-xs font-bold text-[#104B40] flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                            className="moazen-widget w-full p-2.5 border border-[#104B40]/30 rounded-xl text-xs font-bold text-[#104B40] flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                           >
                             <Clock className="w-4 h-4 text-[#104B40]" />
                             <span>تأكيد تفعيل إذن التنبيهات الدقيقة</span>
@@ -918,7 +1008,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 3: Comprehensive Wizard */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => setPermissionsModalOpen(true)}
@@ -939,15 +1029,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* 3. Location & Time Subpage */}
                 {activeWidgetId === 'location_time' && (
                   <div className="space-y-2.5">
-                    {/* Group 1: GPS Auto Detection */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    {/* Current Active Location Summary Strip */}
+                    <div className="moazen-widget rounded-2xl p-3.5 border border-[#104B40]/20 shadow-2xs flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#104B40] flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold text-gray-500">الموقع النشط حاليًا:</span>
+                            {user.city.isSavedLocation && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
+                                موقع محفوظ
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-black text-[#172A28] truncate">
+                            {user.city.name} — {user.city.country}
+                            {user.city.state && !user.city.name.includes(user.city.state) ? ` (${user.city.state})` : ''}
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-mono">
+                            {user.city.latitude.toFixed(4)}°, {user.city.longitude.toFixed(4)}°
+                            {user.city.district ? ` • ${user.city.district}` : ''}
+                            {user.city.neighborhood ? ` • ${user.city.neighborhood}` : ''}
+                            {user.city.street ? ` • ${user.city.street}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Group 1: GPS Auto Detection (Detailed Hierarchy + Safe Fallback + Explicit Confirm) */}
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('loc_gps')}
                         className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
                       >
                         <span className="text-xs font-black text-gray-900">
-                          الكشف التلقائي عن الموقع عبر GPS (يدعم دون إنترنت)
+                          الكشف التلقائي عن الموقع الدقيق عبر GPS (هجين مع الشبكة)
                         </span>
                         <ChevronDown
                           className={`w-4 h-4 text-gray-500 transition-transform ${
@@ -956,8 +1075,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         />
                       </button>
                       {expandedGroup === 'loc_gps' && (
-                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
+                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
                           <button
+                            type="button"
                             onClick={handleDetectGps}
                             disabled={detectingGps}
                             className="w-full py-2.5 px-4 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
@@ -967,14 +1087,96 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             />
                             <span>
                               {detectingGps
-                                ? 'جاري تحديد موقعك الجغرافي الدقيق...'
-                                : 'تحديث الموقع الجغرافي الآن عبر GPS'}
+                                ? 'جاري تحديد موقعك الجغرافي الدقيق عبر GPS...'
+                                : 'تحديد الموقع الجغرافي الدقيق الآن عبر GPS'}
                             </span>
                           </button>
-                          {gpsNotice && (
-                            <div className="p-2.5 bg-gray-50 border border-gray-200 text-[#172A28] rounded-xl text-xs font-bold flex items-center justify-between">
+
+                          {/* Detected GPS Details & Explicit Confirmation Card */}
+                          {pendingGpsCity && (
+                            <div className="moazen-widget p-3 border-2 border-[#104B40]/30 rounded-xl space-y-2 shadow-2xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-black text-[#104B40] flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  {pendingGpsCity.isSavedLocation
+                                    ? 'استرجاع آخر موقع محفوظ (موقع محفوظ)'
+                                    : 'تم رصد موقعك الجغرافي عبر GPS'}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                                    pendingGpsCity.isSavedLocation
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                  }`}
+                                >
+                                  {pendingGpsCity.isSavedLocation ? 'موقع محفوظ' : 'GPS مباشر'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-[#FAF8F5] p-2.5 rounded-lg border border-gray-200/80">
+                                <div>
+                                  <span className="text-gray-500">الدولة: </span>
+                                  <strong className="text-gray-900">{pendingGpsCity.country}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">المحافظة/المنطقة: </span>
+                                  <strong className="text-gray-900">{pendingGpsCity.state || '—'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">المدينة/المركز: </span>
+                                  <strong className="text-gray-900">{pendingGpsCity.name}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">المنطقة/الحي: </span>
+                                  <strong className="text-gray-900">
+                                    {[pendingGpsCity.district, pendingGpsCity.neighborhood]
+                                      .filter(Boolean)
+                                      .join(' • ') || '—'}
+                                  </strong>
+                                </div>
+                                {pendingGpsCity.street && (
+                                  <div className="col-span-2">
+                                    <span className="text-gray-500">الشارع: </span>
+                                    <strong className="text-gray-900">{pendingGpsCity.street}</strong>
+                                  </div>
+                                )}
+                                <div className="col-span-2 font-mono text-[10.5px] text-[#104B40]">
+                                  الإحداثيات: {pendingGpsCity.latitude.toFixed(5)}°, {pendingGpsCity.longitude.toFixed(5)}°
+                                  {pendingGpsCity.accuracyMeters ? ` (±${pendingGpsCity.accuracyMeters}م)` : ''}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    applyLocationToApp(
+                                      pendingGpsCity,
+                                      pendingGpsCity.isSavedLocation ? 'موقع محفوظ' : 'GPS مباشر'
+                                    );
+                                    setPendingGpsCity(null);
+                                  }}
+                                  className="flex-1 py-2 px-3 rounded-lg bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-black flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Check className="w-4 h-4 text-amber-300" />
+                                  <span>اعتماد وتحديث المواقيت والقبلة والتقويم</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingGpsCity(null)}
+                                  className="py-2 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold cursor-pointer"
+                                >
+                                  إلغاء
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {gpsNotice && !pendingGpsCity && (
+                            <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-xl text-xs font-bold flex items-center justify-between">
                               <span>{gpsNotice}</span>
                               <button
+                                type="button"
                                 onClick={() => setGpsNotice(null)}
                                 className="font-bold text-gray-500 px-1"
                               >
@@ -982,12 +1184,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               </button>
                             </div>
                           )}
+
+                          {/* Error Card with Retry, Last Saved GPS ("موقع محفوظ"), and Manual Selection */}
+                          {gpsError && (
+                            <div className="p-3 bg-rose-50/90 border border-rose-200 rounded-xl space-y-2">
+                              <p className="text-xs font-bold text-rose-900 flex items-start gap-1.5">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                <span>{gpsError}</span>
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={handleDetectGps}
+                                  className="px-3 py-1.5 rounded-lg bg-[#104B40] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>إعادة المحاولة</span>
+                                </button>
+                                {lastSavedGps && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPendingGpsCity(lastSavedGps);
+                                      setGpsError(null);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[11px] font-bold cursor-pointer"
+                                  >
+                                    استخدام آخر موقع محفوظ (موقع محفوظ)
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedGroup('loc_world')}
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800 text-[11px] font-bold cursor-pointer"
+                                >
+                                  الاختيار اليدوي من الخريطة العالمية
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
                     {/* Group 2: Prayer Calculation Method & Asr Juristic */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('loc_method')}
@@ -1035,7 +1276,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   }));
                                 }
                               }}
-                              className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
+                              className="moazen-widget w-full p-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
                             >
                               {ASR_METHODS.map((m) => (
                                 <option key={m.id} value={m.id}>
@@ -1049,7 +1290,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 3: Daylight Saving Time (DST) */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('loc_dst')}
@@ -1066,7 +1307,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'loc_dst' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
-                          <div className="grid grid-cols-3 gap-1.5 bg-white p-1 rounded-xl border border-gray-200">
+                          <div className="moazen-widget grid grid-cols-3 gap-1.5 p-1 rounded-xl border border-gray-200">
                             {[
                               { id: 'auto', label: 'تلقائي (الهاتف)' },
                               { id: 'summer', label: 'صيفي (+60د)' },
@@ -1090,62 +1331,203 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       )}
                     </div>
 
-                    {/* Group 4: Manual Minute Adjustments */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    {/* Group 4: الإعدادات المتقدمة (Replaces manual adjustments accordion) */}
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
-                        onClick={() => toggleGroup('loc_manual')}
+                        onClick={() => {
+                          if (onOpenPrayerSettings) {
+                            onOpenPrayerSettings('fajr');
+                          }
+                        }}
+                        className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#C5A059]/30 text-[#9E7B34] flex items-center justify-center shrink-0">
+                            <SlidersHorizontal className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-black text-gray-900 block">
+                              الإعدادات المتقدمة
+                            </span>
+                            <span className="text-[10.5px] text-gray-500 block">
+                              تعديل وقت كل صلاة، صوت الأذان، التذكير، الإقامة، والوضع الصامت
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronLeft className="w-4 h-4 text-gray-400 shrink-0" />
+                      </button>
+                    </div>
+
+                    {/* Group 5: Global Countries, Regions & Cities Hierarchical Picker + Online Search */}
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('loc_world')}
                         className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
                       >
-                        <span className="text-xs font-black text-gray-900">
-                          تعديل مواقيت الصلاة يدوياً بالدقائق
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-[#104B40]" />
+                          <span className="text-xs font-black text-gray-900">
+                            قاعدة بيانات دول ومدن ومناطق العالم ({worldCountries.length} دولة وإقليم)
+                          </span>
+                        </div>
                         <ChevronDown
                           className={`w-4 h-4 text-gray-500 transition-transform ${
-                            expandedGroup === 'loc_manual' ? 'rotate-180 text-[#104B40]' : ''
+                            expandedGroup === 'loc_world' ? 'rotate-180 text-[#104B40]' : ''
                           }`}
                         />
                       </button>
-                      {expandedGroup === 'loc_manual' && (
-                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {prayerLabels.map((pr) => {
-                              const currentDelta = (user.manualPrayerAdjustments || {})[pr.key] || 0;
-                              return (
-                                <div
-                                  key={pr.key}
-                                  className="p-2 rounded-xl bg-white border border-gray-200 flex items-center justify-between text-xs"
-                                >
-                                  <span className="font-bold text-gray-800">{pr.name}</span>
-                                  <div className="flex items-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAdjustPrayerMinutes(pr.key, -1)}
-                                      className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold flex items-center justify-center cursor-pointer"
-                                    >
-                                      -
-                                    </button>
-                                    <span className="text-xs font-mono font-bold min-w-6 text-center text-[#104B40]">
-                                      {currentDelta > 0 ? `+${currentDelta}` : currentDelta}
+                      {expandedGroup === 'loc_world' && (
+                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
+                          {/* Step 1 & 2: Country -> Governorate / State */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={selectedCountry}
+                              onChange={(e) => {
+                                setSelectedCountry(e.target.value);
+                                setSelectedState('');
+                              }}
+                              className="moazen-widget p-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
+                            >
+                              <option value="">🌍 كافة دول العالم ({worldCountries.length} دولة)</option>
+                              {worldCountries.map((c) => (
+                                <option key={`${c.countryCode}_${c.country}`} value={c.country}>
+                                  [{c.countryCode}] {c.country} — {c.countryEn} ({c.cityCount})
+                                </option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={selectedState}
+                              onChange={(e) => setSelectedState(e.target.value)}
+                              disabled={!selectedCountry || worldRegions.length === 0}
+                              className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none disabled:opacity-50"
+                            >
+                              <option value="">
+                                {selectedCountry
+                                  ? `📍 كافة المناطق/المحافظات (${worldRegions.length})`
+                                  : 'اختر الدولة أولاً لعرض المناطق'}
+                              </option>
+                              {worldRegions.map((reg) => (
+                                <option key={reg.state} value={reg.state}>
+                                  {reg.state} ({reg.cityCount})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Step 3: Arabic/English Instant Search + Online OpenStreetMap Search */}
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              <input
+                                type="text"
+                                placeholder="ابحث بالعربية أو الإنجليزية: مكة، الرياض، القاهرة، حي، قرية..."
+                                value={citySearch}
+                                onChange={(e) => setCitySearch(e.target.value)}
+                                className="moazen-widget w-full pr-8 pl-3 py-2.5 border border-gray-200 rounded-xl text-xs text-gray-800 focus:outline-none focus:border-[#104B40]"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleOnlineWorldSearch}
+                              disabled={onlineSearching || citySearch.trim().length < 2}
+                              className="px-3 py-2 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${onlineSearching ? 'animate-spin' : ''}`} />
+                              <span>بحث عالمي أونلاين</span>
+                            </button>
+                          </div>
+
+                          {onlineSearchNotice && (
+                            <p className="text-[11px] font-bold text-[#104B40] bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+                              {onlineSearchNotice}
+                            </p>
+                          )}
+
+                          {/* Combined Ranked Cities + Discovered Online Results */}
+                          <div className="space-y-1 pt-1 max-h-56 overflow-y-auto pr-1">
+                            {(onlineSearchResults.length > 0 && citySearch.trim()
+                              ? [
+                                  ...onlineSearchResults,
+                                  ...filteredCities.filter(
+                                    (fc) => !onlineSearchResults.some((or) => or.id === fc.id)
+                                  ),
+                                ]
+                              : filteredCities
+                            )
+                              .slice(0, 120)
+                              .map((city) => {
+                                const isActive = user.city?.id === city.id;
+                                return (
+                                  <button
+                                    key={city.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const chosenCity: CityLocation = {
+                                        id: city.id,
+                                        name: city.name,
+                                        nameEn: city.nameEn,
+                                        country: city.country,
+                                        countryEn: city.countryEn,
+                                        countryCode: city.countryCode,
+                                        state: city.state,
+                                        stateEn: city.stateEn,
+                                        district: city.district,
+                                        neighborhood: city.neighborhood,
+                                        street: city.street,
+                                        latitude: city.latitude,
+                                        longitude: city.longitude,
+                                        timezone: city.timezone,
+                                        recommendedMethod: city.recommendedMethod,
+                                        source: city.source || 'offline',
+                                        isSavedLocation: false,
+                                      };
+                                      applyLocationToApp(
+                                        chosenCity,
+                                        city.source === 'osm' ? 'بحث عالمي محفوظ' : 'قاعدة بيانات العالم'
+                                      );
+                                    }}
+                                    className={`w-full p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer text-right transition-colors ${
+                                      isActive
+                                        ? 'bg-[#ebf5f1] border-[#104B40] font-black'
+                                        : 'bg-white hover:bg-emerald-50/70 border-gray-100'
+                                    }`}
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-gray-900">{city.name}</span>
+                                        {city.nameEn && (
+                                          <span className="text-[10px] text-gray-500 font-sans">
+                                            ({city.nameEn})
+                                          </span>
+                                        )}
+                                        {city.source === 'osm' && (
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                            OSM
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-gray-500 block">
+                                        {city.country}
+                                        {city.state ? ` • ${city.state}` : ''}
+                                        {city.district ? ` • ${city.district}` : ''}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 font-mono shrink-0 mr-2">
+                                      {city.latitude.toFixed(2)}°, {city.longitude.toFixed(2)}°
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAdjustPrayerMinutes(pr.key, 1)}
-                                      className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold flex items-center justify-center cursor-pointer"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                  </button>
+                                );
+                              })}
                           </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Group 5: Egypt Governorates Selector (Offline) */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    {/* Group 6: Egypt Governorates Selector (Offline) */}
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('loc_egypt')}
@@ -1180,7 +1562,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               placeholder="ابحث بالاسم: دكرنس، بلقاس، طامية..."
                               value={egyptSearchQuery}
                               onChange={(e) => setEgyptSearchQuery(e.target.value)}
-                              className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs text-gray-800"
+                              className="moazen-widget p-2.5 border border-gray-200 rounded-xl text-xs text-gray-800"
                             />
                           </div>
 
@@ -1192,16 +1574,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   const newCity: CityLocation = {
                                     id: loc.id,
                                     name: loc.name,
+                                    nameEn: loc.nameEn,
                                     country: 'مصر',
+                                    countryEn: 'Egypt',
+                                    countryCode: 'EG',
+                                    state: loc.governorate,
+                                    stateEn: loc.governorateEn,
+                                    district: loc.type,
                                     latitude: loc.latitude,
                                     longitude: loc.longitude,
                                     timezone: 'Africa/Cairo',
+                                    recommendedMethod: 'egypt',
+                                    source: 'offline',
+                                    isSavedLocation: false,
                                   };
-                                  onUpdateCity(newCity);
-                                  savePersistentLocation(newCity);
-                                  showToast(`✓ تم ضبط الموقع وحفظه: ${loc.name}`);
+                                  applyLocationToApp(newCity, 'مصر - أوفلاين');
                                 }}
-                                className="p-2 bg-white hover:bg-emerald-50 rounded-xl border border-gray-100 text-xs flex items-center justify-between cursor-pointer"
+                                className="moazen-widget p-2 rounded-xl border border-gray-100 text-xs flex items-center justify-between cursor-pointer"
                               >
                                 <div>
                                   <span className="font-bold text-gray-800">{loc.name}</span>
@@ -1225,7 +1614,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'language_appearance' && (
                   <div className="space-y-2.5">
                     {/* Group 1: Language selection */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('lang_group_1')}
@@ -1290,7 +1679,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'azan_iqama' && (
                   <div className="space-y-2.5">
                     {/* Group 1: General Azan and Sound Switches */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azan_master')}
@@ -1308,7 +1697,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {expandedGroup === 'azan_master' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
                           {onToggleAutoPlayAzan && (
-                            <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-200">
+                            <div className="moazen-widget flex items-center justify-between p-2.5 rounded-xl border border-gray-200">
                               <div>
                                 <h4 className="text-xs font-bold text-gray-900">
                                   رفع الأذان كاملاً تلقائياً عند حلول وقت الصلاة
@@ -1327,7 +1716,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           )}
 
                           {onToggleSoundEnabled && (
-                            <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-200">
+                            <div className="moazen-widget flex items-center justify-between p-2.5 rounded-xl border border-gray-200">
                               <div>
                                 <h4 className="text-xs font-bold text-gray-900">
                                   تفعيل الأصوات العامة
@@ -1349,7 +1738,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 2: Standalone Fajr Azan Voice Selection (3 voices) */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azan_fajr')}
@@ -1442,7 +1831,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 3: Azan Voices for Remaining Prayers */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azan_others')}
@@ -1505,7 +1894,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 4: 15-Minute Pre-Prayer Alert */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azan_preprayer')}
@@ -1588,7 +1977,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 5: Iqama Voices */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azan_iqama_group')}
@@ -1656,6 +2045,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                       )}
                     </div>
+
+                    {/* Group 6: Duha Prayer & Short Dua Audio Files (Integrated Directly) */}
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs p-3.5 space-y-2.5">
+                      <span className="text-xs font-black text-gray-900 block">
+                        ملفات صلاة الضحى والدعاء القصير المدمجة
+                      </span>
+
+                      <div className="moazen-widget p-2.5 rounded-xl border border-gray-200 flex items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="font-bold text-gray-900 block">
+                            ملف صلاة الضحى (سورة الضحى)
+                          </span>
+                          <span className="text-[10px] text-gray-500 block">
+                            يعمل تلقائيًا عند دخول وقت صلاة الضحى
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleAuditionReminderAudio('duha_surah', DUHA_AUDIO_FILE, 'duha')
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-amber-50 text-[#172A28] text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          {playingReminderTrack === 'duha_surah' ? (
+                            <>
+                              <Square className="w-3.5 h-3.5 fill-current text-rose-600" />
+                              <span className="text-[10px]">إيقاف</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-current text-[#C5A059]" />
+                              <span className="text-[10px]">استماع</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="moazen-widget p-2.5 rounded-xl border border-gray-200 flex items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="font-bold text-gray-900 block">
+                            الدعاء القصير بعد الأذان والصلاة
+                          </span>
+                          <span className="text-[10px] text-gray-500 block">
+                            يعمل تلقائيًا بعد انتهاء الأذان عند تفعيله
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleAuditionReminderAudio(
+                              'dua_after_azan',
+                              DUA_AFTER_AZAN_AUDIO_FILE,
+                              'dua_after'
+                            )
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-amber-50 text-[#172A28] text-xs font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          {playingReminderTrack === 'dua_after_azan' ? (
+                            <>
+                              <Square className="w-3.5 h-3.5 fill-current text-rose-600" />
+                              <span className="text-[10px]">إيقاف</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5 fill-current text-[#C5A059]" />
+                              <span className="text-[10px]">استماع</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1663,7 +2123,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'azkar_reminders' && (
                   <div className="space-y-2.5">
                     {/* Group 1: Morning & Evening Azkar */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azkar_sabah_massa')}
@@ -1683,7 +2143,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {expandedGroup === 'azkar_sabah_massa' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
                           {/* Morning Azkar */}
-                          <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
+                          <div className="moazen-widget rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
                             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                               <div className="flex items-center gap-2">
                                 <Sun className="w-4 h-4 text-amber-500" />
@@ -1728,7 +2188,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
 
                           {/* Evening Azkar */}
-                          <div className="bg-white rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
+                          <div className="moazen-widget rounded-2xl p-3 border border-gray-200/90 shadow-2xs space-y-2.5">
                             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                               <div className="flex items-center gap-2">
                                 <Moon className="w-4 h-4 text-[#104B40]" />
@@ -1776,7 +2236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 2: Salawat on the Prophet ﷺ (Fixed and Comprehensive) */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azkar_salawat')}
@@ -1813,7 +2273,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {expandedGroup === 'azkar_salawat' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-3.5">
                           {/* 1. Master Toggle */}
-                          <div className="flex items-center justify-between pb-2 border-b border-gray-200/80 bg-white p-2.5 rounded-xl border">
+                          <div className="moazen-widget flex items-center justify-between pb-2 border-b border-gray-200/80 p-2.5 rounded-xl border">
                             <div>
                               <span className="text-xs font-bold text-gray-900 block">
                                 تفعيل التذكير الصوتي بالصلاة على النبي ﷺ
@@ -1904,7 +2364,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             /* Mode: Periodic Repeating */
                             <div className="space-y-3">
                               {/* Interval config */}
-                              <div className="p-3 bg-white rounded-xl border border-gray-200 flex items-center justify-between text-xs">
+                              <div className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between text-xs">
                                 <div>
                                   <span className="font-bold text-gray-900 block">
                                     تكرار التذكير كل:
@@ -2061,7 +2521,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 3: Qiyam al-Layl */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('azkar_qiyam')}
@@ -2079,7 +2539,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {expandedGroup === 'azkar_qiyam' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2.5">
                           {/* Grid */}
-                          <div className="grid grid-cols-3 gap-1.5 text-center bg-white p-2 rounded-xl border border-gray-200">
+                          <div className="moazen-widget grid grid-cols-3 gap-1.5 text-center p-2 rounded-xl border border-gray-200">
                             <div>
                               <span className="text-[9px] font-bold text-gray-500 block">
                                 الثلث الأول
@@ -2107,7 +2567,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
 
                           {/* First Third */}
-                          <div className="p-2.5 rounded-xl border border-gray-200 bg-white flex items-center justify-between">
+                          <div className="moazen-widget p-2.5 rounded-xl border border-gray-200 flex items-center justify-between">
                             <span className="text-xs font-bold text-gray-900">
                               تنبيه الثلث الأول (سورة المزمل)
                             </span>
@@ -2145,7 +2605,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
 
                           {/* Last Third */}
-                          <div className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/40 flex items-center justify-between">
+                          <div className="moazen-widget p-2.5 rounded-xl border border-amber-200 flex items-center justify-between">
                             <span className="text-xs font-black text-amber-950">
                               تنبيه الثلث الأخير والأسحار
                             </span>
@@ -2193,7 +2653,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {activeWidgetId === 'ramadan_fasting' && (
                   <div className="space-y-2.5">
                     {/* Group 1: Iftar & Cannon */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('ramadan_iftar')}
@@ -2210,7 +2670,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'ramadan_iftar' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between">
+                          <div className="moazen-widget rounded-xl p-3 border border-gray-200 flex items-center justify-between">
                             <div>
                               <h5 className="text-xs font-bold text-gray-900">
                                 تنبيه الإفطار (المغرب: {iftarTimeFormatted})
@@ -2233,7 +2693,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             />
                           </div>
 
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between">
+                          <div className="moazen-widget rounded-xl p-3 border border-gray-200 flex items-center justify-between">
                             <div>
                               <h5 className="text-xs font-bold text-gray-900">
                                 صوت مدفع الإفطار (قبل المغرب بـ 16 ثانية)
@@ -2273,7 +2733,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
 
                     {/* Group 2: Suhur & Musaharati */}
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('ramadan_suhur')}
@@ -2290,7 +2750,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'ramadan_suhur' && (
                         <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-2">
-                          <div className="bg-white rounded-xl p-3 border border-gray-200 flex items-center justify-between">
+                          <div className="moazen-widget rounded-xl p-3 border border-gray-200 flex items-center justify-between">
                             <div>
                               <h5 className="text-xs font-bold text-gray-900">
                                 تنبيه الإمساك قبل الفجر ({imsakTimeFormatted})
@@ -2319,7 +2779,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </select>
                           </div>
 
-                          <div className="bg-white rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-3">
+                          <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-3">
                             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                               <div>
                                 <h5 className="text-xs font-black text-gray-900">صوت ونداء المسحراتي</h5>
@@ -2362,7 +2822,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* 8. Privacy Policy Subpage */}
                 {activeWidgetId === 'privacy_policy' && (
                   <div className="space-y-2.5">
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('privacy_terms')}
@@ -2395,10 +2855,95 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
 
-                {/* 9. Logout & Reset Subpage */}
+                {/* 9. About App Subpage (حول التطبيق) */}
+                {activeWidgetId === 'about_app' && (
+                  <div className="space-y-2.5">
+                    <div className="moazen-widget rounded-2xl p-4 border border-gray-200/90 shadow-2xs space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-2xl bg-[#0B1412] border-2 border-[#1C2A27] overflow-hidden shrink-0">
+                          <img
+                            src="/assets/aistudio/1794629416999_a48d32bb.jpg"
+                            alt="حول التطبيق"
+                            className="w-full h-full object-cover scale-[1.16] object-center block"
+                          />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-[#104B40]">
+                            تطبيق أنا مسلم بلس — المؤذن
+                          </h4>
+                          <p className="text-xs font-bold text-amber-700 mt-0.5">
+                            الإصدار 2.2.0 • صدقة جارية خالصة لوجه الله تعالى
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        رفيق المسلم اليومي الشامل في كل مكان بالعالم؛ يجمع بين دقة مواقيت الصلاة الفلكية،
+                        الأذان التلقائي، القرآن الكريم بالتفسير الميسر، معلم القرآن الذكي «شيخي» للتسميع
+                        والحفظ، حصن المسلم، البوصلة، ومكتبة الخلفيات والأذكار الإسلامية بدون إعلانات.
+                      </p>
+                    </div>
+
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('about_sources')}
+                        className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
+                      >
+                        <span className="text-xs font-black text-gray-900">
+                          المصادر العلمية والشرعية المعتمدة
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-500 transition-transform ${
+                            expandedGroup === 'about_sources' ? 'rotate-180 text-[#104B40]' : ''
+                          }`}
+                        />
+                      </button>
+                      {expandedGroup === 'about_sources' && (
+                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-1.5 text-xs text-gray-700">
+                          <p>
+                            • القرآن الكريم برواية حفص عن عاصم (مجمع الملك فهد لطباعة المصحف الشريف)
+                          </p>
+                          <p>• التفسير الميسر كاملاً (مجمع الملك فهد لطباعة المصحف الشريف)</p>
+                          <p>• صحيح البخاري، صحيح مسلم، والأربعون النووية للإمام النووي</p>
+                          <p>
+                            • حصن المسلم من أذكار الكتاب والسنة للشيخ سعيد بن علي بن وهف القحطاني
+                          </p>
+                          <p>• الحسابات الفلكية لمواقيت الصلاة (أم القرى، الهيئة المصرية، رابطة العالم الإسلامي، ISNA)</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('about_features')}
+                        className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
+                      >
+                        <span className="text-xs font-black text-gray-900">
+                          أبرز قدرات ومزايا التطبيق
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-500 transition-transform ${
+                            expandedGroup === 'about_features' ? 'rotate-180 text-[#104B40]' : ''
+                          }`}
+                        />
+                      </button>
+                      {expandedGroup === 'about_features' && (
+                        <div className="p-3.5 bg-[#FAF8F5]/60 border-t border-gray-100 space-y-1.5 text-xs text-gray-700">
+                          <p>• قاعدة بيانات شاملة تضم أكثر من 205 دول ومئات المحافظات والمدن حول العالم</p>
+                          <p>• تحديد موقع هجين (GPS + شبكة + عنوان تفصيلي) وحفظ آخر موقع موثوق</p>
+                          <p>• إعدادات مستقلة لكل صلاة (تعديل الوقت بالدقائق، صوت المؤذن، التذكير قبل الأذان، والإقامة)</p>
+                          <p>• نظام التسميع والحفظ الذكي «شيخي» مع لوحة إحصائيات متقدمة</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 10. Logout & Reset Subpage */}
                 {activeWidgetId === 'about_reset' && (
                   <div className="space-y-2.5">
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('reset_sources')}
@@ -2428,7 +2973,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       )}
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
+                    <div className="moazen-widget rounded-2xl border border-gray-200/90 overflow-hidden shadow-2xs">
                       <button
                         type="button"
                         onClick={() => toggleGroup('reset_action')}
@@ -2519,7 +3064,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* BOTTOM DECORATIVE BANNER (Inside single scroll container, moves with page) */}
-        <div className="relative w-full h-16 sm:h-20 shrink-0 overflow-hidden bg-gradient-to-r from-[#0C3D33] via-[#104B40] to-[#0A342C] border-t border-amber-900/10 mt-auto">
+        <div
+          className={`relative w-full shrink-0 overflow-hidden bg-gradient-to-r from-[#0C3D33] via-[#104B40] to-[#0A342C] border-t border-amber-900/10 mt-auto transition-all ${
+            !activeWidgetId ? 'h-7 sm:h-8' : 'h-14 sm:h-16'
+          }`}
+        >
           <img
             src="/assets/settings/settings_bottom_banner.jpg"
             alt="المسجد الأخضر"

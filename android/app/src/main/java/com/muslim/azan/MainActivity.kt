@@ -34,10 +34,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SpecialPermissionsStatus
 import com.muslim.azan.data.SystemPermissionHelper
@@ -45,6 +47,7 @@ import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.BottomNavBar
 import com.muslim.azan.ui.components.FloatingAudioBar
+import com.muslim.azan.ui.components.MoazenWidgetCard
 import com.muslim.azan.ui.navigation.Screen
 import com.muslim.azan.ui.screens.*
 import kotlinx.coroutines.Dispatchers
@@ -142,13 +145,19 @@ class MainActivity : ComponentActivity() {
                                     prefs = prefs,
                                     onNavigate = { screen ->
                                         navController.navigate(screen.route)
+                                    },
+                                    onOpenPrayerSettings = { prayerKey ->
+                                        navController.navigate(Screen.PrayerSettings.routeFor(prayerKey))
                                     }
                                 )
                             }
                             composable(Screen.PrayerTimes.route) {
                                 PrayerTimesScreen(
                                     prefs = prefs,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    onOpenPrayerSettings = { prayerKey ->
+                                        navController.navigate(Screen.PrayerSettings.routeFor(prayerKey))
+                                    }
                                 )
                             }
                             composable(Screen.Quran.route) {
@@ -218,6 +227,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable(Screen.Wallpapers.route) {
                                 WallpapersScreen(
+                                    prefs = prefs,
                                     onBack = { navController.popBackStack() }
                                 )
                             }
@@ -230,6 +240,17 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     prefs = prefs,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(
+                                route = Screen.PrayerSettings.route,
+                                arguments = listOf(navArgument("prayerKey") { type = NavType.StringType; defaultValue = "fajr" })
+                            ) { backStackEntry ->
+                                val prayerKey = backStackEntry.arguments?.getString("prayerKey") ?: "fajr"
+                                PrayerSettingsScreen(
+                                    prefs = prefs,
+                                    initialPrayerKey = prayerKey,
                                     onBack = { navController.popBackStack() }
                                 )
                             }
@@ -259,19 +280,19 @@ class MainActivity : ComponentActivity() {
     ) {
         AlertDialog(
             onDismissRequest = onDismissForSession,
-            containerColor = EmeraldDeep,
+            containerColor = MoazenCardEnd,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = null,
-                        tint = GoldAccent,
+                        tint = MoazenInkEmerald,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "أذونات الأذان في الخلفية",
-                        color = GoldAccent,
+                        color = MoazenInkEmerald,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -284,7 +305,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Text(
                         text = "لتعمل مواعيد الأذان والأذكار والنافذة العائمة بدقة حتى عند إغلاق التطبيق أو قفل الشاشة، يُنصح بتفعيل الأذونات التالية:",
-                        color = TextSecondary,
+                        color = MoazenInkMuted,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
                     )
@@ -334,12 +355,12 @@ class MainActivity : ComponentActivity() {
             },
             confirmButton = {
                 TextButton(onClick = onDismissForSession) {
-                    Text("لاحقًا", color = GoldAccent, fontWeight = FontWeight.Bold)
+                    Text("لاحقًا", color = MoazenInkEmerald, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = onNeverAskAgain) {
-                    Text("عدم الإظهار مجددًا", color = TextSecondary, fontSize = 12.sp)
+                    Text("عدم الإظهار مجددًا", color = MoazenInkMuted, fontSize = 12.sp)
                 }
             }
         )
@@ -353,10 +374,9 @@ class MainActivity : ComponentActivity() {
         granted: Boolean,
         onGrant: () -> Unit
     ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = EmeraldSurface,
-            border = BorderStroke(1.dp, if (granted) SuccessGreen.copy(alpha = 0.5f) else CardBorder),
+        MoazenWidgetCard(
+            cornerRadius = 12.dp,
+            borderColor = if (granted) EmeraldPrimaryDark.copy(alpha = 0.45f) else MoazenCardBorder,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -373,20 +393,20 @@ class MainActivity : ComponentActivity() {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (granted) SuccessGreen else GoldAccent,
+                        tint = if (granted) EmeraldPrimaryDark else MoazenInkEmerald,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
                             text = title,
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = subtitle,
-                            color = TextSecondary,
+                            color = MoazenInkMuted,
                             fontSize = 11.sp,
                             lineHeight = 14.sp
                         )
@@ -398,21 +418,21 @@ class MainActivity : ComponentActivity() {
                 if (granted) {
                     Text(
                         text = "مفعّل ✓",
-                        color = SuccessGreen,
+                        color = EmeraldPrimaryDark,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 } else {
                     Button(
                         onClick = onGrant,
-                        colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
                         Text(
                             text = "تفعيل",
-                            color = EmeraldDeep,
+                            color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center

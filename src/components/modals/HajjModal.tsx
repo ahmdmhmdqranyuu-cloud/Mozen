@@ -257,7 +257,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="فهرس الحج والعمرة"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -291,7 +291,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث في المناسك، الأركان، المواقيت، أو الأدعية..."
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
+                  className="moazen-widget w-full border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
                 />
                 <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
               </div>
@@ -339,7 +339,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
       {/* VIEW 1: ORGANIZED VERTICAL INDEX OF HAJJ & UMRAH CHAPTERS */}
       {viewMode === 'index' ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2.5 pb-20 max-w-2xl mx-auto w-full">
-          <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5">
+          <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-[#172A28] font-cairo">
@@ -360,7 +360,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ابحث في فهرس مناسك الحج والعمرة..."
-                className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
+                className="moazen-widget w-full border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
               />
               <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
             </div>
@@ -373,7 +373,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
                 setSelectedChapterId(chap.id);
                 setViewMode('detail');
               }}
-              className="w-full text-right bg-white hover:bg-[#FAF9F5] p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
+              className="moazen-widget w-full text-right p-4 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-sm flex items-center justify-center shrink-0">
@@ -402,10 +402,10 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
         /* VIEW 2: INDEPENDENT DETAIL PAGE FOR SELECTED HAJJ CHAPTER */
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-20 max-w-2xl mx-auto w-full animate-fadeIn">
           {/* Top Back Bar */}
-          <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
             <button
               onClick={() => setViewMode('index')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
             >
               <ArrowRight className="w-4 h-4" />
               <span>العودة إلى فهرس الحج والعمرة</span>
@@ -416,7 +416,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
           </div>
 
           {/* Chapter Summary White Widget */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="px-3 py-1 rounded-full bg-[#C5A059]/15 text-[#9A7732] text-xs font-bold">
                 {currentChapter.categoryLabel}
@@ -426,7 +426,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
               {currentChapter.title}
             </h3>
             <p className="text-xs font-bold text-[#C5A059] mb-3">{currentChapter.subtitle}</p>
-            <p className="text-sm text-gray-700 leading-loose bg-[#F7F6F2] p-3.5 rounded-xl border border-gray-100">
+            <p className="moazen-widget text-sm text-gray-700 leading-loose p-3.5 rounded-xl border border-gray-100">
               {currentChapter.summary}
             </p>
           </div>
@@ -434,12 +434,12 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
           {/* Detailed Steps White Widgets */}
           <div className="space-y-3">
             {currentChapter.steps.map((step, idx) => (
-              <div key={idx} className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+              <div key={idx} className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   <h4 className="font-bold text-base text-[#172A28] font-cairo">{step.title}</h4>
                   <button
                     onClick={() => handleCopy(`${step.title}\n${step.detail}\n${step.dua || ''}`, `${currentChapter.id}-${idx}`)}
-                    className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+                    className="moazen-widget p-2 rounded-xl text-gray-600 transition-colors cursor-pointer"
                     title="نسخ"
                   >
                     {copiedId === `${currentChapter.id}-${idx}` ? (
@@ -451,7 +451,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
                 </div>
                 <p className="text-sm text-gray-700 leading-loose whitespace-pre-line">{step.detail}</p>
                 {step.dua && (
-                  <div className="mt-3 p-3.5 rounded-xl bg-[#F7F6F2] border border-[#C5A059]/30">
+                  <div className="moazen-widget mt-3 p-3.5 rounded-xl border border-[#C5A059]/30">
                     <span className="block text-[11px] font-bold text-[#9A7732] mb-1">الذكر والدعاء المأثور:</span>
                     <p className="font-amiri text-base font-bold text-[#172A28] leading-loose">{step.dua}</p>
                   </div>
@@ -461,7 +461,7 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
           </div>
 
           {/* Important Fiqh Rulings White Widget */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
               <h4 className="font-bold text-sm text-[#172A28]">أحكام وضوابط فقهية مهمة</h4>
@@ -477,11 +477,11 @@ export function HajjModal({ isOpen, onClose }: HajjModalProps) {
           </div>
 
           {/* Chapter Navigation */}
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3">
             <button
               onClick={() => prevChapter && setSelectedChapterId(prevChapter.id)}
               disabled={!prevChapter}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
+              className="moazen-widget flex-1 py-2.5 px-3 rounded-xl disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
             >
               السابق: {prevChapter ? prevChapter.categoryLabel : 'البداية'}
             </button>

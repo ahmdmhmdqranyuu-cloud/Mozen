@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 /**
  * Full-screen lock-screen Azan Alert Activity launched via fullScreenIntent on incoming Azan
@@ -61,10 +62,10 @@ class AzanAlertActivity : ComponentActivity() {
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(28.dp),
-                        colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
-                        border = BorderStroke(1.5.dp, GoldAccent),
+                    MoazenWidgetCard(
+                        cornerRadius = 28.dp,
+                        borderColor = MoazenGold,
+                        borderWidth = 1.5.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -78,27 +79,27 @@ class AzanAlertActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .size(76.dp)
                                     .clip(CircleShape)
-                                    .background(EmeraldSurfaceLight),
+                                    .background(MoazenInkEmerald.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Mosque,
                                     contentDescription = null,
-                                    tint = GoldAccent,
+                                    tint = MoazenInkEmerald,
                                     modifier = Modifier.size(42.dp)
                                 )
                             }
 
                             Text(
                                 text = "تطبيق المؤذن",
-                                color = GoldLight,
+                                color = MoazenGoldDark,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
 
                             Text(
                                 text = title,
-                                color = TextPrimary,
+                                color = MoazenInkPrimary,
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
@@ -106,7 +107,7 @@ class AzanAlertActivity : ComponentActivity() {
 
                             Text(
                                 text = body,
-                                color = TextSecondary,
+                                color = MoazenInkMuted,
                                 fontSize = 15.sp,
                                 lineHeight = 22.sp,
                                 textAlign = TextAlign.Center
@@ -115,9 +116,9 @@ class AzanAlertActivity : ComponentActivity() {
                             if (cityName.isNotEmpty()) {
                                 Text(
                                     text = "حسب التوقيت المحلي لمدينة $cityName",
-                                    color = GoldAccent,
+                                    color = MoazenInkEmerald,
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
 
@@ -131,7 +132,7 @@ class AzanAlertActivity : ComponentActivity() {
                                     startService(stopIntent)
                                     finish()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -140,13 +141,13 @@ class AzanAlertActivity : ComponentActivity() {
                                 Icon(
                                     imageVector = Icons.Default.NotificationsOff,
                                     contentDescription = null,
-                                    tint = EmeraldDeep,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "إيقاف الأذان وإغلاق التنبيه",
-                                    color = EmeraldDeep,
+                                    color = Color.White,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -160,7 +161,7 @@ class AzanAlertActivity : ComponentActivity() {
                                     startActivity(mainIntent)
                                     finish()
                                 },
-                                border = BorderStroke(1.dp, CardBorder),
+                                border = BorderStroke(1.dp, MoazenCardBorder),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -169,14 +170,15 @@ class AzanAlertActivity : ComponentActivity() {
                                 Icon(
                                     imageVector = Icons.Default.OpenInNew,
                                     contentDescription = null,
-                                    tint = TextPrimary,
+                                    tint = MoazenInkEmerald,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "فتح تطبيق المؤذن",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp
+                                    color = MoazenInkEmerald,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }

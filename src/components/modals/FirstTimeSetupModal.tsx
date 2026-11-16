@@ -31,7 +31,10 @@ import {
 import {
   searchWorldCities,
   getWorldCountries,
+  getWorldRegionsForCountry,
+  searchGlobalLocationsOnline,
   savePersistentLocation,
+  WorldCity,
 } from '../../data/worldCitiesData';
 import { EGYPT_GOVERNORATES_DATA } from '../../data/egyptLocationsData';
 import { soundService } from '../../utils/audioPlayer';
@@ -119,13 +122,20 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
   const t = getTranslation(selectedLang);
   const dir = getLanguageDirection(selectedLang);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [selectedState, setSelectedState] = useState<string>('');
   const [citySearch, setCitySearch] = useState('');
+  const [onlineResults, setOnlineResults] = useState<WorldCity[]>([]);
+  const [onlineSearching, setOnlineSearching] = useState(false);
   const [detectingGps, setDetectingGps] = useState(false);
 
-  const worldCountries = useMemo(() => getWorldCountries(), []);
+  const worldCountries = useMemo(() => getWorldCountries(), [onlineResults]);
+  const worldRegions = useMemo(
+    () => (selectedCountry ? getWorldRegionsForCountry(selectedCountry) : []),
+    [selectedCountry, onlineResults]
+  );
   const filteredCities = useMemo(
-    () => searchWorldCities(citySearch, selectedCountry || undefined),
-    [citySearch, selectedCountry]
+    () => searchWorldCities(citySearch, selectedCountry || undefined, selectedState || undefined),
+    [citySearch, selectedCountry, selectedState, onlineResults]
   );
 
   const selectedEgyptGov = useMemo(
@@ -218,6 +228,20 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
     onUpdateCity?.(city);
     setStatusMessage(`تم اختيار وحفظ الموقع يدوياً: ${city.name} (${city.country}) ✓`);
     setTimeout(() => setStatusMessage(null), 2800);
+  };
+
+  const handleOnlineSearch = async () => {
+    const q = citySearch.trim();
+    if (q.length < 2) return;
+    setOnlineSearching(true);
+    const code = worldCountries.find((c) => c.country === selectedCountry)?.countryCode;
+    const found = await searchGlobalLocationsOnline(q, code);
+    setOnlineSearching(false);
+    setOnlineResults(found);
+    if (found.length > 0) {
+      setStatusMessage(`✓ تم العثور على ${found.length} موقع عالمي وحفظها للاستخدام دون إنترنت`);
+      setTimeout(() => setStatusMessage(null), 2800);
+    }
   };
 
   const handleSelectAppLanguage = (lang: AppLanguage) => {
@@ -344,7 +368,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
     const wasSkipped = skippedPerms[config.permKey];
 
     return (
-      <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
+      <div className="moazen-widget rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-[#104B40] shrink-0" />
@@ -369,7 +393,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
         </div>
 
         {/* Pre-explanation of permission benefit before directing to phone settings */}
-        <div className="bg-[#FAF9F5] rounded-xl p-3 border border-gray-200/60 text-xs text-gray-700 leading-relaxed">
+        <div className="moazen-widget rounded-xl p-3 border border-gray-200/60 text-xs text-gray-700 leading-relaxed">
           <strong className="text-[#104B40] block mb-0.5">{t.setupBenefitWhy}</strong>
           {config.benefitExplanation}
         </div>
@@ -463,7 +487,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
             <button
               type="button"
               onClick={handleSkipStep}
-              className="text-xs text-[#172A28] bg-[#F7F6F2] hover:bg-gray-200 px-3.5 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer font-bold shrink-0"
+              className="moazen-widget text-xs text-[#172A28] px-3.5 py-2 rounded-xl border border-gray-200 transition-all cursor-pointer font-bold shrink-0"
             >
               {t.setupSkip}
             </button>
@@ -533,7 +557,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
           {currentStep === 1 && (
             <div className="space-y-3.5">
               {/* 1. Button that opens App Language selection on click */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#9A7732] flex items-center justify-center">
@@ -590,7 +614,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
               </div>
 
               {/* 2. Current Location Summary + Button that opens Manual Location Picker */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#104B40] flex items-center justify-center">
@@ -668,10 +692,10 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                           value={egyptSearchQuery}
                           onChange={(e) => setEgyptSearchQuery(e.target.value)}
                           placeholder="ابحث عن محافظتك أو مدينتك أو مركزك أو قريتك..."
-                          className="w-full p-2.5 text-xs bg-[#FAF9F5] border border-gray-200 rounded-xl"
+                          className="moazen-widget w-full p-2.5 text-xs border border-gray-200 rounded-xl"
                         />
 
-                        <div className="max-h-48 overflow-y-auto space-y-1 bg-[#FAF9F5] p-1.5 rounded-xl border border-gray-200">
+                        <div className="moazen-widget max-h-48 overflow-y-auto space-y-1 p-1.5 rounded-xl border border-gray-200">
                           {filteredEgyptLocations.map((loc) => (
                             <button
                               key={loc.id}
@@ -704,43 +728,88 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <select
-                          value={selectedCountry}
-                          onChange={(e) => setSelectedCountry(e.target.value)}
-                          className="w-full p-2.5 text-xs bg-[#FAF9F5] border border-gray-200 rounded-xl font-bold text-[#172A28]"
-                        >
-                          <option value="">🌍 جميع دول العالم ({worldCountries.length} دولة)</option>
-                          {worldCountries.map((c) => (
-                            <option key={c.country} value={c.country}>
-                              [{c.countryCode}] {c.country} ({c.countryEn})
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select
+                            value={selectedCountry}
+                            onChange={(e) => {
+                              setSelectedCountry(e.target.value);
+                              setSelectedState('');
+                            }}
+                            className="moazen-widget w-full p-2.5 text-xs border border-gray-200 rounded-xl font-bold text-[#172A28]"
+                          >
+                            <option value="">🌍 جميع دول العالم ({worldCountries.length} دولة)</option>
+                            {worldCountries.map((c) => (
+                              <option key={`${c.countryCode}_${c.country}`} value={c.country}>
+                                [{c.countryCode}] {c.country} ({c.countryEn})
+                              </option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={selectedState}
+                            onChange={(e) => setSelectedState(e.target.value)}
+                            disabled={!selectedCountry || worldRegions.length === 0}
+                            className="w-full p-2.5 text-xs bg-[#FAF9F5] border border-gray-200 rounded-xl font-bold text-[#172A28] disabled:opacity-50"
+                          >
+                            <option value="">
+                              {selectedCountry
+                                ? `📍 كافة المناطق/المحافظات (${worldRegions.length})`
+                                : 'اختر الدولة أولاً'}
                             </option>
-                          ))}
-                        </select>
+                            {worldRegions.map((reg) => (
+                              <option key={reg.state} value={reg.state}>
+                                {reg.state} ({reg.cityCount})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                        <input
-                          type="text"
-                          value={citySearch}
-                          onChange={(e) => setCitySearch(e.target.value)}
-                          placeholder="ابحث عن المدينة أو الدولة (مكة، الرياض، القاهرة، دبي)..."
-                          className="w-full p-2.5 text-xs bg-[#FAF9F5] border border-gray-200 rounded-xl"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={citySearch}
+                            onChange={(e) => setCitySearch(e.target.value)}
+                            placeholder="ابحث عن المدينة أو الدولة أو الحي (مكة، الرياض، القاهرة، دبي)..."
+                            className="moazen-widget flex-1 p-2.5 text-xs border border-gray-200 rounded-xl"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleOnlineSearch}
+                            disabled={onlineSearching || citySearch.trim().length < 2}
+                            className="px-3 py-2 rounded-xl bg-[#104B40] text-white text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${onlineSearching ? 'animate-spin' : ''}`} />
+                            <span>أونلاين</span>
+                          </button>
+                        </div>
 
-                        <div className="max-h-48 overflow-y-auto space-y-1 bg-[#FAF9F5] p-1.5 rounded-xl border border-gray-200">
-                          {filteredCities.slice(0, 80).map((city) => (
-                            <button
-                              key={city.id}
-                              type="button"
-                              onClick={() => handleSelectManualCity(city)}
-                              className={`w-full text-right p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer ${
-                                selectedCity.id === city.id
-                                  ? 'bg-[#104B40] text-white font-bold'
-                                  : 'hover:bg-white text-gray-800'
-                              }`}
-                            >
-                              <span>{city.name}</span>
-                              <span className="text-[10px] opacity-80">{city.country}</span>
-                            </button>
-                          ))}
+                        <div className="moazen-widget max-h-48 overflow-y-auto space-y-1 p-1.5 rounded-xl border border-gray-200">
+                          {(onlineResults.length > 0 && citySearch.trim()
+                            ? [
+                                ...onlineResults,
+                                ...filteredCities.filter((fc) => !onlineResults.some((or) => or.id === fc.id)),
+                              ]
+                            : filteredCities
+                          )
+                            .slice(0, 100)
+                            .map((city) => (
+                              <button
+                                key={city.id}
+                                type="button"
+                                onClick={() => handleSelectManualCity(city)}
+                                className={`w-full text-right p-2 rounded-lg text-xs flex items-center justify-between cursor-pointer ${
+                                  selectedCity.id === city.id
+                                    ? 'bg-[#104B40] text-white font-bold'
+                                    : 'hover:bg-white text-gray-800'
+                                }`}
+                              >
+                                <span className="truncate">
+                                  {city.name}
+                                  {city.state ? ` • ${city.state}` : ''}
+                                </span>
+                                <span className="text-[10px] opacity-80 shrink-0 mr-2">{city.country}</span>
+                              </button>
+                            ))}
                         </div>
                       </div>
                     )}
@@ -805,7 +874,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                 </div>
 
                 {showPrivacyDetails && (
-                  <div className="bg-[#FAF9F5] p-3 rounded-xl border border-gray-200 text-[11px] text-gray-700 leading-relaxed space-y-1">
+                  <div className="moazen-widget p-3 rounded-xl border border-gray-200 text-[11px] text-gray-700 leading-relaxed space-y-1">
                     <p>
                       {selectedLang === 'ar'
                         ? '• يعمل التطبيق بنظام Offline-First وجميع الحسابات الفلكية تتم داخل هاتفك.'
@@ -840,7 +909,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
           {currentStep === 2 && (
             <div className="space-y-3.5">
               {/* 1. Alerts for Fajr, Sunrise, Duha, Dhuhr, Asr, Maghrib, Isha */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <BellRing className="w-5 h-5 text-[#104B40]" />
@@ -903,12 +972,12 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
               </div>
 
               {/* 2. Enable / Disable Azan Notifications & Qiyam al-Layl */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <h3 className="text-xs sm:text-sm font-black text-[#172A28] border-b border-gray-100 pb-2">
                   إشعارات الأذان وتنبيه قيام الليل
                 </h3>
 
-                <label className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between cursor-pointer">
+                <label className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between cursor-pointer">
                   <div className="flex items-center gap-2.5">
                     <Volume2 className="w-4 h-4 text-[#104B40]" />
                     <div>
@@ -934,7 +1003,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                   />
                 </label>
 
-                <div className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 space-y-2.5">
+                <div className="moazen-widget p-3 rounded-xl border border-gray-200 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <Moon className="w-4 h-4 text-[#9A7732]" />
@@ -997,13 +1066,13 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
           ========================================================= */}
           {currentStep === 3 && (
             <div className="space-y-3.5">
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <h3 className="text-xs sm:text-sm font-black text-[#172A28] border-b border-gray-100 pb-2">
                   {selectedLang === 'ar' ? 'إعدادات التحكم بالأذان وشاشة الأذان التفاعلية' : 'Azan Controls & Interactive Display'}
                 </h3>
 
                 {/* 1. Stop Azan using Volume Down button */}
-                <label className="p-3.5 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
+                <label className="moazen-widget p-3.5 rounded-xl border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
                   <div className="flex items-start gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#104B40] flex items-center justify-center shrink-0">
                       <Volume2 className="w-4 h-4" />
@@ -1032,7 +1101,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                 </label>
 
                 {/* 2. Interactive Azan Screen in Landscape / Horizontal Mode */}
-                <label className="p-3.5 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
+                <label className="moazen-widget p-3.5 rounded-xl border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
                   <div className="flex items-start gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-amber-50 text-[#9A7732] flex items-center justify-center shrink-0">
                       <Smartphone className="w-4 h-4 rotate-90" />
@@ -1078,12 +1147,12 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
           {currentStep === 4 && (
             <div className="space-y-3.5">
               {/* 1. Persistent Notification toggle */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <h3 className="text-xs sm:text-sm font-black text-[#172A28] border-b border-gray-100 pb-2">
                   {selectedLang === 'ar' ? 'الإشعار الدائم واستمرارية العمل في الخلفية' : 'Persistent Notification & Background Operation'}
                 </h3>
 
-                <label className="p-3.5 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
+                <label className="moazen-widget p-3.5 rounded-xl border border-gray-200 flex items-center justify-between gap-3 cursor-pointer">
                   <div className="flex items-start gap-2.5">
                     <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#104B40] flex items-center justify-center shrink-0">
                       <Layers className="w-4 h-4" />
@@ -1137,7 +1206,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
           {currentStep === 5 && (
             <div className="space-y-3.5">
               {/* Feature Explanation & 4 Independent Control Switches */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
+              <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3">
                 <div className="flex items-start gap-2.5 border-b border-gray-100 pb-3">
                   <div className="w-10 h-10 rounded-2xl bg-[#104B40] text-[#C5A059] flex items-center justify-center shrink-0">
                     <Sparkles className="w-5 h-5" />
@@ -1154,7 +1223,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
 
                 {/* 4 Independent Switches (Requirement 6) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
+                  <label className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
                     <div>
                       <span className="text-xs font-black text-[#172A28] block">
                         {t.setupFloatingAzanHeading}
@@ -1178,7 +1247,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                     />
                   </label>
 
-                  <label className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
+                  <label className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
                     <div>
                       <span className="text-xs font-black text-[#172A28] block">
                         {t.setupLockScreenHeading}
@@ -1201,7 +1270,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                     />
                   </label>
 
-                  <label className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
+                  <label className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
                     <div>
                       <span className="text-xs font-black text-[#172A28] block">
                         {t.setupWakeScreenHeading}
@@ -1224,7 +1293,7 @@ export const FirstTimeSetupModal: React.FC<FirstTimeSetupModalProps> = ({
                     />
                   </label>
 
-                  <label className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
+                  <label className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-2 cursor-pointer">
                     <div>
                       <span className="text-xs font-black text-[#172A28] block">
                         {selectedLang === 'ar' ? 'تشغيل صوت الأذان' : 'Enable Azan Audio'}

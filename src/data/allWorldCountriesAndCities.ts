@@ -8,6 +8,9 @@ export interface CountryDefinition {
     id: string;
     nameAr: string;
     nameEn: string;
+    stateAr?: string;
+    stateEn?: string;
+    districtAr?: string;
     latitude: number;
     longitude: number;
     timezone: string;
@@ -1676,6 +1679,579 @@ export const ALL_WORLD_COUNTRIES_DATA: CountryDefinition[] = [
     recommendedMethod: 'mwl',
     cities: [
       { id: 'fj_suva', nameAr: 'سوفا', nameEn: 'Suva', latitude: -18.1416, longitude: 178.4419, timezone: 'Pacific/Fiji' },
+    ],
+  },
+  // ================= باقي دول العالم والأقاليم (Full Global Coverage) =================
+  {
+    code: 'NA',
+    nameAr: 'ناميبيا',
+    nameEn: 'Namibia',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'na_windhoek', nameAr: 'ويندهوك', nameEn: 'Windhoek', stateAr: 'خوماس', stateEn: 'Khomas', latitude: -22.5609, longitude: 17.0658, timezone: 'Africa/Windhoek' },
+    ],
+  },
+  {
+    code: 'BW',
+    nameAr: 'بوتسوانا',
+    nameEn: 'Botswana',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'bw_gaborone', nameAr: 'غابورون', nameEn: 'Gaborone', stateAr: 'الجنوب الشرقي', stateEn: 'South-East', latitude: -24.6282, longitude: 25.9231, timezone: 'Africa/Gaborone' },
+    ],
+  },
+  {
+    code: 'LS',
+    nameAr: 'ليسوتو',
+    nameEn: 'Lesotho',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'ls_maseru', nameAr: 'ماسيرو', nameEn: 'Maseru', stateAr: 'ماسيرو', stateEn: 'Maseru', latitude: -29.3167, longitude: 27.4833, timezone: 'Africa/Maseru' },
+    ],
+  },
+  {
+    code: 'SZ',
+    nameAr: 'إسواتيني',
+    nameEn: 'Eswatini',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'sz_mbabane', nameAr: 'مبابان', nameEn: 'Mbabane', stateAr: 'هوهو', stateEn: 'Hhohho', latitude: -26.3054, longitude: 31.1367, timezone: 'Africa/Mbabane' },
+    ],
+  },
+  {
+    code: 'CF',
+    nameAr: 'أفريقيا الوسطى',
+    nameEn: 'Central African Republic',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'cf_bangui', nameAr: 'بانغي', nameEn: 'Bangui', stateAr: 'بانغي', stateEn: 'Bangui', latitude: 4.3947, longitude: 18.5582, timezone: 'Africa/Bangui' },
+    ],
+  },
+  {
+    code: 'GQ',
+    nameAr: 'غينيا الاستوائية',
+    nameEn: 'Equatorial Guinea',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'gq_malabo', nameAr: 'مالابو', nameEn: 'Malabo', stateAr: 'بيوكو الشمالية', stateEn: 'Bioko Norte', latitude: 3.7504, longitude: 8.7371, timezone: 'Africa/Malabo' },
+    ],
+  },
+  {
+    code: 'GW',
+    nameAr: 'غينيا بيساو',
+    nameEn: 'Guinea-Bissau',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'gw_bissau', nameAr: 'بيساو', nameEn: 'Bissau', stateAr: 'بيساو', stateEn: 'Bissau', latitude: 11.8817, longitude: -15.6178, timezone: 'Africa/Bissau' },
+    ],
+  },
+  {
+    code: 'CV',
+    nameAr: 'الرأس الأخضر',
+    nameEn: 'Cabo Verde',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'cv_praia', nameAr: 'برايا', nameEn: 'Praia', stateAr: 'سانتياغو', stateEn: 'Santiago', latitude: 14.933, longitude: -23.5133, timezone: 'Atlantic/Cape_Verde' },
+    ],
+  },
+  {
+    code: 'ST',
+    nameAr: 'ساو تومي وبرينسيب',
+    nameEn: 'Sao Tome and Principe',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'st_saotome', nameAr: 'ساو تومي', nameEn: 'Sao Tome', stateAr: 'أغوا غراندي', stateEn: 'Agua Grande', latitude: 0.3365, longitude: 6.7273, timezone: 'Africa/Sao_Tome' },
+    ],
+  },
+  {
+    code: 'SC',
+    nameAr: 'سيشل',
+    nameEn: 'Seychelles',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'sc_victoria', nameAr: 'فيكتوريا', nameEn: 'Victoria', stateAr: 'ماهيه', stateEn: 'Mahe', latitude: -4.6191, longitude: 55.4513, timezone: 'Indian/Mahe' },
+    ],
+  },
+  {
+    code: 'RE',
+    nameAr: 'لا ريونيون',
+    nameEn: 'Reunion',
+    continentAr: 'أفريقيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 're_saintdenis', nameAr: 'سان دوني', nameEn: 'Saint-Denis', latitude: -20.882, longitude: 55.4507, timezone: 'Indian/Reunion' },
+    ],
+  },
+  {
+    code: 'TW',
+    nameAr: 'تايوان',
+    nameEn: 'Taiwan',
+    continentAr: 'آسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'tw_taipei', nameAr: 'تايبيه', nameEn: 'Taipei', stateAr: 'تايبيه', stateEn: 'Taipei', latitude: 25.033, longitude: 121.5654, timezone: 'Asia/Taipei' },
+      { id: 'tw_kaohsiung', nameAr: 'كاوشيونغ', nameEn: 'Kaohsiung', stateAr: 'كاوشيونغ', stateEn: 'Kaohsiung', latitude: 22.6273, longitude: 120.3014, timezone: 'Asia/Taipei' },
+    ],
+  },
+  {
+    code: 'HK',
+    nameAr: 'هونغ كونغ',
+    nameEn: 'Hong Kong',
+    continentAr: 'آسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'hk_hongkong', nameAr: 'هونغ كونغ', nameEn: 'Hong Kong', latitude: 22.3193, longitude: 114.1694, timezone: 'Asia/Hong_Kong' },
+    ],
+  },
+  {
+    code: 'MO',
+    nameAr: 'ماكاو',
+    nameEn: 'Macau',
+    continentAr: 'آسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'mo_macau', nameAr: 'ماكاو', nameEn: 'Macau', latitude: 22.1987, longitude: 113.5439, timezone: 'Asia/Macau' },
+    ],
+  },
+  {
+    code: 'BT',
+    nameAr: 'بوتان',
+    nameEn: 'Bhutan',
+    continentAr: 'آسيا',
+    recommendedMethod: 'karachi',
+    cities: [
+      { id: 'bt_thimphu', nameAr: 'تيمفو', nameEn: 'Thimphu', stateAr: 'تيمفو', stateEn: 'Thimphu', latitude: 27.4728, longitude: 89.639, timezone: 'Asia/Thimphu' },
+    ],
+  },
+  {
+    code: 'TL',
+    nameAr: 'تيمور الشرقية',
+    nameEn: 'Timor-Leste',
+    continentAr: 'آسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'tl_dili', nameAr: 'ديلي', nameEn: 'Dili', stateAr: 'ديلي', stateEn: 'Dili', latitude: -8.5569, longitude: 125.5603, timezone: 'Asia/Dili' },
+    ],
+  },
+  {
+    code: 'KP',
+    nameAr: 'كوريا الشمالية',
+    nameEn: 'North Korea',
+    continentAr: 'آسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'kp_pyongyang', nameAr: 'بيونغ يانغ', nameEn: 'Pyongyang', latitude: 39.0392, longitude: 125.7625, timezone: 'Asia/Pyongyang' },
+    ],
+  },
+  {
+    code: 'AD',
+    nameAr: 'أندورا',
+    nameEn: 'Andorra',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'ad_andorra', nameAr: 'أندورا لا فيلا', nameEn: 'Andorra la Vella', latitude: 42.5063, longitude: 1.5218, timezone: 'Europe/Andorra' },
+    ],
+  },
+  {
+    code: 'LI',
+    nameAr: 'ليختنشتاين',
+    nameEn: 'Liechtenstein',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'li_vaduz', nameAr: 'فادوز', nameEn: 'Vaduz', latitude: 47.141, longitude: 9.5209, timezone: 'Europe/Vaduz' },
+    ],
+  },
+  {
+    code: 'MC',
+    nameAr: 'موناكو',
+    nameEn: 'Monaco',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'mc_monaco', nameAr: 'موناكو', nameEn: 'Monaco', latitude: 43.7384, longitude: 7.4246, timezone: 'Europe/Monaco' },
+    ],
+  },
+  {
+    code: 'SM',
+    nameAr: 'سان مارينو',
+    nameEn: 'San Marino',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'sm_sanmarino', nameAr: 'سان مارينو', nameEn: 'San Marino', latitude: 43.9424, longitude: 12.4578, timezone: 'Europe/San_Marino' },
+    ],
+  },
+  {
+    code: 'VA',
+    nameAr: 'الفاتيكان',
+    nameEn: 'Vatican City',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'va_vatican', nameAr: 'مدينة الفاتيكان', nameEn: 'Vatican City', latitude: 41.9029, longitude: 12.4534, timezone: 'Europe/Vatican' },
+    ],
+  },
+  {
+    code: 'FO',
+    nameAr: 'جزر فارو',
+    nameEn: 'Faroe Islands',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'fo_torshavn', nameAr: 'تورشافن', nameEn: 'Torshavn', latitude: 62.0079, longitude: -6.7909, timezone: 'Atlantic/Faroe' },
+    ],
+  },
+  {
+    code: 'GI',
+    nameAr: 'جبل طارق',
+    nameEn: 'Gibraltar',
+    continentAr: 'أوروبا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'gi_gibraltar', nameAr: 'جبل طارق', nameEn: 'Gibraltar', latitude: 36.1408, longitude: -5.3536, timezone: 'Europe/Gibraltar' },
+    ],
+  },
+  {
+    code: 'GT',
+    nameAr: 'غواتيمالا',
+    nameEn: 'Guatemala',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'gt_guatemala', nameAr: 'مدينة غواتيمالا', nameEn: 'Guatemala City', latitude: 14.6349, longitude: -90.5069, timezone: 'America/Guatemala' },
+    ],
+  },
+  {
+    code: 'HN',
+    nameAr: 'هندوراس',
+    nameEn: 'Honduras',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'hn_tegucigalpa', nameAr: 'تيغوسيغالبا', nameEn: 'Tegucigalpa', latitude: 14.0723, longitude: -87.1921, timezone: 'America/Tegucigalpa' },
+    ],
+  },
+  {
+    code: 'SV',
+    nameAr: 'السلفادور',
+    nameEn: 'El Salvador',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'sv_sansalvador', nameAr: 'سان سلفادور', nameEn: 'San Salvador', latitude: 13.6929, longitude: -89.2182, timezone: 'America/El_Salvador' },
+    ],
+  },
+  {
+    code: 'NI',
+    nameAr: 'نيكاراغوا',
+    nameEn: 'Nicaragua',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'ni_managua', nameAr: 'ماناغوا', nameEn: 'Managua', latitude: 12.1149, longitude: -86.2362, timezone: 'America/Managua' },
+    ],
+  },
+  {
+    code: 'BZ',
+    nameAr: 'بليز',
+    nameEn: 'Belize',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'bz_belmopan', nameAr: 'بلموبان', nameEn: 'Belmopan', latitude: 17.251, longitude: -88.759, timezone: 'America/Belize' },
+    ],
+  },
+  {
+    code: 'JM',
+    nameAr: 'جامايكا',
+    nameEn: 'Jamaica',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'jm_kingston', nameAr: 'كينغستون', nameEn: 'Kingston', latitude: 18.0179, longitude: -76.8099, timezone: 'America/Jamaica' },
+    ],
+  },
+  {
+    code: 'DO',
+    nameAr: 'جمهورية الدومينيكان',
+    nameEn: 'Dominican Republic',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'do_santodomingo', nameAr: 'سانتو دومينغو', nameEn: 'Santo Domingo', latitude: 18.4861, longitude: -69.9312, timezone: 'America/Santo_Domingo' },
+    ],
+  },
+  {
+    code: 'HT',
+    nameAr: 'هايتي',
+    nameEn: 'Haiti',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'ht_portauprince', nameAr: 'بورت أو برنس', nameEn: 'Port-au-Prince', latitude: 18.5944, longitude: -72.3074, timezone: 'America/Port-au-Prince' },
+    ],
+  },
+  {
+    code: 'BS',
+    nameAr: 'الباهاماس',
+    nameEn: 'Bahamas',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'bs_nassau', nameAr: 'ناساو', nameEn: 'Nassau', latitude: 25.0479, longitude: -77.3554, timezone: 'America/Nassau' },
+    ],
+  },
+  {
+    code: 'BB',
+    nameAr: 'باربادوس',
+    nameEn: 'Barbados',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'bb_bridgetown', nameAr: 'بريدجتاون', nameEn: 'Bridgetown', latitude: 13.1132, longitude: -59.5988, timezone: 'America/Barbados' },
+    ],
+  },
+  {
+    code: 'TT',
+    nameAr: 'ترينيداد وتوباغو',
+    nameEn: 'Trinidad and Tobago',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'tt_portofspain', nameAr: 'بورت أوف سبين', nameEn: 'Port of Spain', latitude: 10.6549, longitude: -61.5019, timezone: 'America/Port_of_Spain' },
+    ],
+  },
+  {
+    code: 'PR',
+    nameAr: 'بورتوريكو',
+    nameEn: 'Puerto Rico',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'pr_sanjuan', nameAr: 'سان خوان', nameEn: 'San Juan', latitude: 18.4655, longitude: -66.1057, timezone: 'America/Puerto_Rico' },
+    ],
+  },
+  {
+    code: 'AG',
+    nameAr: 'أنتيغوا وباربودا',
+    nameEn: 'Antigua and Barbuda',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'ag_stjohns', nameAr: 'سانت جونز', nameEn: 'St. Johns', latitude: 17.1274, longitude: -61.8468, timezone: 'America/Antigua' },
+    ],
+  },
+  {
+    code: 'LC',
+    nameAr: 'سانت لوسيا',
+    nameEn: 'Saint Lucia',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'lc_castries', nameAr: 'كاستريس', nameEn: 'Castries', latitude: 14.0101, longitude: -60.9875, timezone: 'America/St_Lucia' },
+    ],
+  },
+  {
+    code: 'GD',
+    nameAr: 'غرينادا',
+    nameEn: 'Grenada',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'gd_stgeorges', nameAr: 'سانت جورجز', nameEn: 'St. Georges', latitude: 12.0561, longitude: -61.7488, timezone: 'America/Grenada' },
+    ],
+  },
+  {
+    code: 'VC',
+    nameAr: 'سانت فنسنت وجزر غرينادين',
+    nameEn: 'Saint Vincent and the Grenadines',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'vc_kingstown', nameAr: 'كينغستاون', nameEn: 'Kingstown', latitude: 13.1587, longitude: -61.2248, timezone: 'America/St_Vincent' },
+    ],
+  },
+  {
+    code: 'DM',
+    nameAr: 'دومينيكا',
+    nameEn: 'Dominica',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'dm_roseau', nameAr: 'روسو', nameEn: 'Roseau', latitude: 15.3092, longitude: -61.3794, timezone: 'America/Dominica' },
+    ],
+  },
+  {
+    code: 'KN',
+    nameAr: 'سانت كيتس ونيفيس',
+    nameEn: 'Saint Kitts and Nevis',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'isna',
+    cities: [
+      { id: 'kn_basseterre', nameAr: 'باستير', nameEn: 'Basseterre', latitude: 17.3026, longitude: -62.7177, timezone: 'America/St_Kitts' },
+    ],
+  },
+  {
+    code: 'GL',
+    nameAr: 'غرينلاند',
+    nameEn: 'Greenland',
+    continentAr: 'أمريكا الشمالية',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'gl_nuuk', nameAr: 'نوك', nameEn: 'Nuuk', latitude: 64.1814, longitude: -51.6941, timezone: 'America/Nuuk' },
+    ],
+  },
+  {
+    code: 'PG',
+    nameAr: 'بابوا غينيا الجديدة',
+    nameEn: 'Papua New Guinea',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'pg_portmoresby', nameAr: 'بورت مورسبي', nameEn: 'Port Moresby', latitude: -9.4438, longitude: 147.1803, timezone: 'Pacific/Port_Moresby' },
+    ],
+  },
+  {
+    code: 'SB',
+    nameAr: 'جزر سليمان',
+    nameEn: 'Solomon Islands',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'sb_honiara', nameAr: 'هونيارا', nameEn: 'Honiara', latitude: -9.4456, longitude: 159.9729, timezone: 'Pacific/Guadalcanal' },
+    ],
+  },
+  {
+    code: 'VU',
+    nameAr: 'فانواتو',
+    nameEn: 'Vanuatu',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'vu_portvila', nameAr: 'بورت فيلا', nameEn: 'Port Vila', latitude: -17.7333, longitude: 168.3273, timezone: 'Pacific/Efate' },
+    ],
+  },
+  {
+    code: 'WS',
+    nameAr: 'ساموا',
+    nameEn: 'Samoa',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'ws_apia', nameAr: 'أبيا', nameEn: 'Apia', latitude: -13.8507, longitude: -171.7514, timezone: 'Pacific/Apia' },
+    ],
+  },
+  {
+    code: 'TO',
+    nameAr: 'تونغا',
+    nameEn: 'Tonga',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'to_nukualofa', nameAr: 'نوكوألوفا', nameEn: 'Nukualofa', latitude: -21.1393, longitude: -175.2049, timezone: 'Pacific/Tongatapu' },
+    ],
+  },
+  {
+    code: 'PW',
+    nameAr: 'بالاو',
+    nameEn: 'Palau',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'pw_ngerulmud', nameAr: 'نغيرولمود', nameEn: 'Ngerulmud', latitude: 7.5004, longitude: 134.6243, timezone: 'Pacific/Palau' },
+    ],
+  },
+  {
+    code: 'FM',
+    nameAr: 'ميكرونيسيا',
+    nameEn: 'Micronesia',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'fm_palikir', nameAr: 'باليكير', nameEn: 'Palikir', latitude: 6.9147, longitude: 158.161, timezone: 'Pacific/Pohnpei' },
+    ],
+  },
+  {
+    code: 'MH',
+    nameAr: 'جزر مارشال',
+    nameEn: 'Marshall Islands',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'mh_majuro', nameAr: 'ماجورو', nameEn: 'Majuro', latitude: 7.1164, longitude: 171.1858, timezone: 'Pacific/Majuro' },
+    ],
+  },
+  {
+    code: 'KI',
+    nameAr: 'كيريباتي',
+    nameEn: 'Kiribati',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'ki_tarawa', nameAr: 'تاراوا', nameEn: 'Tarawa', latitude: 1.3291, longitude: 172.979, timezone: 'Pacific/Tarawa' },
+    ],
+  },
+  {
+    code: 'NR',
+    nameAr: 'ناورو',
+    nameEn: 'Nauru',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'nr_yaren', nameAr: 'يارين', nameEn: 'Yaren', latitude: -0.5477, longitude: 166.9209, timezone: 'Pacific/Nauru' },
+    ],
+  },
+  {
+    code: 'TV',
+    nameAr: 'توفالو',
+    nameEn: 'Tuvalu',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'tv_funafuti', nameAr: 'فونافوتي', nameEn: 'Funafuti', latitude: -8.5211, longitude: 179.1962, timezone: 'Pacific/Funafuti' },
+    ],
+  },
+  {
+    code: 'EH',
+    nameAr: 'الصحراء الغربية',
+    nameEn: 'Western Sahara',
+    continentAr: 'أفريقيا والعالم العربي',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'eh_laayoune', nameAr: 'العيون', nameEn: 'Laayoune', latitude: 27.1536, longitude: -13.2033, timezone: 'Africa/El_Aaiun' },
+      { id: 'eh_dakhla', nameAr: 'الداخلة', nameEn: 'Dakhla', latitude: 23.6848, longitude: -15.958, timezone: 'Africa/El_Aaiun' },
+    ],
+  },
+  {
+    code: 'NC',
+    nameAr: 'كاليدونيا الجديدة',
+    nameEn: 'New Caledonia',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'nc_noumea', nameAr: 'نوميا', nameEn: 'Noumea', latitude: -22.2758, longitude: 166.458, timezone: 'Pacific/Noumea' },
+    ],
+  },
+  {
+    code: 'PF',
+    nameAr: 'بولينيزيا الفرنسية',
+    nameEn: 'French Polynesia',
+    continentAr: 'أوقيانوسيا',
+    recommendedMethod: 'mwl',
+    cities: [
+      { id: 'pf_papeete', nameAr: 'بابيتي', nameEn: 'Papeete', latitude: -17.5516, longitude: -149.5585, timezone: 'Pacific/Tahiti' },
     ],
   },
 ];

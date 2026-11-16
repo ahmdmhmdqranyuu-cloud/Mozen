@@ -145,7 +145,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 onClick={() => setSelectedItem(null)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] font-bold text-xs transition-colors cursor-pointer shrink-0"
+                className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#104B40] font-bold text-xs transition-colors cursor-pointer shrink-0"
               >
                 <ArrowRight className="w-4 h-4" />
                 <span>العودة للفهرس</span>
@@ -171,7 +171,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
               </button>
               <button
                 onClick={() => handleShare(selectedItem)}
-                className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] transition-colors cursor-pointer"
+                className="moazen-widget p-2 rounded-xl text-[#172A28] transition-colors cursor-pointer"
                 title="مشاركة النص"
               >
                 <Share2 className="w-4 h-4" />
@@ -183,7 +183,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
         {/* Independent Detail Page Content */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-20 max-w-2xl mx-auto w-full">
           {/* Title & Summary White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="px-3 py-1 rounded-full bg-[#C5A059]/15 text-[#9A7732] text-xs font-bold">
                 {selectedItem.categoryLabel} • {selectedItem.eraOrTitle}
@@ -191,7 +191,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleCopy(selectedItem)}
-                  className="p-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+                  className="moazen-widget p-2 rounded-xl text-gray-700 transition-colors cursor-pointer"
                   title="نسخ"
                 >
                   {copiedId === selectedItem.id ? (
@@ -214,13 +214,13 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
               {selectedItem.title}
             </h3>
             <p className="text-xs font-bold text-[#C5A059] mb-3">{selectedItem.subtitle}</p>
-            <p className="text-sm text-gray-700 leading-loose bg-[#FAF9F5] p-3.5 rounded-xl border border-gray-100">
+            <p className="moazen-widget text-sm text-gray-700 leading-loose p-3.5 rounded-xl border border-gray-100">
               {selectedItem.summary}
             </p>
           </div>
 
           {/* Detailed Narrative White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <BookOpen className="w-4 h-4 text-[#C5A059]" />
               <h4 className="font-bold text-sm text-[#172A28]">التفاصيل والأحداث الكاملة</h4>
@@ -238,7 +238,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
           </div>
 
           {/* Key Stances White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <Sparkles className="w-4 h-4 text-[#C5A059]" />
               <h4 className="font-bold text-sm text-[#172A28]">مواقف خالدة ومآثر عظيمة</h4>
@@ -247,7 +247,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
               {selectedItem.keyStances.map((stance, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-xl bg-[#FAF9F5] border border-gray-100 text-sm text-gray-800 leading-relaxed"
+                  className="moazen-widget p-3 rounded-xl border border-gray-100 text-sm text-gray-800 leading-relaxed"
                 >
                   • {stance}
                 </div>
@@ -256,7 +256,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
           </div>
 
           {/* Lessons Learned White Card */}
-          <div className="bg-white rounded-2xl p-5 shadow-xs border border-gray-100">
+          <div className="moazen-widget rounded-2xl p-5 shadow-xs border border-gray-100">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
               <CheckCircle2 className="w-4 h-4 text-[#C5A059]" />
               <h4 className="font-bold text-sm text-[#172A28]">الدروس والعبر المستفادة</h4>
@@ -275,11 +275,11 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
           </div>
 
           {/* Next / Previous Navigation White Card */}
-          <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3">
+          <div className="moazen-widget rounded-2xl p-3.5 shadow-xs border border-gray-100 flex items-center justify-between gap-3">
             <button
               onClick={() => prevItem && setSelectedItem(prevItem)}
               disabled={!prevItem}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
+              className="moazen-widget flex-1 py-2.5 px-3 rounded-xl disabled:opacity-40 text-xs font-bold text-[#172A28] transition-colors text-right truncate cursor-pointer"
             >
               السابق: {prevItem ? prevItem.title : 'البداية'}
             </button>
@@ -336,7 +336,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث في السيرة، الغزوات، الزوجات، الأبناء والبنات، الأقارب..."
-              className="w-full bg-[#F7F6F2] border border-gray-200 rounded-xl py-2 pr-9 pl-8 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
+              className="moazen-widget w-full border border-gray-200 rounded-xl py-2 pr-9 pl-8 text-xs text-[#172A28] placeholder-gray-400 focus:outline-none focus:border-[#C5A059]"
             />
             {searchQuery && (
               <button
@@ -370,17 +370,17 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
       {/* Main Scrollable Vertical Index */}
       <div className="flex-1 overflow-y-auto p-3.5 space-y-3 pb-20 max-w-2xl mx-auto w-full">
         {/* Prominent Identification Card of the Prophet's Full Name & Lineage up to Adam (AS) */}
-        <div className="bg-gradient-to-br from-[#104B40] via-[#0B3D35] to-[#072923] rounded-2xl p-4 text-white shadow-md border border-[#C5A059]/40 relative overflow-hidden">
+        <div className="moazen-widget rounded-2xl p-4 shadow-md relative overflow-hidden">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#C5A059]/20 border border-[#C5A059]/50 flex items-center justify-center text-[#fde68a] shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-[#C5A059]/20 border border-[#C5A059]/50 flex items-center justify-center text-[#9A7732] shrink-0">
                 <Award className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] font-bold text-[#fde68a] block">
+                <span className="text-[10px] font-bold text-[#9A7732] block">
                   بطاقة تعريفية شاملة • سيد ولد آدم ﷺ
                 </span>
-                <h3 className="text-sm sm:text-base font-bold font-cairo text-white">
+                <h3 className="text-sm sm:text-base font-bold font-cairo text-[#104B40]">
                   اسم ونسب النبي محمد ﷺ الكامل إلى آدم عليه السلام
                 </h3>
               </div>
@@ -388,23 +388,23 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
 
             <button
               onClick={() => setSelectedItem(lineageItem)}
-              className="px-2.5 py-1.5 rounded-xl bg-[#C5A059] hover:bg-[#b58f47] text-emerald-950 font-black text-[11px] transition-colors shrink-0 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white font-black text-[11px] transition-colors shrink-0 cursor-pointer"
             >
               صفحة النسب الكاملة
             </button>
           </div>
 
-          <div className="bg-black/25 rounded-xl p-3 border border-white/10 text-right space-y-1.5">
-            <p className="text-xs sm:text-sm font-quran text-amber-100 leading-relaxed">
-              <strong className="text-[#fde68a]">من محمد ﷺ إلى عدنان:</strong> هُوَ أَبُو القَاسِمِ مُحَمَّدٌ ﷺ بنُ عَبْدِ اللهِ بنِ عَبْدِ المُطَّلِبِ بنِ هَاشِمٍ بنِ عَبْدِ مَنَافٍ بنِ قُصَيٍّ بنِ كِلَابِ بنِ مُرَّةَ بنِ كَعْبِ بنِ لُؤَيِّ بنِ غَالِبِ بنِ فِهْرٍ (قُرَيْش) بنِ مَالِكِ بنِ النَّضْرِ بنِ كِنَانَةَ بنِ خُزَيْمَةَ بنِ مُدْرِكَةَ بنِ إِلْيَاسَ بنِ مُضَرَ بنِ نِزَارِ بنِ مَعَدِّ بنِ عَدْنَانَ.
+          <div className="moazen-widget-sub rounded-xl p-3 text-right space-y-1.5">
+            <p className="text-xs sm:text-sm font-quran text-[#172A28] leading-relaxed">
+              <strong className="text-[#104B40]">من محمد ﷺ إلى عدنان:</strong> هُوَ أَبُو القَاسِمِ مُحَمَّدٌ ﷺ بنُ عَبْدِ اللهِ بنِ عَبْدِ المُطَّلِبِ بنِ هَاشِمٍ بنِ عَبْدِ مَنَافٍ بنِ قُصَيٍّ بنِ كِلَابِ بنِ مُرَّةَ بنِ كَعْبِ بنِ لُؤَيِّ بنِ غَالِبِ بنِ فِهْرٍ (قُرَيْش) بنِ مَالِكِ بنِ النَّضْرِ بنِ كِنَانَةَ بنِ خُزَيْمَةَ بنِ مُدْرِكَةَ بنِ إِلْيَاسَ بنِ مُضَرَ بنِ نِزَارِ بنِ مَعَدِّ بنِ عَدْنَانَ.
             </p>
             {showFullLineageOnIndex ? (
               <>
-                <p className="text-xs sm:text-sm font-quran text-emerald-100 leading-relaxed pt-1 border-t border-white/10">
-                  <strong className="text-[#fde68a]">من عدنان إلى إبراهيم الخليل:</strong> بنِ أُدَدَ بنِ الهَمَيْسَعِ بنِ سَلَامَانَ بنِ عَوْصِ بنِ بُوزِ بنِ قَمْوَالِ بنِ أُبَيِّ بنِ عَوَّامِ بنِ نَاشِدِ بنِ حَزَا بنِ بَلْدَاسِ بنِ يَدْلَافِ بنِ طَابِخِ بنِ جَاحِمِ بنِ نَاحِشِ بنِ مَاخِي بنِ عَيْفِي بنِ عَبْقَرِ بنِ عُبَيْدِ بنِ الدُّعَا بنِ حَمْدَانَ بنِ سَنْبَرِ بنِ يَثْرِبِي بنِ يَحْزُنَ بنِ يَلْحَنَ بنِ أَرْعَوَى بنِ عَيْضِ بنِ دَيْشَانَ بنِ عَيْصَرِ بنِ أَفْنَادِ بنِ أَيْهَامِ بنِ مُقْصِرِ بنِ نَاحِثِ بنِ زَارِحِ بنِ سُمَيِّ بنِ مُزِّي بنِ عَوْصَةَ بنِ عَرَامِ بنِ قَيْدَارَ بنِ إِسْمَاعِيلَ الذَّبِيحِ بنِ إِبْرَاهِيمَ خَلِيلِ الرَّحْمَنِ عليهما السلام.
+                <p className="text-xs sm:text-sm font-quran text-[#172A28] leading-relaxed pt-1 border-t border-emerald-950/10">
+                  <strong className="text-[#104B40]">من عدنان إلى إبراهيم الخليل:</strong> بنِ أُدَدَ بنِ الهَمَيْسَعِ بنِ سَلَامَانَ بنِ عَوْصِ بنِ بُوزِ بنِ قَمْوَالِ بنِ أُبَيِّ بنِ عَوَّامِ بنِ نَاشِدِ بنِ حَزَا بنِ بَلْدَاسِ بنِ يَدْلَافِ بنِ طَابِخِ بنِ جَاحِمِ بنِ نَاحِشِ بنِ مَاخِي بنِ عَيْفِي بنِ عَبْقَرِ بنِ عُبَيْدِ بنِ الدُّعَا بنِ حَمْدَانَ بنِ سَنْبَرِ بنِ يَثْرِبِي بنِ يَحْزُنَ بنِ يَلْحَنَ بنِ أَرْعَوَى بنِ عَيْضِ بنِ دَيْشَانَ بنِ عَيْصَرِ بنِ أَفْنَادِ بنِ أَيْهَامِ بنِ مُقْصِرِ بنِ نَاحِثِ بنِ زَارِحِ بنِ سُمَيِّ بنِ مُزِّي بنِ عَوْصَةَ بنِ عَرَامِ بنِ قَيْدَارَ بنِ إِسْمَاعِيلَ الذَّبِيحِ بنِ إِبْرَاهِيمَ خَلِيلِ الرَّحْمَنِ عليهما السلام.
                 </p>
-                <p className="text-xs sm:text-sm font-quran text-amber-100 leading-relaxed pt-1 border-t border-white/10">
-                  <strong className="text-[#fde68a]">من إبراهيم إلى آدم عليه السلام:</strong> بنِ تَارَحَ بنِ نَاحُورَ بنِ سَارُوغَ بنِ رَعُو بنِ فَالِغَ بنِ عَابِرَ بنِ شَالِخَ بنِ أَرْفَخْشَذَ بنِ سَامِ بنِ نُوحٍ بنِ لَامَكَ بنِ مَتُّوشَلَخَ بنِ أَخْنُوخَ (إِدْرِيسَ) بنِ يَرْدَ بنِ مَهْلَائِيلَ بنِ قَيْنَانَ بنِ أَنُوشَ بنِ شِيثَ بنِ آدَمَ أَبِي البَشَرِ عَلَيْهِ السَّلَامُ.
+                <p className="text-xs sm:text-sm font-quran text-[#172A28] leading-relaxed pt-1 border-t border-emerald-950/10">
+                  <strong className="text-[#104B40]">من إبراهيم إلى آدم عليه السلام:</strong> بنِ تَارَحَ بنِ نَاحُورَ بنِ سَارُوغَ بنِ رَعُو بنِ فَالِغَ بنِ عَابِرَ بنِ شَالِخَ بنِ أَرْفَخْشَذَ بنِ سَامِ بنِ نُوحٍ بنِ لَامَكَ بنِ مَتُّوشَلَخَ بنِ أَخْنُوخَ (إِدْرِيسَ) بنِ يَرْدَ بنِ مَهْلَائِيلَ بنِ قَيْنَانَ بنِ أَنُوشَ بنِ شِيثَ بنِ آدَمَ أَبِي البَشَرِ عَلَيْهِ السَّلَامُ.
                 </p>
               </>
             ) : null}
@@ -413,7 +413,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
           <div className="flex items-center justify-between gap-2 mt-2.5">
             <button
               onClick={() => setShowFullLineageOnIndex(!showFullLineageOnIndex)}
-              className="text-[11px] font-bold text-[#fde68a] hover:underline cursor-pointer"
+              className="text-[11px] font-bold text-[#104B40] hover:underline cursor-pointer"
             >
               {showFullLineageOnIndex
                 ? 'طي سلسلة النسب إلى آدم عليه السلام ▲'
@@ -421,7 +421,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
             </button>
             <button
               onClick={() => handleShareImage(lineageItem)}
-              className="flex items-center gap-1 text-[11px] font-bold bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1 text-[11px] font-bold bg-[#104B40]/10 hover:bg-[#104B40]/20 px-2.5 py-1 rounded-lg text-[#104B40] transition-colors cursor-pointer"
             >
               <ImageIcon className="w-3 h-3" />
               <span>مشاركة بطاقة النسب</span>
@@ -435,7 +435,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
             <button
               key={item.id}
               onClick={() => setSelectedItem(item)}
-              className="w-full text-right bg-white hover:bg-[#FAF9F5] rounded-2xl p-3.5 border border-gray-100 hover:border-[#C5A059]/60 shadow-2xs hover:shadow-md transition-all flex items-center justify-between gap-3 cursor-pointer group"
+              className="moazen-widget w-full text-right rounded-2xl p-3.5 border border-gray-100 hover:border-[#C5A059]/60 shadow-2xs hover:shadow-md transition-all flex items-center justify-between gap-3 cursor-pointer group"
             >
               <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className="w-8 h-8 rounded-xl bg-[#ebf5f1] text-[#104B40] group-hover:bg-[#104B40] group-hover:text-white text-xs font-black flex items-center justify-center shrink-0 mt-0.5 transition-colors">

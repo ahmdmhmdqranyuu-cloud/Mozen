@@ -342,7 +342,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-4 space-y-3">
           {/* Summary Card */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5 text-right">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5 text-right">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-[#104B40]">
                 المفعّل حالياً: {enabledCount} من {permissionsList.length}
@@ -359,7 +359,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
             </p>
 
             {/* Progressive Step-by-Step Permission Guide Bar */}
-            <div className="bg-[#FAF8F2] border border-[#C5A059]/35 rounded-xl p-3 space-y-2">
+            <div className="moazen-widget border border-[#C5A059]/35 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10.5px] font-black text-[#104B40]">
                   الخطوة التدريجية {Math.min(progressiveStepIdx + 1, permissionsList.length)} من{' '}
@@ -418,7 +418,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
                       setProgressiveStepIdx((s) => s + 1);
                     }
                   }}
-                  className="py-2 px-3 rounded-xl bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold cursor-pointer"
+                  className="moazen-widget py-2 px-3 rounded-xl text-gray-700 border border-gray-200 text-xs font-bold cursor-pointer"
                 >
                   تخطي
                 </button>
@@ -442,7 +442,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
             return (
               <div
                 key={perm.id}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3 text-right transition-all"
+                className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-3 text-right transition-all"
               >
                 {/* Header Row: Title, Icon & Current Status Badge */}
                 <div className="flex items-start justify-between gap-2">
@@ -513,7 +513,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
                           setSkippedMap((prev) => ({ ...prev, [perm.id]: true }));
                           setActiveExplanationId(null);
                         }}
-                        className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold py-2.5 px-3.5 rounded-xl cursor-pointer"
+                        className="moazen-widget text-gray-700 border border-gray-200 text-xs font-bold py-2.5 px-3.5 rounded-xl cursor-pointer"
                       >
                         تخطي
                       </button>
@@ -566,7 +566,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
           })}
 
           {/* Bottom Save & Return Button */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5">
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5">
             <button
               type="button"
               onClick={handleFinishOrSkip}

@@ -61,7 +61,7 @@ export const TimeSliderPicker: React.FC<TimeSliderPickerProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-3" dir="rtl">
+    <div className="moazen-widget rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs space-y-3" dir="rtl">
       {/* Header with Title and Current Selected Time Badge */}
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
         <div>

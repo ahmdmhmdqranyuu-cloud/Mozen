@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 data class SeerahItem(
     val title: String,
@@ -89,9 +90,8 @@ fun SeerahScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(items, key = { it.title }) { item ->
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 16.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -102,13 +102,14 @@ fun SeerahScreen(
                         ) {
                             Text(
                                 text = item.title,
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
                             )
                             Text(
                                 text = item.period,
-                                color = TextSecondary,
+                                color = MoazenInkMuted,
                                 fontSize = 11.sp
                             )
                         }
@@ -117,7 +118,7 @@ fun SeerahScreen(
 
                         Text(
                             text = item.summary,
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             textAlign = TextAlign.Right,
@@ -128,9 +129,10 @@ fun SeerahScreen(
 
                         Text(
                             text = "الدروس والعبر: ${item.lessons}",
-                            color = GoldLight,
+                            color = MoazenGoldDark,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Right,
                             modifier = Modifier.fillMaxWidth()
                         )

@@ -421,24 +421,24 @@ export const SmartAzanIqamaWidget: React.FC<SmartAzanIqamaWidgetProps> = ({
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') onRestoreFullScreen();
         }}
-        className="fixed top-3 inset-x-3 max-w-md mx-auto z-[95] bg-gradient-to-r from-[#0B3D35] via-[#104B40] to-[#0B3D35] text-white p-3 rounded-2xl shadow-2xl border border-[#C5A059]/70 flex items-center justify-between gap-2.5 cursor-pointer select-none animate-fadeIn"
+        className="fixed top-3 inset-x-3 max-w-md mx-auto z-[95] moazen-widget text-[#172A28] p-3 rounded-2xl shadow-2xl border border-[#C5A059]/70 flex items-center justify-between gap-2.5 cursor-pointer select-none animate-fadeIn"
         dir="rtl"
         title="اضغط لإعادة فتح نافذة الأذان العائمة"
       >
         <div className="flex items-center gap-2.5">
-          <div className="relative w-10 h-10 rounded-full bg-amber-400/15 border border-amber-300/50 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5 text-amber-300 animate-pulse" />
+          <div className="relative w-10 h-10 rounded-full bg-[#104B40]/12 border border-[#104B40]/20 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-[#104B40] animate-pulse" />
           </div>
           <div className="text-right">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black font-quran text-amber-300">
+              <span className="text-xs font-black font-quran text-[#104B40]">
                 الله أكبر • صلاة {session.prayerName}
               </span>
-              <span className="text-[9.5px] bg-white/15 px-2 py-0.5 rounded-full font-bold text-emerald-100">
+              <span className="text-[9.5px] bg-[#104B40]/10 px-2 py-0.5 rounded-full font-bold text-[#104B40]">
                 نافذة الأذان مصغّرة
               </span>
             </div>
-            <p className="text-[11px] text-white/90 font-bold mt-0.5">
+            <p className="text-[11px] text-[#4B5B58] font-bold mt-0.5">
               {remainingSeconds > 0
                 ? `متبقي على الإقامة: ${formattedCountdown} — اضغط لإعادة الفتح`
                 : `حان الآن موعد إقامة صلاة ${session.prayerName}`}
@@ -453,7 +453,7 @@ export const SmartAzanIqamaWidget: React.FC<SmartAzanIqamaWidgetProps> = ({
               e.stopPropagation();
               onRestoreFullScreen();
             }}
-            className="p-2 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-300/40 cursor-pointer"
+            className="p-2 rounded-xl bg-[#104B40]/10 hover:bg-[#104B40]/20 text-[#104B40] border border-[#104B40]/20 cursor-pointer"
             title="إعادة فتح نافذة الأذان العائمة"
           >
             <Maximize2 className="w-4 h-4" />

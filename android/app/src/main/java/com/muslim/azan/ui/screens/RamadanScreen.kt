@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun RamadanScreen(
@@ -55,26 +56,28 @@ fun RamadanScreen(
         Spacer(modifier = Modifier.height(14.dp))
 
         // Hero Iftar & Suhoor Card
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+        MoazenWidgetCard(
+            cornerRadius = 20.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "رمضان كريم مبارك",
-                    color = GoldAccent,
+                    color = MoazenInkEmerald,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "«شَهْرُ رَمَضَانَ الَّذِي أُنزِلَ فِيهِ الْقُرْآنُ هُدًى لِّلنَّاسِ»",
-                    color = TextPrimary,
-                    fontSize = 13.sp
+                    color = MoazenInkPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -83,9 +86,9 @@ fun RamadanScreen(
                     onClick = {
                         NativeAudioPlayerManager.playAssetAudio(context, "audio/iftar_cannon.mp3", "مدفع الإفطار", "تكبيرات ومدفع الإفطار")
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
                 ) {
-                    Text(text = "سماع صوت مدفع الإفطار", color = EmeraldDeep, fontWeight = FontWeight.Bold)
+                    Text(text = "سماع صوت مدفع الإفطار", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -120,10 +123,10 @@ fun RamadanScreen(
 
 @Composable
 fun ChecklistCard(title: String, isChecked: Boolean, onToggle: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
-        modifier = Modifier.fillMaxWidth()
+    MoazenWidgetCard(
+        cornerRadius = 14.dp,
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onToggle
     ) {
         Row(
             modifier = Modifier
@@ -132,12 +135,12 @@ fun ChecklistCard(title: String, isChecked: Boolean, onToggle: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = title, color = TextPrimary, fontSize = 14.sp)
+            Text(text = title, color = MoazenInkPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             IconButton(onClick = onToggle) {
                 Icon(
                     imageVector = if (isChecked) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                     contentDescription = null,
-                    tint = if (isChecked) EmeraldPrimary else TextSecondary
+                    tint = if (isChecked) MoazenInkEmerald else MoazenInkMuted
                 )
             }
         }

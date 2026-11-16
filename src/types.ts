@@ -2,7 +2,25 @@
  * Types definition for the Azan Islamic Application
  */
 
-export type PrayerKey = 'fajr' | 'sunrise' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
+export type PrayerKey = 'fajr' | 'sunrise' | 'duha' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
+
+export type PrayerAlertMode = 'full_azan' | 'short_tone' | 'vibrate_only' | 'silent';
+
+export interface PrayerSettingConfig {
+  prayerKey: PrayerKey;
+  arabicName: string;
+  offsetMinutes: number;
+  soundEnabled: boolean;
+  volumePercent: number;
+  preAlertEnabled: boolean;
+  preAlertMinutes: number;
+  preAlertVoice: string;
+  silentDuringPrayer: boolean;
+  azanVoice: string;
+  alertMode: PrayerAlertMode;
+  iqamaVoice: string;
+  duaAfterPrayerEnabled: boolean;
+}
 
 export interface PrayerTime {
   key: PrayerKey;
@@ -21,6 +39,19 @@ export interface CityLocation {
   latitude: number;
   longitude: number;
   timezone: string;
+  nameEn?: string;
+  countryEn?: string;
+  countryCode?: string;
+  state?: string;
+  stateEn?: string;
+  district?: string;
+  neighborhood?: string;
+  street?: string;
+  source?: 'offline' | 'gps' | 'saved_gps' | 'osm';
+  accuracyMeters?: number;
+  detectedAt?: string;
+  isSavedLocation?: boolean;
+  recommendedMethod?: string;
 }
 
 export interface SurahMeta {
@@ -171,14 +202,14 @@ export interface UserProfile {
   calculationMethod: string;
   asrJuristicMethod?: 'standard' | 'hanafi';
   asrMethod?: 'standard' | 'hanafi';
-  manualPrayerAdjustments?: Record<PrayerKey, number>;
+  manualPrayerAdjustments?: Partial<Record<PrayerKey, number>>;
   lastReadSurah: number;
   lastReadAyah: number;
   lastReadSurahName: string;
   lastReadAyahText: string;
   lastReadPage?: number;
   totalTasbihCount: number;
-  prayersToday: Record<PrayerKey, boolean>;
+  prayersToday: Partial<Record<PrayerKey, boolean>>;
   bookmarks: { surah: number; ayah: number; surahName: string }[];
   pageBookmarks?: QuranBookmark[];
   favoriteDuas: string[];
@@ -188,7 +219,8 @@ export interface UserProfile {
   azanVoice: string;
   fajrAzanVoice?: string;
   prayerAzanVoices?: Partial<Record<PrayerKey, string>>;
-  prayerAzanEnabled?: Record<PrayerKey, boolean>;
+  prayerAzanEnabled?: Partial<Record<PrayerKey, boolean>>;
+  prayerConfigs?: Partial<Record<PrayerKey, PrayerSettingConfig>>;
   autoPlayAzan?: boolean;
   soundEnabled: boolean;
   prePrayerReminderEnabled?: boolean;
@@ -196,7 +228,7 @@ export interface UserProfile {
 
   // Iqama Settings
   iqamaEnabled?: boolean;
-  iqamaIntervals?: Record<PrayerKey, number>;
+  iqamaIntervals?: Partial<Record<PrayerKey, number>>;
   iqamaVoice?: string;
   iqamaSoundEnabled?: boolean;
   customIqamaAudioUrl?: string;

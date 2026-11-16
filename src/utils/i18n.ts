@@ -142,6 +142,7 @@ export interface TranslationDictionary {
   // Prayers
   fajr: string;
   sunrise: string;
+  duha: string;
   dhuhr: string;
   asr: string;
   maghrib: string;
@@ -757,6 +758,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'سورة هود : 88',
     fajr: 'الفجر',
     sunrise: 'الشروق',
+    duha: 'الضحى',
     dhuhr: 'الظهر',
     asr: 'العصر',
     maghrib: 'المغرب',
@@ -861,6 +863,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'Surah Hud : 88',
     fajr: 'Fajr',
     sunrise: 'Sunrise',
+    duha: 'Duha',
     dhuhr: 'Dhuhr',
     asr: 'Asr',
     maghrib: 'Maghrib',
@@ -965,6 +968,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'Sourate Hud : 88',
     fajr: 'Fajr',
     sunrise: 'Chourouk',
+    duha: 'Douha',
     dhuhr: 'Dhuhr',
     asr: 'Asr',
     maghrib: 'Maghrib',
@@ -1069,6 +1073,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'Hûd Suresi : 88',
     fajr: 'İmsak / Sabah',
     sunrise: 'Güneş',
+    duha: 'Duha',
     dhuhr: 'Öğle',
     asr: 'İkindi',
     maghrib: 'Akşam',
@@ -1173,6 +1178,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'سورۃ ہود : 88',
     fajr: 'فجر',
     sunrise: 'طلوع آفتاب',
+    duha: 'چاشت',
     dhuhr: 'ظہر',
     asr: 'عصر',
     maghrib: 'مغرب',
@@ -1277,6 +1283,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'QS. Hud : 88',
     fajr: 'Subuh',
     sunrise: 'Terbit',
+    duha: 'Dhuha',
     dhuhr: 'Dzuhur',
     asr: 'Ashar',
     maghrib: 'Maghrib',
@@ -1381,6 +1388,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'Sura Hud : 88',
     fajr: 'Fajr',
     sunrise: 'Amanecer',
+    duha: 'Duha',
     dhuhr: 'Dhuhr',
     asr: 'Asr',
     maghrib: 'Maghrib',
@@ -1485,6 +1493,7 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
     ayahSource: 'Сура Худ : 88',
     fajr: 'Фаджр',
     sunrise: 'Восход',
+    duha: 'Духа',
     dhuhr: 'Зухр',
     asr: 'Аср',
     maghrib: 'Магриб',

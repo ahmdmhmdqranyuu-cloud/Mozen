@@ -521,9 +521,14 @@ export const ALL_EGYPT_WORLD_CITIES: WorldCity[] = EGYPT_GOVERNORATES_DATA.flatM
     nameEn: `${loc.nameEn} (${gov.nameEn})`,
     country: 'مصر',
     countryEn: 'Egypt',
+    countryCode: 'EG',
+    state: loc.governorate,
+    stateEn: loc.governorateEn,
+    district: loc.type,
     latitude: loc.latitude,
     longitude: loc.longitude,
     timezone: 'Africa/Cairo',
     recommendedMethod: 'egypt',
+    source: 'offline' as const,
   }))
 );

@@ -24,6 +24,9 @@ export interface PeriodMetrics {
   recitationListeningSeconds: number;
   recitationSurahsIds: number[];
   recitationTracksKeys: string[];
+  sheikhMemorizedKeys: string[];
+  sheikhSessionsCount: number;
+  sheikhCorrectWordsCount: number;
 }
 
 export interface PersistedUserStats {
@@ -55,6 +58,9 @@ function createEmptyMetrics(): PeriodMetrics {
     recitationListeningSeconds: 0,
     recitationSurahsIds: [],
     recitationTracksKeys: [],
+    sheikhMemorizedKeys: [],
+    sheikhSessionsCount: 0,
+    sheikhCorrectWordsCount: 0,
   };
 }
 
@@ -350,6 +356,38 @@ class UserStatsTracker {
     dayBucket.recitationListeningSeconds += secondsDelta;
     monthBucket.recitationListeningSeconds += secondsDelta;
     totalBucket.recitationListeningSeconds += secondsDelta;
+    this.save();
+  }
+
+  /**
+   * 6b. Record Smart Sheikh ("شيخي") recitation check & mastered ayah
+   */
+  public recordSheikhRecitation(
+    surahNumber: number,
+    ayahNumber: number,
+    correctWordsDelta: number,
+    mastered: boolean
+  ) {
+    if (!surahNumber || !ayahNumber) return;
+    const key = `${surahNumber}:${ayahNumber}`;
+    const { dayBucket, monthBucket, totalBucket } = this.ensureCurrentBuckets();
+
+    dayBucket.sheikhSessionsCount = (dayBucket.sheikhSessionsCount || 0) + 1;
+    monthBucket.sheikhSessionsCount = (monthBucket.sheikhSessionsCount || 0) + 1;
+    totalBucket.sheikhSessionsCount = (totalBucket.sheikhSessionsCount || 0) + 1;
+
+    if (correctWordsDelta > 0) {
+      dayBucket.sheikhCorrectWordsCount = (dayBucket.sheikhCorrectWordsCount || 0) + correctWordsDelta;
+      monthBucket.sheikhCorrectWordsCount = (monthBucket.sheikhCorrectWordsCount || 0) + correctWordsDelta;
+      totalBucket.sheikhCorrectWordsCount = (totalBucket.sheikhCorrectWordsCount || 0) + correctWordsDelta;
+    }
+
+    if (mastered) {
+      dayBucket.sheikhMemorizedKeys = addUnique(dayBucket.sheikhMemorizedKeys || [], key).next;
+      monthBucket.sheikhMemorizedKeys = addUnique(monthBucket.sheikhMemorizedKeys || [], key).next;
+      totalBucket.sheikhMemorizedKeys = addUnique(totalBucket.sheikhMemorizedKeys || [], key).next;
+    }
+
     this.save();
   }
 

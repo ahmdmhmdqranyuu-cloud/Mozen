@@ -63,15 +63,15 @@ export const FloatingRecitationPlayer: React.FC = () => {
             <button
               type="button"
               onClick={() => recitationPlayerService.setExpanded(true)}
-              className="bg-[#0d3b31]/95 hover:bg-[#104B40] text-white backdrop-blur-md px-3 py-1.5 rounded-full border border-[#C5A059]/60 shadow-xl flex items-center gap-2 transition-all cursor-pointer"
+              className="moazen-widget px-3 py-1.5 rounded-full border border-[#C5A059]/60 shadow-xl flex items-center gap-2 transition-all cursor-pointer"
               title="اضغط لفتح شريط التحكم في التلاوة"
             >
               <span className="w-2 h-2 rounded-full bg-[#C5A059] animate-ping" />
               <div className="text-right">
-                <span className="text-[11px] font-black font-quran text-amber-200 block leading-tight">
+                <span className="text-[11px] font-black font-quran text-[#104B40] block leading-tight">
                   سورة {currentSurah.name}
                 </span>
-                <span className="text-[9px] text-emerald-200 block leading-tight max-w-[110px] truncate">
+                <span className="text-[9px] text-[#4B5B58] font-bold block leading-tight max-w-[110px] truncate">
                   {currentReciter.name}
                 </span>
               </div>
@@ -154,7 +154,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
 
       {/* ==================== EXPANDED STATE: FULL FLOATING CONTROL BAR ==================== */}
       {isExpanded && (
-        <div className="pointer-events-auto bg-gradient-to-r from-[#092922] via-[#104B40] to-[#0c3830] text-white rounded-3xl p-3.5 shadow-2xl border border-[#C5A059]/60 backdrop-blur-xl animate-fadeIn space-y-2.5">
+        <div className="moazen-widget pointer-events-auto rounded-3xl p-3.5 shadow-2xl border border-[#C5A059]/60 animate-fadeIn space-y-2.5">
           {/* Top Row: Spinning Vinyl Disc + Surah & Reciter Info + Collapse & Close Buttons */}
           <div className="flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-3 min-w-0">
@@ -183,18 +183,18 @@ export const FloatingRecitationPlayer: React.FC = () => {
 
               <div className="min-w-0 text-right">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="text-sm font-black font-quran text-amber-200 truncate">
+                  <h4 className="text-sm font-black font-quran text-[#104B40] truncate">
                     سورة {currentSurah.name}
                   </h4>
-                  <span className="text-[10px] bg-white/10 text-amber-300 px-2 py-0.5 rounded-full font-bold shrink-0">
+                  <span className="text-[10px] bg-white/80 text-[#8a6214] border border-emerald-950/10 px-2 py-0.5 rounded-full font-bold shrink-0">
                     {currentSurah.revelationType} • {currentSurah.versesCount} آية
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-100 truncate mt-0.5">
+                <p className="text-[11px] text-[#4B5B58] font-bold truncate mt-0.5">
                   القارئ: {currentReciter.name}
                 </p>
                 {errorMessage && (
-                  <p className="text-[10px] text-rose-300 font-bold mt-0.5">
+                  <p className="text-[10px] text-rose-700 font-bold mt-0.5">
                     {errorMessage}
                   </p>
                 )}
@@ -206,7 +206,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => recitationPlayerService.setExpanded(false)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/80 hover:bg-white border border-emerald-950/10 text-[#104B40] text-[11px] font-bold transition-colors cursor-pointer"
                 title="طي المشغل"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
@@ -215,7 +215,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => recitationPlayerService.stopAndClose()}
-                className="p-1.5 rounded-xl bg-white/10 hover:bg-rose-500/80 text-white/80 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer"
                 title="إيقاف وإغلاق المشغل"
               >
                 <X className="w-4 h-4" />
@@ -234,11 +234,11 @@ export const FloatingRecitationPlayer: React.FC = () => {
               onChange={(e) =>
                 recitationPlayerService.seekTo(parseFloat(e.target.value))
               }
-              className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#C5A059]"
+              className="w-full h-1.5 bg-emerald-950/15 rounded-lg appearance-none cursor-pointer accent-[#104B40]"
               dir="ltr"
             />
             <div
-              className="flex items-center justify-between text-[10px] font-mono text-emerald-200 px-0.5"
+              className="flex items-center justify-between text-[10px] font-mono font-bold text-[#4B5B58] px-0.5"
               dir="ltr"
             >
               <span>{formatTime(currentTime)}</span>
@@ -252,7 +252,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
             <button
               type="button"
               onClick={() => recitationPlayerService.cycleSpeed()}
-              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-amber-200 text-[11px] font-black font-mono transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-xl bg-white/80 hover:bg-white border border-emerald-950/10 text-[#104B40] text-[11px] font-black font-mono transition-colors cursor-pointer"
               title="سرعة التلاوة"
             >
               {playbackSpeed}x
@@ -264,7 +264,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => recitationPlayerService.playPreviousSurah()}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                className="p-2 rounded-full bg-white/80 hover:bg-white border border-emerald-950/10 text-[#104B40] transition-colors cursor-pointer"
                 title="السورة السابقة"
               >
                 <SkipBack className="w-4 h-4" />
@@ -274,11 +274,11 @@ export const FloatingRecitationPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => recitationPlayerService.togglePlayPause()}
-                className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C5A059] to-[#A6823C] hover:brightness-110 text-[#091412] flex items-center justify-center shadow-lg transition-transform active:scale-90 cursor-pointer"
+                className="w-10 h-10 rounded-full bg-[#104B40] hover:bg-[#0B3D35] text-amber-300 flex items-center justify-center shadow-lg transition-transform active:scale-90 cursor-pointer"
                 title={isPlaying ? 'إيقاف مؤقت' : 'تشغيل'}
               >
                 {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-[#091412]" />
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-300" />
                 ) : isPlaying ? (
                   <Pause className="w-5 h-5 fill-current" />
                 ) : (
@@ -290,7 +290,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => recitationPlayerService.playNextSurah()}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-emerald-950/10 text-[#104B40] text-xs font-bold transition-colors cursor-pointer"
                 title="الانتقال للتلاوة التالية"
               >
                 <span>التلاوة التالية</span>
@@ -299,7 +299,7 @@ export const FloatingRecitationPlayer: React.FC = () => {
             </div>
 
             {/* Surah Number Badge */}
-            <span className="text-[11px] font-bold text-emerald-200 bg-white/10 px-2.5 py-1 rounded-xl">
+            <span className="text-[11px] font-bold text-[#104B40] bg-white/80 border border-emerald-950/10 px-2.5 py-1 rounded-xl">
               {currentSurah.number} / 114
             </span>
           </div>

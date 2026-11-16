@@ -28,13 +28,35 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
 
+        if ("com.muslim.azan.ACTION_RESTORE_RINGER".equals(intent.getAction())) {
+            try {
+                SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
+                int prevMode = prefs.getInt("saved_prev_ringer_mode", -1);
+                if (prevMode >= 0) {
+                    android.media.AudioManager am = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+                    if (am != null) {
+                        am.setRingerMode(prevMode);
+                    }
+                    prefs.edit().remove("saved_prev_ringer_mode").apply();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not restore ringer mode automatically", e);
+            }
+            return;
+        }
+
         String section = intent.getStringExtra("section");
+        String prayerKey = intent.getStringExtra("prayerKey");
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         String audioTrackId = intent.getStringExtra("audioTrackId");
         String prayerName = intent.getStringExtra("prayerName");
         String cityName = intent.getStringExtra("cityName");
         int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
+        int volumePercent = intent.getIntExtra("volumePercent", 100);
+        String alertMode = intent.getStringExtra("alertMode");
+        boolean silentDuringPrayer = intent.getBooleanExtra("silentDuringPrayer", false);
+        boolean duaAfterPrayerEnabled = intent.getBooleanExtra("duaAfterPrayerEnabled", false);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
         boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
 
@@ -81,12 +103,17 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
 
         Intent serviceIntent = new Intent(context, AzkarAudioService.class);
         serviceIntent.putExtra("section", section);
+        serviceIntent.putExtra("prayerKey", prayerKey);
         serviceIntent.putExtra("title", title);
         serviceIntent.putExtra("body", body);
         serviceIntent.putExtra("audioTrackId", audioTrackId);
         serviceIntent.putExtra("prayerName", prayerName);
         serviceIntent.putExtra("cityName", cityName);
         serviceIntent.putExtra("iqamaDurationMinutes", iqamaDurationMinutes);
+        serviceIntent.putExtra("volumePercent", volumePercent);
+        serviceIntent.putExtra("alertMode", alertMode);
+        serviceIntent.putExtra("silentDuringPrayer", silentDuringPrayer);
+        serviceIntent.putExtra("duaAfterPrayerEnabled", duaAfterPrayerEnabled);
         serviceIntent.putExtra("autoPlay", autoPlay);
         serviceIntent.putExtra("isTestAlarm", isTestAlarm);
 

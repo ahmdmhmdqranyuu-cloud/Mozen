@@ -1,3 +1,4 @@
+import { CityLocation } from '../types';
 import { ALL_EGYPT_WORLD_CITIES } from './egyptLocationsData';
 import { ALL_WORLD_COUNTRIES_DATA } from './allWorldCountriesAndCities';
 
@@ -8,16 +9,29 @@ export interface WorldCity {
   country: string;     // Arabic country name
   countryEn: string;   // English country name
   countryCode?: string; // ISO 3166-1 alpha-2 country code (e.g., EG, SA, AE, US)
+  state?: string;      // Governorate / State / Region (Arabic)
+  stateEn?: string;    // Governorate / State / Region (English)
+  district?: string;   // District / Center / Municipality
+  neighborhood?: string;
+  street?: string;
   latitude: number;
   longitude: number;
   timezone: string;
   recommendedMethod: string;
+  source?: 'offline' | 'gps' | 'saved_gps' | 'osm';
 }
 
 export interface WorldCountryInfo {
   country: string;
   countryEn: string;
   countryCode: string;
+  cityCount: number;
+  stateCount: number;
+}
+
+export interface WorldRegionInfo {
+  state: string;
+  stateEn: string;
   cityCount: number;
 }
 
@@ -368,6 +382,158 @@ for (const c of ALL_WORLD_COUNTRIES_DATA) {
   COUNTRY_CODE_BY_EN[c.nameAr] = c.code;
 }
 
+const STATE_HINTS_BY_CITY_ID: Record<string, { state: string; stateEn: string }> = {
+  // Saudi Arabia
+  makkah: { state: 'منطقة مكة المكرمة', stateEn: 'Makkah Region' },
+  jeddah: { state: 'منطقة مكة المكرمة', stateEn: 'Makkah Region' },
+  taif: { state: 'منطقة مكة المكرمة', stateEn: 'Makkah Region' },
+  madinah: { state: 'منطقة المدينة المنورة', stateEn: 'Madinah Region' },
+  yanbu: { state: 'منطقة المدينة المنورة', stateEn: 'Madinah Region' },
+  riyadh: { state: 'منطقة الرياض', stateEn: 'Riyadh Region' },
+  dammam: { state: 'المنطقة الشرقية', stateEn: 'Eastern Province' },
+  khobar: { state: 'المنطقة الشرقية', stateEn: 'Eastern Province' },
+  dhahran: { state: 'المنطقة الشرقية', stateEn: 'Eastern Province' },
+  ahsa: { state: 'المنطقة الشرقية', stateEn: 'Eastern Province' },
+  jubail: { state: 'المنطقة الشرقية', stateEn: 'Eastern Province' },
+  tabuk: { state: 'منطقة تبوك', stateEn: 'Tabuk Region' },
+  buraidah: { state: 'منطقة القصيم', stateEn: 'Al-Qassim Region' },
+  unaizah: { state: 'منطقة القصيم', stateEn: 'Al-Qassim Region' },
+  abha: { state: 'منطقة عسير', stateEn: 'Asir Region' },
+  khamis_mushait: { state: 'منطقة عسير', stateEn: 'Asir Region' },
+  hail: { state: 'منطقة حائل', stateEn: 'Hail Region' },
+  najran: { state: 'منطقة نجران', stateEn: 'Najran Region' },
+  jazan: { state: 'منطقة جازان', stateEn: 'Jazan Region' },
+  arar: { state: 'منطقة الحدود الشمالية', stateEn: 'Northern Borders' },
+  sakaka: { state: 'منطقة الجوف', stateEn: 'Al-Jouf Region' },
+  baha: { state: 'منطقة الباحة', stateEn: 'Al Bahah Region' },
+  // UAE
+  dubai: { state: 'إمارة دبي', stateEn: 'Dubai' },
+  abudhabi: { state: 'إمارة أبوظبي', stateEn: 'Abu Dhabi' },
+  alain: { state: 'إمارة أبوظبي', stateEn: 'Abu Dhabi' },
+  sharjah: { state: 'إمارة الشارقة', stateEn: 'Sharjah' },
+  ajman: { state: 'إمارة عجمان', stateEn: 'Ajman' },
+  ras_alkhaimah: { state: 'إمارة رأس الخيمة', stateEn: 'Ras Al Khaimah' },
+  fujairah: { state: 'إمارة الفجيرة', stateEn: 'Fujairah' },
+  umm_alquwain: { state: 'إمارة أم القيوين', stateEn: 'Umm Al Quwain' },
+  // Kuwait
+  kuwait: { state: 'محافظة العاصمة', stateEn: 'Al Asimah' },
+  hawalli: { state: 'محافظة حولي', stateEn: 'Hawalli' },
+  farwaniya: { state: 'محافظة الفروانية', stateEn: 'Al Farwaniyah' },
+  ahmadi: { state: 'محافظة الأحمدي', stateEn: 'Al Ahmadi' },
+  jahra: { state: 'محافظة الجهراء', stateEn: 'Al Jahra' },
+  mubarak_alkabeer: { state: 'محافظة مبارك الكبير', stateEn: 'Mubarak Al-Kabeer' },
+  // Qatar & Bahrain & Oman
+  doha: { state: 'بلدية الدوحة', stateEn: 'Doha' },
+  alrayyan: { state: 'بلدية الريان', stateEn: 'Al Rayyan' },
+  alwakra: { state: 'بلدية الوكرة', stateEn: 'Al Wakrah' },
+  alkhor: { state: 'بلدية الخور والذخيرة', stateEn: 'Al Khor' },
+  lusail: { state: 'بلدية الضعاين', stateEn: 'Al Daayen' },
+  manama: { state: 'محافظة العاصمة', stateEn: 'Capital Governorate' },
+  muharraq: { state: 'محافظة المحرق', stateEn: 'Muharraq' },
+  riffa: { state: 'المحافظة الجنوبية', stateEn: 'Southern Governorate' },
+  hamad_town: { state: 'المحافظة الشمالية', stateEn: 'Northern Governorate' },
+  muscat: { state: 'محافظة مسقط', stateEn: 'Muscat' },
+  salalah: { state: 'محافظة ظفار', stateEn: 'Dhofar' },
+  sohar: { state: 'محافظة شمال الباطنة', stateEn: 'Al Batinah North' },
+  nizwa: { state: 'محافظة الداخلية', stateEn: 'Ad Dakhiliyah' },
+  sur: { state: 'محافظة جنوب الشرقية', stateEn: 'Ash Sharqiyah South' },
+  // Palestine & Jordan & Levant & Iraq
+  jerusalem: { state: 'محافظة القدس', stateEn: 'Jerusalem Governorate' },
+  gaza: { state: 'قطاع غزة', stateEn: 'Gaza Strip' },
+  khan_yunis: { state: 'قطاع غزة', stateEn: 'Gaza Strip' },
+  rafah: { state: 'قطاع غزة', stateEn: 'Gaza Strip' },
+  ramallah: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  hebron: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  nablus: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  jenin: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  tulkarm: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  bethlehem: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  jericho: { state: 'الضفة الغربية', stateEn: 'West Bank' },
+  amman: { state: 'محافظة العاصمة', stateEn: 'Amman Governorate' },
+  zarqa: { state: 'محافظة الزرقاء', stateEn: 'Zarqa Governorate' },
+  irbid: { state: 'محافظة إربد', stateEn: 'Irbid Governorate' },
+  aqaba: { state: 'محافظة العقبة', stateEn: 'Aqaba Governorate' },
+  salt: { state: 'محافظة البلقاء', stateEn: 'Balqa Governorate' },
+  karak: { state: 'محافظة الكرك', stateEn: 'Karak Governorate' },
+  damascus: { state: 'محافظة دمشق', stateEn: 'Damascus' },
+  aleppo: { state: 'محافظة حلب', stateEn: 'Aleppo' },
+  homs: { state: 'محافظة حمص', stateEn: 'Homs' },
+  hama: { state: 'محافظة حماة', stateEn: 'Hama' },
+  latakia: { state: 'محافظة اللاذقية', stateEn: 'Latakia' },
+  tartus: { state: 'محافظة طرطوس', stateEn: 'Tartus' },
+  idlib: { state: 'محافظة إدلب', stateEn: 'Idlib' },
+  deir_ezzor: { state: 'محافظة دير الزور', stateEn: 'Deir ez-Zor' },
+  beirut: { state: 'محافظة بيروت', stateEn: 'Beirut' },
+  tripoli_lb: { state: 'محافظة الشمال', stateEn: 'North Lebanon' },
+  sidon: { state: 'محافظة الجنوب', stateEn: 'South Lebanon' },
+  tyre: { state: 'محافظة الجنوب', stateEn: 'South Lebanon' },
+  baalbek: { state: 'محافظة بعلبك الهرمل', stateEn: 'Baalbek-Hermel' },
+  baghdad: { state: 'محافظة بغداد', stateEn: 'Baghdad' },
+  basra: { state: 'محافظة البصرة', stateEn: 'Basra' },
+  mosul: { state: 'محافظة نينوى', stateEn: 'Nineveh' },
+  erbil: { state: 'إقليم كردستان', stateEn: 'Kurdistan Region' },
+  sulaymaniyah: { state: 'إقليم كردستان', stateEn: 'Kurdistan Region' },
+  kirkuk: { state: 'محافظة كركوك', stateEn: 'Kirkuk' },
+  najaf: { state: 'محافظة النجف', stateEn: 'Najaf' },
+  karbala: { state: 'محافظة كربلاء', stateEn: 'Karbala' },
+  ramadi: { state: 'محافظة الأنبار', stateEn: 'Al Anbar' },
+  hilla: { state: 'محافظة بابل', stateEn: 'Babylon' },
+  // Morocco, Algeria, Tunisia, Libya, Sudan, Yemen
+  rabat: { state: 'الرباط سلا القنيطرة', stateEn: 'Rabat-Sale-Kenitra' },
+  casablanca: { state: 'الدار البيضاء سطات', stateEn: 'Casablanca-Settat' },
+  marrakech: { state: 'مراكش آسفي', stateEn: 'Marrakech-Safi' },
+  fes: { state: 'فاس مكناس', stateEn: 'Fes-Meknes' },
+  meknes: { state: 'فاس مكناس', stateEn: 'Fes-Meknes' },
+  tangier: { state: 'طنجة تطوان الحسيمة', stateEn: 'Tangier-Tetouan-Al Hoceima' },
+  tetouan: { state: 'طنجة تطوان الحسيمة', stateEn: 'Tangier-Tetouan-Al Hoceima' },
+  agadir: { state: 'سوس ماسة', stateEn: 'Souss-Massa' },
+  oujda: { state: 'الجهة الشرقية', stateEn: 'Oriental' },
+  algiers: { state: 'ولاية الجزائر', stateEn: 'Algiers' },
+  oran: { state: 'ولاية وهران', stateEn: 'Oran' },
+  constantine: { state: 'ولاية قسنطينة', stateEn: 'Constantine' },
+  annaba: { state: 'ولاية عنابة', stateEn: 'Annaba' },
+  setif: { state: 'ولاية سطيف', stateEn: 'Setif' },
+  blida: { state: 'ولاية البليدة', stateEn: 'Blida' },
+  tlemcen: { state: 'ولاية تلمسان', stateEn: 'Tlemcen' },
+  // Turkey, Europe, Americas, Asia
+  istanbul: { state: 'منطقة مرمرة', stateEn: 'Marmara' },
+  bursa: { state: 'منطقة مرمرة', stateEn: 'Marmara' },
+  ankara: { state: 'وسط الأناضول', stateEn: 'Central Anatolia' },
+  konya: { state: 'وسط الأناضول', stateEn: 'Central Anatolia' },
+  izmir: { state: 'منطقة إيجة', stateEn: 'Aegean' },
+  antalya: { state: 'منطقة المتوسط', stateEn: 'Mediterranean' },
+  gaziantep: { state: 'جنوب شرق الأناضول', stateEn: 'Southeastern Anatolia' },
+  trabzon: { state: 'البحر الأسود', stateEn: 'Black Sea' },
+  london: { state: 'إنجلترا', stateEn: 'England' },
+  birmingham: { state: 'إنجلترا', stateEn: 'England' },
+  manchester: { state: 'إنجلترا', stateEn: 'England' },
+  edinburgh: { state: 'إسكتلندا', stateEn: 'Scotland' },
+  paris: { state: 'إيل دو فرانس', stateEn: 'Ile-de-France' },
+  marseille: { state: 'بروفانس ألب كوت دازور', stateEn: 'Provence-Alpes-Cote dAzur' },
+  lyon: { state: 'أوفرن رون ألب', stateEn: 'Auvergne-Rhone-Alpes' },
+  berlin: { state: 'برلين', stateEn: 'Berlin' },
+  frankfurt: { state: 'هسن', stateEn: 'Hesse' },
+  munich: { state: 'بافاريا', stateEn: 'Bavaria' },
+  cologne: { state: 'شمال الراين وستفاليا', stateEn: 'North Rhine-Westphalia' },
+  hamburg: { state: 'هامبورغ', stateEn: 'Hamburg' },
+  newyork: { state: 'نيويورك', stateEn: 'New York' },
+  washington: { state: 'واشنطن العاصمة', stateEn: 'District of Columbia' },
+  chicago: { state: 'إلينوي', stateEn: 'Illinois' },
+  dearborn: { state: 'ميشيغان', stateEn: 'Michigan' },
+  losangeles: { state: 'كاليفورنيا', stateEn: 'California' },
+  sanfrancisco: { state: 'كاليفورنيا', stateEn: 'California' },
+  houston: { state: 'تكساس', stateEn: 'Texas' },
+  dallas: { state: 'تكساس', stateEn: 'Texas' },
+  miami: { state: 'فلوريدا', stateEn: 'Florida' },
+  toronto: { state: 'أونتاريو', stateEn: 'Ontario' },
+  ottawa: { state: 'أونتاريو', stateEn: 'Ontario' },
+  montreal: { state: 'كيبيك', stateEn: 'Quebec' },
+  vancouver: { state: 'كولومبيا البريطانية', stateEn: 'British Columbia' },
+  sydney: { state: 'نيو ساوث ويلز', stateEn: 'New South Wales' },
+  melbourne: { state: 'فيكتوريا', stateEn: 'Victoria' },
+  perth: { state: 'أستراليا الغربية', stateEn: 'Western Australia' },
+};
+
 const EXPANDED_GLOBAL_CITIES: WorldCity[] = ALL_WORLD_COUNTRIES_DATA.flatMap((country) =>
   country.cities.map((city) => ({
     id: city.id,
@@ -376,12 +542,37 @@ const EXPANDED_GLOBAL_CITIES: WorldCity[] = ALL_WORLD_COUNTRIES_DATA.flatMap((co
     country: country.nameAr,
     countryEn: country.nameEn,
     countryCode: country.code,
+    state: city.stateAr || STATE_HINTS_BY_CITY_ID[city.id]?.state,
+    stateEn: city.stateEn || STATE_HINTS_BY_CITY_ID[city.id]?.stateEn,
+    district: city.districtAr,
     latitude: city.latitude,
     longitude: city.longitude,
     timezone: city.timezone,
     recommendedMethod: country.recommendedMethod,
+    source: 'offline' as const,
   }))
 );
+
+/**
+ * Normalizes Arabic & Latin location search strings:
+ * - Strips Arabic diacritics & tatweel
+ * - Normalizes alef (أ/إ/آ/ٱ -> ا), teh marbuta (ة -> ه), alef maksura (ى -> ي), hamza carriers
+ * - Trims & lowercases English
+ */
+export function normalizeLocationText(input?: string): string {
+  if (!input) return '';
+  return input
+    .normalize('NFKC')
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 /**
  * Combined offline database including all Egyptian Governorates, Cities, Centers, Villages, and All World Countries & Cities
@@ -396,10 +587,17 @@ export const COMBINED_OFFLINE_CITIES: WorldCity[] = (() => {
       COUNTRY_CODE_BY_EN[city.countryEn.toLowerCase()] ||
       COUNTRY_CODE_BY_EN[city.country] ||
       (city.country === 'مصر' ? 'EG' : 'GL');
-    const key = `${city.country}_${city.nameEn.toLowerCase()}_${city.name}`;
+    const stateHint = STATE_HINTS_BY_CITY_ID[city.id];
+    const key = `${normalizeLocationText(city.country)}_${city.nameEn.toLowerCase()}_${normalizeLocationText(city.name)}`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
-      result.push({ ...city, countryCode: code });
+      result.push({
+        ...city,
+        countryCode: code,
+        state: city.state || stateHint?.state,
+        stateEn: city.stateEn || stateHint?.stateEn,
+        source: city.source || 'offline',
+      });
     }
   };
 
@@ -417,8 +615,94 @@ export const COMBINED_OFFLINE_CITIES: WorldCity[] = (() => {
 })();
 
 const SAVED_LOCATION_STORAGE_KEY = 'moazen_saved_location_v1';
+const LAST_SUCCESSFUL_GPS_KEY = 'moazen_last_successful_gps_v1';
+const OSM_CACHE_STORAGE_KEY = 'moazen_osm_cached_locations_v1';
 const LOCATION_CONFIRMED_STORAGE_KEY = 'moazen_location_confirmed_v1';
 const FIRST_GPS_PROMPTED_KEY = 'moazen_first_gps_prompted_v1';
+
+interface IndexedCityEntry {
+  city: WorldCity;
+  nameNorm: string;
+  nameEnNorm: string;
+  countryNorm: string;
+  countryEnNorm: string;
+  codeNorm: string;
+  stateNorm: string;
+  stateEnNorm: string;
+  districtNorm: string;
+}
+
+let cachedIndexSourceLength = -1;
+let cachedIndexEntries: IndexedCityEntry[] = [];
+
+export function getCachedOsmLocations(): WorldCity[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(OSM_CACHE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is WorldCity =>
+        Boolean(item && typeof item.latitude === 'number' && typeof item.longitude === 'number' && item.name)
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveOsmLocationsToCache(cities: WorldCity[]): void {
+  try {
+    if (typeof localStorage === 'undefined' || !cities.length) return;
+    const existing = getCachedOsmLocations();
+    const map = new Map<string, WorldCity>();
+    for (const c of [...cities, ...existing]) {
+      const k = c.id || `${c.countryCode || 'GL'}_${c.latitude.toFixed(4)}_${c.longitude.toFixed(4)}`;
+      if (!map.has(k)) {
+        map.set(k, { ...c, source: c.source || 'osm' });
+      }
+      if (map.size >= 300) break;
+    }
+    localStorage.setItem(OSM_CACHE_STORAGE_KEY, JSON.stringify(Array.from(map.values())));
+    cachedIndexSourceLength = -1; // invalidate lazy search index
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+export function getCombinedIndexedCities(): WorldCity[] {
+  const osmCached = getCachedOsmLocations();
+  if (!osmCached.length) return COMBINED_OFFLINE_CITIES;
+  const seen = new Set(COMBINED_OFFLINE_CITIES.map((c) => c.id));
+  const merged = [...COMBINED_OFFLINE_CITIES];
+  for (const item of osmCached) {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+function getSearchIndex(): IndexedCityEntry[] {
+  const allCities = getCombinedIndexedCities();
+  if (cachedIndexSourceLength === allCities.length && cachedIndexEntries.length === allCities.length) {
+    return cachedIndexEntries;
+  }
+  cachedIndexEntries = allCities.map((city) => ({
+    city,
+    nameNorm: normalizeLocationText(city.name),
+    nameEnNorm: normalizeLocationText(city.nameEn),
+    countryNorm: normalizeLocationText(city.country),
+    countryEnNorm: normalizeLocationText(city.countryEn),
+    codeNorm: (city.countryCode || '').toLowerCase(),
+    stateNorm: normalizeLocationText(city.state),
+    stateEnNorm: normalizeLocationText(city.stateEn),
+    districtNorm: normalizeLocationText(`${city.district || ''} ${city.neighborhood || ''}`),
+  }));
+  cachedIndexSourceLength = allCities.length;
+  return cachedIndexEntries;
+}
 
 export function hasUserConfirmedLocation(): boolean {
   try {
@@ -465,14 +749,7 @@ export function resetAllFirstTimeOnboardingFlags(): void {
   }
 }
 
-export function savePersistentLocation(city: {
-  id: string;
-  name: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  timezone?: string;
-}): void {
+export function savePersistentLocation(city: CityLocation): void {
   try {
     localStorage.setItem(SAVED_LOCATION_STORAGE_KEY, JSON.stringify(city));
     markUserLocationConfirmed();
@@ -482,14 +759,7 @@ export function savePersistentLocation(city: {
   }
 }
 
-export function getPersistentSavedLocation(): {
-  id: string;
-  name: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  timezone?: string;
-} | null {
+export function getPersistentSavedLocation(): CityLocation | null {
   try {
     const raw = localStorage.getItem(SAVED_LOCATION_STORAGE_KEY);
     if (raw) {
@@ -500,7 +770,7 @@ export function getPersistentSavedLocation(): {
         typeof parsed.longitude === 'number' &&
         parsed.name
       ) {
-        return parsed;
+        return parsed as CityLocation;
       }
     }
   } catch {
@@ -509,58 +779,343 @@ export function getPersistentSavedLocation(): {
   return null;
 }
 
+export function saveLastSuccessfulGpsLocation(city: CityLocation): void {
+  try {
+    const savedCopy: CityLocation = {
+      ...city,
+      source: 'saved_gps',
+      isSavedLocation: true,
+    };
+    localStorage.setItem(LAST_SUCCESSFUL_GPS_KEY, JSON.stringify(savedCopy));
+  } catch {
+    // ignore
+  }
+}
+
+export function getLastSuccessfulGpsLocation(): CityLocation | null {
+  try {
+    const raw = localStorage.getItem(LAST_SUCCESSFUL_GPS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.latitude === 'number' &&
+      typeof parsed.longitude === 'number' &&
+      parsed.name
+    ) {
+      return {
+        ...(parsed as CityLocation),
+        source: 'saved_gps',
+        isSavedLocation: true,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 /**
- * Returns all unique countries in COMBINED_OFFLINE_CITIES with their ISO codes and city counts
+ * Returns all unique countries in COMBINED_OFFLINE_CITIES (+ cached OSM) with their ISO codes, state counts, and city counts
  */
 export function getWorldCountries(searchQuery?: string): WorldCountryInfo[] {
-  const map = new Map<string, WorldCountryInfo>();
-  for (const city of COMBINED_OFFLINE_CITIES) {
+  const map = new Map<string, { info: WorldCountryInfo; states: Set<string> }>();
+  for (const city of getCombinedIndexedCities()) {
+    const stateKey = normalizeLocationText(city.state || '');
     const existing = map.get(city.country);
     if (existing) {
-      existing.cityCount += 1;
+      existing.info.cityCount += 1;
+      if (stateKey) existing.states.add(stateKey);
     } else {
+      const states = new Set<string>();
+      if (stateKey) states.add(stateKey);
       map.set(city.country, {
-        country: city.country,
-        countryEn: city.countryEn,
-        countryCode: city.countryCode || 'GL',
-        cityCount: 1,
+        info: {
+          country: city.country,
+          countryEn: city.countryEn,
+          countryCode: city.countryCode || 'GL',
+          cityCount: 1,
+          stateCount: 0,
+        },
+        states,
       });
     }
   }
-  const all = Array.from(map.values());
+  const all = Array.from(map.values()).map(({ info, states }) => ({
+    ...info,
+    stateCount: states.size,
+  }));
   if (!searchQuery || !searchQuery.trim()) return all;
-  const q = searchQuery.trim().toLowerCase();
+  const q = normalizeLocationText(searchQuery);
   return all.filter(
     (c) =>
-      c.country.toLowerCase().includes(q) ||
-      c.countryEn.toLowerCase().includes(q) ||
+      normalizeLocationText(c.country).includes(q) ||
+      normalizeLocationText(c.countryEn).includes(q) ||
       c.countryCode.toLowerCase().includes(q)
   );
 }
 
 /**
+ * Returns administrative regions (Governorates / States / Provinces) for a given country
+ */
+export function getWorldRegionsForCountry(countryFilter: string): WorldRegionInfo[] {
+  if (!countryFilter || countryFilter === 'all') return [];
+  const normCountry = normalizeLocationText(countryFilter);
+  const cities = getCombinedIndexedCities().filter(
+    (c) =>
+      normalizeLocationText(c.country) === normCountry ||
+      normalizeLocationText(c.countryEn) === normCountry ||
+      (c.countryCode && c.countryCode.toUpperCase() === countryFilter.toUpperCase())
+  );
+  const map = new Map<string, WorldRegionInfo>();
+  for (const city of cities) {
+    const stateLabel = city.state || city.name;
+    const stateEnLabel = city.stateEn || city.nameEn;
+    const key = normalizeLocationText(stateLabel);
+    const existing = map.get(key);
+    if (existing) {
+      existing.cityCount += 1;
+    } else {
+      map.set(key, {
+        state: stateLabel,
+        stateEn: stateEnLabel,
+        cityCount: 1,
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Filter world & Egyptian cities/centers/villages/areas hierarchically by country and optional state/region + search term,
+ * ranked by relevance (exact > startsWith > wordStart > contains > state/country match).
+ */
+export function getCitiesByHierarchy(
+  countryFilter?: string,
+  stateFilter?: string,
+  searchQuery: string = ''
+): WorldCity[] {
+  const index = getSearchIndex();
+  const normCountry = countryFilter && countryFilter !== 'all' ? normalizeLocationText(countryFilter) : '';
+  const codeCountry = countryFilter && countryFilter !== 'all' ? countryFilter.toUpperCase() : '';
+  const normState = stateFilter && stateFilter !== 'all' ? normalizeLocationText(stateFilter) : '';
+  const q = normalizeLocationText(searchQuery);
+
+  const filteredByScope = index.filter((entry) => {
+    if (normCountry) {
+      const matchCountry =
+        entry.countryNorm === normCountry ||
+        entry.countryEnNorm === normCountry ||
+        entry.city.countryCode?.toUpperCase() === codeCountry;
+      if (!matchCountry) return false;
+    }
+    if (normState) {
+      const entryState = entry.stateNorm || entry.nameNorm;
+      const entryStateEn = entry.stateEnNorm || entry.nameEnNorm;
+      if (entryState !== normState && entryStateEn !== normState) return false;
+    }
+    return true;
+  });
+
+  if (!q) {
+    return filteredByScope.map((e) => e.city);
+  }
+
+  const scored: Array<{ city: WorldCity; score: number }> = [];
+  for (const entry of filteredByScope) {
+    let score = 0;
+    if (entry.nameNorm === q || entry.nameEnNorm === q) score = 100;
+    else if (entry.nameNorm.startsWith(q) || entry.nameEnNorm.startsWith(q)) score = 85;
+    else if (
+      entry.nameNorm.includes(` ${q}`) ||
+      entry.nameEnNorm.includes(` ${q}`) ||
+      entry.nameNorm.includes(`(${q}`)
+    ) {
+      score = 72;
+    } else if (entry.nameNorm.includes(q) || entry.nameEnNorm.includes(q)) score = 60;
+    else if (entry.stateNorm.includes(q) || entry.stateEnNorm.includes(q)) score = 45;
+    else if (entry.districtNorm.includes(q)) score = 40;
+    else if (
+      entry.countryNorm.includes(q) ||
+      entry.countryEnNorm.includes(q) ||
+      entry.codeNorm === q
+    ) {
+      score = 25;
+    }
+
+    if (score > 0) {
+      scored.push({ city: entry.city, score });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.map((s) => s.city);
+}
+
+/**
  * Filter world & Egyptian cities/centers/villages by country and/or search term in Arabic, English, or Country Code
  */
-export function searchWorldCities(query: string, countryFilter?: string): WorldCity[] {
-  const q = query.trim().toLowerCase();
-  const baseList =
-    countryFilter && countryFilter !== 'all'
-      ? COMBINED_OFFLINE_CITIES.filter(
-          (c) => c.country === countryFilter || c.countryCode === countryFilter
-        )
-      : COMBINED_OFFLINE_CITIES;
+export function searchWorldCities(
+  query: string,
+  countryFilter?: string,
+  stateFilter?: string
+): WorldCity[] {
+  return getCitiesByHierarchy(countryFilter, stateFilter, query);
+}
 
-  if (!q) return baseList;
+function guessMethodForCoordinates(lat: number, lng: number, countryCode?: string): string {
+  const code = (countryCode || '').toUpperCase();
+  if (code === 'EG') return 'egypt';
+  if (['SA', 'AE', 'QA', 'BH', 'OM', 'YE'].includes(code)) return 'makkah';
+  if (code === 'KW') return 'kuwait';
+  if (code === 'TR') return 'diyanet';
+  if (['PK', 'IN', 'BD', 'AF', 'LK', 'NP'].includes(code)) return 'karachi';
+  if (['US', 'CA', 'MX'].includes(code)) return 'isna';
+  return findClosestWorldCity(lat, lng).recommendedMethod || 'mwl';
+}
 
-  return baseList.filter((city) => {
-    return (
-      city.name.toLowerCase().includes(q) ||
-      city.nameEn.toLowerCase().includes(q) ||
-      city.country.toLowerCase().includes(q) ||
-      city.countryEn.toLowerCase().includes(q) ||
-      (city.countryCode && city.countryCode.toLowerCase().includes(q))
-    );
-  });
+function resolveTimezoneForCoordinates(lat: number, lng: number, countryCode?: string): string {
+  const closest = findClosestWorldCity(lat, lng);
+  if (countryCode && closest.countryCode?.toUpperCase() === countryCode.toUpperCase()) {
+    return closest.timezone;
+  }
+  const sameCountry = COMBINED_OFFLINE_CITIES.find(
+    (c) => countryCode && c.countryCode?.toUpperCase() === countryCode.toUpperCase()
+  );
+  if (sameCountry) return sameCountry.timezone;
+  return closest.timezone || 'UTC';
+}
+
+/**
+ * Online OpenStreetMap Nominatim global search (through backend proxy first, with direct Nominatim fallback).
+ * Caches discovered results locally in localStorage so they remain available offline.
+ */
+export async function searchGlobalLocationsOnline(
+  query: string,
+  countryCode?: string
+): Promise<WorldCity[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const mapRawToWorldCity = (item: {
+    id?: string;
+    place_id?: number;
+    name?: string;
+    nameEn?: string;
+    country?: string;
+    countryEn?: string;
+    countryCode?: string;
+    state?: string;
+    district?: string;
+    neighborhood?: string;
+    street?: string;
+    latitude?: number;
+    longitude?: number;
+    lat?: string;
+    lon?: string;
+    address?: Record<string, string | undefined>;
+  }): WorldCity | null => {
+    const lat = typeof item.latitude === 'number' ? item.latitude : Number(item.lat);
+    const lng = typeof item.longitude === 'number' ? item.longitude : Number(item.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    const code = (item.countryCode || item.address?.country_code || 'GL').toUpperCase();
+    const state =
+      item.state ||
+      item.address?.state ||
+      item.address?.governorate ||
+      item.address?.province ||
+      item.address?.region;
+    const district =
+      item.district ||
+      item.address?.city_district ||
+      item.address?.district ||
+      item.address?.suburb ||
+      item.address?.county;
+    const neighborhood =
+      item.neighborhood || item.address?.neighbourhood || item.address?.residential;
+    const primaryName =
+      item.name ||
+      neighborhood ||
+      district ||
+      item.address?.city ||
+      item.address?.town ||
+      item.address?.village ||
+      state ||
+      trimmed;
+
+    return {
+      id: item.id || `osm_${item.place_id || `${lat.toFixed(4)}_${lng.toFixed(4)}`}`,
+      name: primaryName,
+      nameEn: item.nameEn || item.address?.city || item.address?.town || primaryName,
+      country: item.country || item.address?.country || 'العالم',
+      countryEn: item.countryEn || item.address?.country || 'World',
+      countryCode: code,
+      state,
+      district,
+      neighborhood,
+      street: item.street || item.address?.road,
+      latitude: lat,
+      longitude: lng,
+      timezone: resolveTimezoneForCoordinates(lat, lng, code),
+      recommendedMethod: guessMethodForCoordinates(lat, lng, code),
+      source: 'osm',
+    };
+  };
+
+  try {
+    const params = new URLSearchParams({ q: trimmed, limit: '15' });
+    if (countryCode && /^[A-Za-z]{2}$/.test(countryCode)) {
+      params.set('countryCode', countryCode);
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`/api/locations/search?${params.toString()}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const json = (await res.json()) as { success?: boolean; results?: unknown[] };
+      if (Array.isArray(json.results)) {
+        const mapped = json.results
+          .map((r) => mapRawToWorldCity(r as Parameters<typeof mapRawToWorldCity>[0]))
+          .filter((r): r is WorldCity => r !== null);
+        if (mapped.length > 0) saveOsmLocationsToCache(mapped);
+        return mapped;
+      }
+    }
+  } catch {
+    // Fallback to direct Nominatim below when running static preview without backend proxy
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: trimmed,
+      format: 'jsonv2',
+      addressdetails: '1',
+      limit: '15',
+      'accept-language': 'ar,en',
+    });
+    if (countryCode && /^[A-Za-z]{2}$/.test(countryCode)) {
+      params.set('countrycodes', countryCode.toLowerCase());
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const data = (await res.json()) as unknown[];
+    const mapped = data
+      .map((r) => mapRawToWorldCity(r as Parameters<typeof mapRawToWorldCity>[0]))
+      .filter((r): r is WorldCity => r !== null);
+    if (mapped.length > 0) saveOsmLocationsToCache(mapped);
+    return mapped;
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -572,13 +1127,15 @@ export function findClosestWorldCity(lat: number, lng: number): WorldCity {
   let minDistance = Infinity;
   let closest = COMBINED_OFFLINE_CITIES[0];
 
-  for (const city of COMBINED_OFFLINE_CITIES) {
+  for (const city of getCombinedIndexedCities()) {
     const dLat = toRad(city.latitude - lat);
     const dLng = toRad(city.longitude - lng);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat)) * Math.cos(toRad(city.latitude)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      Math.cos(toRad(lat)) *
+        Math.cos(toRad(city.latitude)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const d = 6371 * c; // Earth radius in km
 
@@ -591,30 +1148,27 @@ export function findClosestWorldCity(lat: number, lng: number): WorldCity {
   return closest;
 }
 
+export interface GpsDetectionOptions {
+  /** If false, returns the detected city to the caller for confirmation instead of silently saving as active */
+  autoSaveActiveLocation?: boolean;
+}
+
 /**
  * Smart GPS Location Detection (Supports Offline GPS + Online Fast Reverse Geocoding)
  * - Requests permission on first use
  * - Works offline when GPS signal is available using local Egyptian & World Haversine database
- * - Uses internet when available to refine location name and speed up detection
- * - Saves last detected location in localStorage
- * - NEVER changes or overwrites the saved location when detection fails
+ * - Uses internet when available (Nominatim /api/locations/reverse + BigDataCloud fallback) to extract:
+ *   Country, Governorate/State, City, District/Area, Neighborhood, Street
+ * - Saves a separate last-known GPS backup (`getLastSuccessfulGpsLocation`) labeled as "موقع محفوظ"
+ * - NEVER changes or overwrites the active saved location when detection fails
  */
 export function detectSmartGpsLocation(
-  onSuccess: (
-    city: {
-      id: string;
-      name: string;
-      country: string;
-      latitude: number;
-      longitude: number;
-      timezone: string;
-      recommendedMethod?: string;
-    },
-    message: string
-  ) => void,
-  onError: (errorMessage: string) => void
+  onSuccess: (city: CityLocation, message: string) => void,
+  onError: (errorMessage: string) => void,
+  options?: GpsDetectionOptions
 ): void {
   markFirstGpsPrompted();
+  const autoSave = options?.autoSaveActiveLocation !== false;
 
   try {
     const win = window as unknown as {
@@ -629,86 +1183,173 @@ export function detectSmartGpsLocation(
 
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     onError(
-      'خدمة تحديد الموقع GPS غير مدعومة على هذا الجهاز. تم الاحتفاظ بموقعك المحفوظ دون تغيير، ويمكنك اختيار محافظتك أو مدينتك يدويًا دون إنترنت.'
+      'خدمة تحديد الموقع GPS غير مدعومة على هذا الجهاز. لم يتم تغيير موقعك النشط؛ يمكنك اختيار محافظتك أو مدينتك يدويًا أو استرجاع آخر موقع محفوظ.'
     );
     return;
   }
 
-  const processCoordinates = async (lat: number, lng: number) => {
+  const processCoordinates = async (lat: number, lng: number, accuracy?: number) => {
     const closestOffline = findClosestWorldCity(lat, lng);
     let resolvedName = closestOffline.name;
     let resolvedCountry = closestOffline.country;
+    let resolvedCountryCode = closestOffline.countryCode || 'GL';
+    let resolvedState = closestOffline.state;
+    let resolvedDistrict = closestOffline.district;
+    let resolvedNeighborhood: string | undefined;
+    let resolvedStreet: string | undefined;
 
-    // If internet is available, enhance location name accuracy quickly via reverse geocoding
     if (typeof navigator !== 'undefined' && navigator.onLine) {
+      // 1. Try backend Nominatim detailed reverse-geocode endpoint
+      let resolvedOnline = false;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`,
-          { signal: controller.signal }
-        );
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const data = await res.json();
-          const locality = data.locality || data.city || '';
-          const principalSubdivision = data.principalSubdivision || '';
-          if (locality) {
+        const timer = setTimeout(() => controller.abort(), 4500);
+        const revRes = await fetch(`/api/locations/reverse?lat=${lat}&lng=${lng}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (revRes.ok) {
+          const data = (await revRes.json()) as {
+            success?: boolean;
+            country?: string;
+            countryCode?: string;
+            state?: string;
+            city?: string;
+            district?: string;
+            neighborhood?: string;
+            street?: string;
+          };
+          if (data.success && (data.city || data.country || data.state)) {
+            resolvedOnline = true;
+            if (data.countryCode) resolvedCountryCode = data.countryCode.toUpperCase();
+            if (data.country) {
+              resolvedCountry =
+                resolvedCountryCode === 'EG' || data.country.includes('مصر') ? 'مصر' : data.country;
+            }
+            if (data.state) resolvedState = data.state;
+            if (data.district) resolvedDistrict = data.district;
+            if (data.neighborhood) resolvedNeighborhood = data.neighborhood;
+            if (data.street) resolvedStreet = data.street;
+            const cityLabel = data.city || data.district || data.neighborhood || closestOffline.name;
             resolvedName =
-              principalSubdivision && !locality.includes(principalSubdivision)
-                ? `${locality} (${principalSubdivision})`
-                : locality;
-          }
-          if (data.countryName) {
-            resolvedCountry = data.countryName.includes('مصر') || data.countryCode === 'EG' ? 'مصر' : data.countryName;
+              data.state && !cityLabel.includes(data.state)
+                ? `${cityLabel} (${data.state})`
+                : cityLabel;
           }
         }
       } catch {
-        // Offline or slow connection: seamlessly use local offline database match
+        // Fallback below
+      }
+
+      // 2. Fallback to BigDataCloud reverse geocoding if needed
+      if (!resolvedOnline) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const res = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`,
+            { signal: controller.signal }
+          );
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const data = await res.json();
+            const locality = data.locality || data.city || '';
+            const principalSubdivision = data.principalSubdivision || '';
+            if (data.countryCode) resolvedCountryCode = String(data.countryCode).toUpperCase();
+            if (principalSubdivision) resolvedState = principalSubdivision;
+            if (locality) {
+              resolvedDistrict = locality;
+              resolvedName =
+                principalSubdivision && !locality.includes(principalSubdivision)
+                  ? `${locality} (${principalSubdivision})`
+                  : locality;
+            }
+            if (data.countryName) {
+              resolvedCountry =
+                data.countryName.includes('مصر') || resolvedCountryCode === 'EG'
+                  ? 'مصر'
+                  : data.countryName;
+            }
+          }
+        } catch {
+          // Offline or slow connection: seamlessly use local offline database match
+        }
       }
     }
 
-    const detectedCity = {
+    const detectedCity: CityLocation = {
       id: `gps-${lat.toFixed(4)}-${lng.toFixed(4)}`,
       name: resolvedName,
       country: resolvedCountry,
+      countryCode: resolvedCountryCode,
+      state: resolvedState,
+      district: resolvedDistrict,
+      neighborhood: resolvedNeighborhood,
+      street: resolvedStreet,
       latitude: lat,
       longitude: lng,
+      accuracyMeters: typeof accuracy === 'number' ? Math.round(accuracy) : undefined,
+      detectedAt: new Date().toISOString(),
+      source: 'gps',
+      isSavedLocation: false,
       timezone:
         (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '') ||
         closestOffline.timezone ||
         'Africa/Cairo',
-      recommendedMethod: closestOffline.recommendedMethod || (resolvedCountry === 'مصر' ? 'egypt' : 'mwl'),
+      recommendedMethod:
+        guessMethodForCoordinates(lat, lng, resolvedCountryCode) ||
+        closestOffline.recommendedMethod ||
+        'mwl',
     };
 
-    savePersistentLocation(detectedCity);
+    saveLastSuccessfulGpsLocation(detectedCity);
+    if (autoSave) {
+      savePersistentLocation(detectedCity);
+    }
+
+    const detailsParts = [
+      resolvedCountry,
+      resolvedState,
+      resolvedDistrict,
+      resolvedNeighborhood,
+      resolvedStreet,
+    ].filter(Boolean);
+    const accLabel =
+      typeof accuracy === 'number' ? ` • الدقة: ±${Math.round(accuracy)}م` : '';
+
     onSuccess(
       detectedCity,
-      `✓ تم تحديد موقعك بدقة عبر GPS وحفظه تلقائيًا: ${detectedCity.name} (${detectedCity.country}) [${lat.toFixed(3)}°, ${lng.toFixed(3)}°]`
+      `✓ تم تحديد موقعك بدقة عبر GPS: ${detailsParts.join(' • ') || detectedCity.name} [${lat.toFixed(4)}°, ${lng.toFixed(4)}°${accLabel}]`
     );
   };
 
   // Attempt 1: High-accuracy satellite GPS (works offline with GPS signal)
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      processCoordinates(pos.coords.latitude, pos.coords.longitude);
+      processCoordinates(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
     },
     () => {
       // Attempt 2: Network/cached GPS position (faster indoor or cached GPS fix)
       navigator.geolocation.getCurrentPosition(
         (pos2) => {
-          processCoordinates(pos2.coords.latitude, pos2.coords.longitude);
+          processCoordinates(pos2.coords.latitude, pos2.coords.longitude, pos2.coords.accuracy);
         },
-        () => {
+        (err) => {
           // IMPORTANT: Do NOT overwrite or change the user's saved location when GPS fails!
+          const reason =
+            err?.code === 1
+              ? 'تم رفض إذن الوصول للموقع الجغرافي من المتصفح أو الهاتف.'
+              : err?.code === 3
+              ? 'انتهت مهلة البحث عن إشارة GPS.'
+              : 'تعذر الحصول على إشارة GPS أو الشبكة حاليًا.';
           onError(
-            'تعذر الحصول على إشارة GPS حاليًا. لم يتم تغيير موقعك المحفوظ، ويمكنك اختيار محافظتك أو مدينتك يدويًا دون إنترنت.'
+            `${reason} لم يتم تغيير موقعك المحفوظ. يمكنك إعادة المحاولة أو اختيار موقعك يدويًا أو استخدام آخر موقع محفوظ.`
           );
         },
         { enableHighAccuracy: false, timeout: 7000, maximumAge: 600000 }
       );
     },
-    { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
 }
 

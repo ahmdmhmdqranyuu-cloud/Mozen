@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.MoazenWidgetCard
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -76,9 +77,8 @@ fun ProfileScreen(
         ) {
             // User Avatar Card
             item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 20.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -91,25 +91,26 @@ fun ProfileScreen(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(GoldAccent.copy(alpha = 0.2f)),
+                                .background(MoazenGold.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(42.dp))
+                            Icon(Icons.Default.Person, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(42.dp))
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
                             text = "مسلم يرجو رحمة ربه",
-                            color = TextPrimary,
+                            color = MoazenInkPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
                             text = "الموقع الحالي: ${prefs.cityName}",
-                            color = GoldLight,
-                            fontSize = 12.sp
+                            color = MoazenInkEmerald,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -117,9 +118,8 @@ fun ProfileScreen(
 
             // Daily Prayer Tracker Card
             item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 20.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
@@ -130,14 +130,15 @@ fun ProfileScreen(
                         ) {
                             Text(
                                 text = "متابعة صلوات اليوم",
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "$completedCount من 5",
-                                color = TextSecondary,
-                                fontSize = 13.sp
+                                color = MoazenInkMuted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
 
@@ -149,8 +150,8 @@ fun ProfileScreen(
                                 .fillMaxWidth()
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
-                            color = GoldAccent,
-                            trackColor = EmeraldSurfaceLight
+                            color = MoazenInkEmerald,
+                            trackColor = MoazenInkEmerald.copy(alpha = 0.14f)
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -191,20 +192,20 @@ fun ProfileScreen(
                                         modifier = Modifier
                                             .size(44.dp)
                                             .clip(CircleShape)
-                                            .background(if (done) GoldAccent else EmeraldSurfaceLight),
+                                            .background(if (done) MoazenInkEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = if (done) Icons.Default.Check else Icons.Default.AccessTime,
                                             contentDescription = name,
-                                            tint = if (done) EmeraldDeep else TextSecondary,
+                                            tint = if (done) Color.White else MoazenInkMuted,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = name,
-                                        color = if (done) GoldLight else TextSecondary,
+                                        color = if (done) MoazenInkEmerald else MoazenInkMuted,
                                         fontSize = 11.sp,
                                         fontWeight = if (done) FontWeight.Bold else FontWeight.Normal
                                     )
@@ -222,59 +223,116 @@ fun ProfileScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Quran Progress
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                    MoazenWidgetCard(
+                        cornerRadius = 16.dp,
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.MenuBook, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(28.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "آخر قراءة للقرآن", color = TextSecondary, fontSize = 11.sp)
+                            Text(text = "آخر قراءة للقرآن", color = MoazenInkMuted, fontSize = 11.sp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = lastSurah,
-                                color = TextPrimary,
+                                color = MoazenInkPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "الآية ${prefs.lastReadAyah}",
-                                color = GoldLight,
-                                fontSize = 10.sp
+                                color = MoazenGoldDark,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
                     // Tasbih Count
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                    MoazenWidgetCard(
+                        cornerRadius = 16.dp,
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.TouchApp, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.TouchApp, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(28.dp))
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = "مجموع التسبيحات", color = TextSecondary, fontSize = 11.sp)
+                            Text(text = "مجموع التسبيحات", color = MoazenInkMuted, fontSize = 11.sp)
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "${prefs.totalTasbihCount}",
-                                color = GoldAccent,
+                                color = MoazenInkEmerald,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "تسبيحة مباركة",
-                                color = GoldLight,
-                                fontSize = 10.sp
+                                color = MoazenGoldDark,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
+                        }
+                    }
+                }
+            }
+
+            // Smart Sheikh Memorization Stats Card
+            item {
+                val masteredCount = prefs.getSheikhMasteredMap().size
+                val sessionsCount = prefs.sheikhSessionsCount
+                val correctWordsCount = prefs.sheikhCorrectWordsCount
+                MoazenWidgetCard(
+                    cornerRadius = 18.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "الحفظ والتسميع مع «شيخي»",
+                            color = MoazenInkEmerald,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "$masteredCount",
+                                    color = MoazenInkEmerald,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(text = "آية متقنة", color = MoazenInkMuted, fontSize = 11.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "$sessionsCount",
+                                    color = MoazenInkPrimary,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(text = "محاولة تسميع", color = MoazenInkMuted, fontSize = 11.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "$correctWordsCount",
+                                    color = EmeraldPrimaryDark,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(text = "كلمة صحيحة", color = MoazenInkMuted, fontSize = 11.sp)
+                            }
                         }
                     }
                 }
@@ -282,15 +340,14 @@ fun ProfileScreen(
 
             // Spiritual Badges Card
             item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldSurface),
+                MoazenWidgetCard(
+                    cornerRadius = 20.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Text(
                             text = "الأوسمة والإنجازات الإيمانية",
-                            color = GoldAccent,
+                            color = MoazenInkEmerald,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -314,13 +371,13 @@ fun ProfileScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(if (isUnlocked) GoldAccent else EmeraldSurfaceLight),
+                                        .background(if (isUnlocked) MoazenInkEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.MilitaryTech,
                                         contentDescription = null,
-                                        tint = if (isUnlocked) EmeraldDeep else TextSecondary,
+                                        tint = if (isUnlocked) Color.White else MoazenInkMuted,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -328,20 +385,20 @@ fun ProfileScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = title,
-                                        color = if (isUnlocked) TextPrimary else TextSecondary,
+                                        color = if (isUnlocked) MoazenInkPrimary else MoazenInkMuted,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
                                         text = desc,
-                                        color = if (isUnlocked) GoldLight else TextSecondary.copy(alpha = 0.6f),
+                                        color = if (isUnlocked) MoazenGoldDark else MoazenInkMuted.copy(alpha = 0.7f),
                                         fontSize = 11.sp
                                     )
                                 }
                                 if (isUnlocked) {
                                     Text(
                                         text = "مكتمل",
-                                        color = GoldAccent,
+                                        color = MoazenInkEmerald,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )

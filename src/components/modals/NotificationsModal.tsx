@@ -52,7 +52,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Prayer Adhan Alarms */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
+          <div className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
             <h4 className="text-xs font-bold text-gray-800 text-right pb-1 border-b border-gray-100">
               تنبيهات صوت الأذان عند دخول الوقت:
             </h4>
@@ -86,7 +86,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           </div>
 
           {/* Daily Worship Alarms */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
+          <div className="moazen-widget p-4 rounded-2xl border border-gray-100 shadow-xs space-y-2.5">
             <h4 className="text-xs font-bold text-gray-800 text-right pb-1 border-b border-gray-100">
               تنبيهات الطاعات والأذكار:
             </h4>

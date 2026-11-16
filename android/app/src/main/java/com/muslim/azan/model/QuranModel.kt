@@ -15,7 +15,11 @@ data class Ayah(
     val textArabic: String,
     val translation: String = "",
     val tafseer: String = "",
-    val audioUrl: String = ""
+    val audioUrl: String = "",
+    val page: Int = 1,
+    val juz: Int = 1,
+    val surahNumber: Int = 1,
+    val surahName: String = ""
 )
 
 data class QuranBookmark(

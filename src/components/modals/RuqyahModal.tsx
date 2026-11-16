@@ -161,7 +161,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
             )}
             <button
               onClick={() => setIsIndexOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
               aria-label="فهرس الرقية الشرعية"
             >
               <Menu className="w-4 h-4 text-[#C5A059]" />
@@ -242,21 +242,21 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
       {!selectedItem ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3 pb-24 max-w-2xl mx-auto w-full">
           {/* Compact Ruqyah Shariah Audio Player Widget (Compact design with full offline functionality) */}
-          <div className="bg-gradient-to-r from-[#104B40] via-[#145548] to-[#104B40] text-white p-2.5 sm:p-3 rounded-2xl shadow-xs border border-[#C5A059]/30 flex items-center justify-between gap-2.5">
+          <div className="moazen-widget p-2.5 sm:p-3 rounded-2xl shadow-xs flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#C5A059]/20 text-[#C5A059] flex items-center justify-center shrink-0 border border-[#C5A059]/40">
-                <ShieldCheck className="w-5 h-5 text-amber-300" />
+              <div className="w-9 h-9 rounded-xl bg-[#104B40]/10 text-[#104B40] flex items-center justify-center shrink-0 border border-[#104B40]/20">
+                <ShieldCheck className="w-5 h-5 text-[#104B40]" />
               </div>
               <div className="min-w-0 text-right">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs sm:text-sm font-bold font-cairo text-white truncate">
+                  <h3 className="text-xs sm:text-sm font-bold font-cairo text-[#104B40] truncate">
                     تشغيل الرقية الشرعية بدون إنترنت
                   </h3>
-                  <span className="text-[9px] font-bold bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded-md border border-amber-300/30">
+                  <span className="text-[9px] font-bold bg-[#C5A059]/20 text-[#7A591B] px-1.5 py-0.5 rounded-md border border-[#C5A059]/40">
                     كاملة
                   </span>
                 </div>
-                <p className="text-[10px] sm:text-[11px] text-white/80 font-sans truncate">
+                <p className="text-[10px] sm:text-[11px] text-[#4B5B58] font-sans truncate">
                   تسجيل خاشع كامل من الكتاب والسنة لعلاج الحسد والعين والمس
                 </p>
               </div>
@@ -285,7 +285,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
             </button>
           </div>
 
-          <div className="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-xs text-xs text-gray-700 leading-relaxed flex items-center justify-between gap-2">
+          <div className="moazen-widget p-3.5 rounded-2xl border border-gray-100 shadow-xs text-xs text-gray-700 leading-relaxed flex items-center justify-between gap-2">
             <div>
               <span className="font-bold text-[#9A7732] block mb-0.5">فهرس آيات وأدعية الرقية الشرعية ({displayedList.length}):</span>
               اضغط على أي آية أو دعاء من الفهرس الرأسي لفتح صفحته المستقلة مع الاستماع والتكرار والمشاركة.
@@ -293,7 +293,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
             {Object.keys(repeatCounts).length > 0 && (
               <button
                 onClick={() => setRepeatCounts({})}
-                className="px-2.5 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-gray-600 text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                className="moazen-widget px-2.5 py-1.5 rounded-xl text-gray-600 text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>تصفير</span>
@@ -357,14 +357,14 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
         /* VIEW 2: INDEPENDENT DETAIL PAGE FOR SELECTED RUQYAH ITEM */
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-24 max-w-2xl mx-auto w-full animate-fadeIn">
           {/* Top Back Bar */}
-          <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
             <button
               onClick={() => {
                 soundService.stopAudio();
                 setPlayingId(null);
                 setSelectedItem(null);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
               <span>العودة إلى فهرس الرقية الشرعية ({displayedList.length})</span>
@@ -418,11 +418,11 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
                   </button>
                 </div>
 
-                <p className="font-amiri text-xl sm:text-2xl leading-[2.2] text-[#172A28] bg-[#FAF9F5] p-5 rounded-2xl border border-[#C5A059]/30 font-bold select-text break-words whitespace-pre-line">
+                <p className="moazen-widget font-amiri text-xl sm:text-2xl leading-[2.2] text-[#172A28] p-5 rounded-2xl border border-[#C5A059]/30 font-bold select-text break-words whitespace-pre-line">
                   {selectedItem.arabic}
                 </p>
 
-                <div className="text-xs text-gray-700 bg-[#F7F6F2] p-3.5 rounded-xl border border-gray-100 leading-relaxed">
+                <div className="moazen-widget text-xs text-gray-700 p-3.5 rounded-xl border border-gray-100 leading-relaxed">
                   <span className="font-bold text-[#9A7732]">الفضل والأثر: </span>
                   {selectedItem.fadl}
                 </div>
@@ -464,7 +464,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
 
                   <button
                     onClick={() => handleCopy(selectedItem.id, selectedItem.arabic, selectedItem.title)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#F7F6F2] hover:bg-gray-200 text-[#172A28] border border-gray-200 text-xs font-bold transition-colors cursor-pointer"
+                    className="moazen-widget flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-[#172A28] border border-gray-200 text-xs font-bold transition-colors cursor-pointer"
                   >
                     {copiedId === selectedItem.id ? (
                       <>
@@ -494,7 +494,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
                   setSelectedItem(displayedList[currentItemIndex - 1]);
                 }
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer transition-all"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer transition-all"
             >
               <ChevronRight className="w-4 h-4 text-[#C5A059]" />
               <span>الورد السابق</span>
@@ -509,7 +509,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
                   setSelectedItem(displayedList[currentItemIndex + 1]);
                 }
               }}
-              className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 hover:bg-gray-50 cursor-pointer transition-all"
+              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer transition-all"
             >
               <span>الورد التالي</span>
               <ChevronLeft className="w-4 h-4 text-[#C5A059]" />

@@ -5,13 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -45,6 +49,83 @@ object MediaFileManager {
         return dir
     }
 
+    fun isNetworkAvailable(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+            val activeNetwork = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(activeNetwork) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    suspend fun fetchImageBytesFromUrl(imageUrl: String): Result<ByteArray> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL(imageUrl)
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 12000
+                readTimeout = 20000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "AlMoazen-Android/2.2")
+            }
+            connection.connect()
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                return@withContext Result.failure(Exception("فشل الاتصال بالخادم (HTTP $code)"))
+            }
+            val bytes = connection.inputStream.use { input ->
+                val out = ByteArrayOutputStream()
+                val buf = ByteArray(8192)
+                var n: Int
+                while (input.read(buf).also { n = it } != -1) {
+                    out.write(buf, 0, n)
+                }
+                out.toByteArray()
+            }
+            if (bytes.size < 512) {
+                return@withContext Result.failure(Exception("بيانات الصورة غير مكتملة"))
+            }
+            Result.success(bytes)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed downloading image: $imageUrl", e)
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    suspend fun createShareableImageUri(
+        context: Context,
+        bytes: ByteArray,
+        fileNameHint: String = "wallpaper"
+    ): Result<Uri> = withContext(Dispatchers.IO) {
+        try {
+            if (bytes.isEmpty()) {
+                return@withContext Result.failure(IllegalArgumentException("بيانات الصورة فارغة"))
+            }
+            val isPng = bytes.size >= 4 &&
+                bytes[0] == 0x89.toByte() &&
+                bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() &&
+                bytes[3] == 0x47.toByte()
+            val ext = if (isPng) "png" else "jpg"
+            val shareDir = getCacheDir(context, "shared_wallpapers")
+            val safeHint = fileNameHint.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(24).ifEmpty { "wallpaper" }
+            val outFile = File(shareDir, "${safeHint}_${System.currentTimeMillis()}.$ext")
+            FileOutputStream(outFile).use { out ->
+                out.write(bytes)
+                out.flush()
+            }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+            Result.success(uri)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed creating shareable image URI", e)
+            Result.failure(e)
+        }
+    }
+
     /**
      * Saves image bytes directly into the user's phone gallery (MediaStore Scoped Storage on API 29+).
      * Complies fully with Google Play policies without requiring broad storage permissions.
@@ -60,16 +141,25 @@ object MediaFileManager {
             }
 
             // Validate that bytes represent a valid image
-            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                ?: return@withContext Result.failure(IllegalArgumentException("Invalid image byte format"))
-            bmp.recycle()
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            if (opts.outWidth <= 0 || opts.outHeight <= 0) {
+                return@withContext Result.failure(IllegalArgumentException("Invalid image byte format"))
+            }
 
-            val safeName = "almuadhin_${System.currentTimeMillis()}.png"
+            val isPng = bytes.size >= 4 &&
+                bytes[0] == 0x89.toByte() &&
+                bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() &&
+                bytes[3] == 0x47.toByte()
+            val ext = if (isPng) "png" else "jpg"
+            val mimeType = if (isPng) "image/png" else "image/jpeg"
+            val safeName = "almuadhin_${System.currentTimeMillis()}.$ext"
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, safeName)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    put(MediaStore.Images.Media.MIME_TYPE, mimeType)
                     put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/$GALLERY_FOLDER")
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }

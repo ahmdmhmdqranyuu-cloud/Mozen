@@ -53,7 +53,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   return (
     <nav
       aria-label="الشريط السفلي"
-      className="fixed bottom-0 inset-x-0 w-full z-[60] bg-white/96 backdrop-blur-md border-t border-gray-200/85 shadow-[0_-4px_18px_rgba(16,75,64,0.10)] select-none transition-all duration-200 pb-[env(safe-area-inset-bottom,0px)]"
+      className="moazen-widget fixed bottom-0 inset-x-0 w-full z-[60] backdrop-blur-md border-t border-emerald-950/15 shadow-[0_-4px_18px_rgba(16,75,64,0.10)] select-none transition-all duration-200 pb-[env(safe-area-inset-bottom,0px)]"
     >
       <div className="w-full max-w-2xl mx-auto px-2 py-1">
         <div className="flex items-center justify-between">
