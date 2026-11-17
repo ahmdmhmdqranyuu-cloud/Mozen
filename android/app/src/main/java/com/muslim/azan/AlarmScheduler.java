@@ -33,20 +33,49 @@ public class AlarmScheduler {
     /**
      * Schedules a genuine one-shot background test alarm after [delaySeconds] seconds
      * through AlarmManager -> AzkarAlarmReceiver -> AzkarAudioService (with Floating Overlay).
-     * Returns the scheduled trigger epoch timestamp in milliseconds, or -1 if AlarmManager unavailable.
+     * Persists and returns real diagnostic status (schedule mode, exact alarm state, failure reason).
      */
-    public static long scheduleBackgroundTestAlarm(
+    public static AlarmScheduleTracker.BackgroundTestStatus scheduleBackgroundTestAlarmDetailed(
             Context context,
             String audioTrackId,
             String cityName,
             int delaySeconds
     ) {
-        if (context == null) return -1L;
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) return -1L;
-
+        long nowMs = System.currentTimeMillis();
         long safeDelayMs = Math.max(3, delaySeconds) * 1000L;
-        long triggerEpochMs = System.currentTimeMillis() + safeDelayMs;
+        long triggerEpochMs = nowMs + safeDelayMs;
+        String resolvedTrack = (audioTrackId != null && !audioTrackId.isEmpty()) ? audioTrackId : "makkah";
+
+        if (context == null) {
+            return new AlarmScheduleTracker.BackgroundTestStatus(
+                    "failed",
+                    AlarmScheduleTracker.ScheduleMode.FAILED,
+                    false,
+                    nowMs,
+                    triggerEpochMs,
+                    0L,
+                    resolvedTrack,
+                    "",
+                    "Context غير متاح لجدولة التنبيه"
+            );
+        }
+
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            AlarmScheduleTracker.BackgroundTestStatus failed = new AlarmScheduleTracker.BackgroundTestStatus(
+                    "failed",
+                    AlarmScheduleTracker.ScheduleMode.FAILED,
+                    false,
+                    nowMs,
+                    triggerEpochMs,
+                    0L,
+                    resolvedTrack,
+                    "",
+                    "خدمة AlarmManager غير متوفرة في هذا الجهاز"
+            );
+            AlarmScheduleTracker.saveBackgroundTestStatus(context, failed);
+            return failed;
+        }
 
         boolean canExact = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -70,9 +99,10 @@ public class AlarmScheduler {
         intent.putExtra("cityName", (cityName != null && !cityName.isEmpty()) ? cityName : "مكة المكرمة");
         intent.putExtra("title", "اختبار الأذان في الخلفية");
         intent.putExtra("body", "تم تفعيل منبه الخلفية وتشغيل الصوت والنافذة العائمة بنجاح");
-        intent.putExtra("audioTrackId", (audioTrackId != null && !audioTrackId.isEmpty()) ? audioTrackId : "makkah");
+        intent.putExtra("audioTrackId", resolvedTrack);
         intent.putExtra("autoPlay", true);
         intent.putExtra("isTestAlarm", true);
+        intent.putExtra("testTriggerAtMs", triggerEpochMs);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -81,54 +111,105 @@ public class AlarmScheduler {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
+        AlarmScheduleTracker.ScheduleMode usedMode = AlarmScheduleTracker.ScheduleMode.FAILED;
+        String fallbackOrFailureNote = "";
+
         try {
             if (canExact) {
                 try {
                     AlarmManager.AlarmClockInfo clockInfo =
                             new AlarmManager.AlarmClockInfo(triggerEpochMs, showPendingIntent);
                     alarmManager.setAlarmClock(clockInfo, pendingIntent);
-                    Log.d(TAG, "Scheduled exact background test alarm in " + delaySeconds + "s");
-                    return triggerEpochMs;
+                    usedMode = AlarmScheduleTracker.ScheduleMode.ALARM_CLOCK;
                 } catch (SecurityException se) {
                     Log.w(TAG, "setAlarmClock denied for test alarm, falling back", se);
+                    fallbackOrFailureNote = "رفض النظام AlarmClock: " + se.getMessage();
                 }
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
+            if (usedMode == AlarmScheduleTracker.ScheduleMode.FAILED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
                 try {
                     alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pendingIntent);
-                    return triggerEpochMs;
-                } catch (SecurityException ignored) {}
+                    usedMode = AlarmScheduleTracker.ScheduleMode.EXACT_WHILE_IDLE;
+                } catch (SecurityException se) {
+                    fallbackOrFailureNote = "رفض النظام ExactAlarm: " + se.getMessage();
+                }
             }
 
-            scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
-            return triggerEpochMs;
+            if (usedMode == AlarmScheduleTracker.ScheduleMode.FAILED) {
+                scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
+                usedMode = AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE;
+                if (!canExact && fallbackOrFailureNote.isEmpty()) {
+                    fallbackOrFailureNote = "إذن المنبهات الدقيقة غير مفعّل — تم استخدام الجدولة البديلة المرنة";
+                }
+            }
+
+            AlarmScheduleTracker.BackgroundTestStatus status = new AlarmScheduleTracker.BackgroundTestStatus(
+                    "scheduled",
+                    usedMode,
+                    canExact,
+                    nowMs,
+                    triggerEpochMs,
+                    0L,
+                    resolvedTrack,
+                    "مجدول بواسطة " + usedMode.arabicLabel,
+                    fallbackOrFailureNote
+            );
+            AlarmScheduleTracker.saveBackgroundTestStatus(context, status);
+            return status;
         } catch (Exception e) {
             Log.e(TAG, "Failed scheduling background test alarm", e);
-            return -1L;
+            AlarmScheduleTracker.BackgroundTestStatus failed = new AlarmScheduleTracker.BackgroundTestStatus(
+                    "failed",
+                    AlarmScheduleTracker.ScheduleMode.FAILED,
+                    canExact,
+                    nowMs,
+                    triggerEpochMs,
+                    0L,
+                    resolvedTrack,
+                    "",
+                    e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()
+            );
+            AlarmScheduleTracker.saveBackgroundTestStatus(context, failed);
+            return failed;
         }
     }
 
-    public static synchronized void rescheduleFromJson(Context context, String jsonArrayString) {
+    public static long scheduleBackgroundTestAlarm(
+            Context context,
+            String audioTrackId,
+            String cityName,
+            int delaySeconds
+    ) {
+        AlarmScheduleTracker.BackgroundTestStatus status =
+                scheduleBackgroundTestAlarmDetailed(context, audioTrackId, cityName, delaySeconds);
+        return "failed".equals(status.state) ? -1L : status.triggerAtMs;
+    }
+
+    public static synchronized AlarmScheduleTracker.ScheduleOutcome rescheduleFromJson(Context context, String jsonArrayString) {
+        long now = System.currentTimeMillis();
+        if (context == null || jsonArrayString == null) {
+            return new AlarmScheduleTracker.ScheduleOutcome(0, 0, 0, 0, 0, 0, false, "مدخلات الجدولة فارغة", now);
+        }
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null || jsonArrayString == null) return;
+        if (alarmManager == null) {
+            AlarmScheduleTracker.ScheduleOutcome failed = new AlarmScheduleTracker.ScheduleOutcome(
+                    0, 0, 0, 0, 0, 1, false, "AlarmManager غير متاح", now
+            );
+            AlarmScheduleTracker.saveOutcome(context, failed);
+            return failed;
+        }
 
         try {
             JSONArray newArray = new JSONArray(jsonArrayString);
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-
             String oldJson = prefs.getString(SCHEDULE_KEY, null);
-            long now = System.currentTimeMillis();
 
             boolean canExact = true;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 canExact = alarmManager.canScheduleExactAlarms();
             }
             prefs.edit().putBoolean("can_schedule_exact_alarms", canExact).apply();
-
-            Set<String> newAlarmIds = new HashSet<>();
-            JSONArray persistedArray = new JSONArray();
-            int scheduledCount = 0;
 
             Intent showAppIntent = new Intent(context, MainActivity.class);
             showAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -139,89 +220,74 @@ public class AlarmScheduler {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            for (int i = 0; i < newArray.length() && scheduledCount < MAX_CONCURRENT_ALARMS; i++) {
-                JSONObject obj = newArray.getJSONObject(i);
+            AlarmScheduleTracker.ExecutionResult result = AlarmScheduleTracker.executeScheduleBatch(
+                    newArray,
+                    now,
+                    MAX_CONCURRENT_ALARMS,
+                    canExact,
+                    Build.VERSION.SDK_INT,
+                    new AlarmScheduleTracker.AlarmBackend() {
+                        private PendingIntent buildAlarmPi(JSONObject obj, int requestCode, long triggerEpochMs) {
+                            String section = obj.optString("section", "");
+                            Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+                            intent.setAction(ACTION);
+                            intent.setData(Uri.parse("almoazen://alarm/" + section + "/" + triggerEpochMs));
 
-                String section = obj.optString("section", "");
-                long triggerEpochMs = obj.optLong("triggerEpochMs", 0L);
+                            intent.putExtra("section", section);
+                            intent.putExtra("prayerKey", obj.optString("prayerKey", ""));
+                            intent.putExtra("title", obj.optString("title", ""));
+                            intent.putExtra("body", obj.optString("body", ""));
+                            intent.putExtra("audioTrackId", obj.optString("audioTrackId", ""));
+                            intent.putExtra("prayerName", obj.optString("prayerName", "الصلاة"));
+                            intent.putExtra("cityName", obj.optString("cityName", "مدينتك"));
+                            intent.putExtra("iqamaDurationMinutes", obj.optInt("iqamaDurationMinutes", 15));
+                            intent.putExtra("volumePercent", obj.optInt("volumePercent", 100));
+                            intent.putExtra("alertMode", obj.optString("alertMode", "full_azan"));
+                            intent.putExtra("silentDuringPrayer", obj.optBoolean("silentDuringPrayer", false));
+                            intent.putExtra("duaAfterPrayerEnabled", obj.optBoolean("duaAfterPrayerEnabled", false));
+                            intent.putExtra("autoPlay", obj.optBoolean("autoPlay", true));
 
-                if (section.isEmpty() || triggerEpochMs <= now) {
-                    continue;
-                }
+                            return PendingIntent.getBroadcast(
+                                    context,
+                                    requestCode,
+                                    intent,
+                                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                            );
+                        }
 
-                String alarmId = section + "_" + triggerEpochMs;
-                if (newAlarmIds.contains(alarmId)) {
-                    continue;
-                }
-                newAlarmIds.add(alarmId);
-                persistedArray.put(obj);
-
-                int requestCode = alarmId.hashCode();
-
-                Intent intent = new Intent(context, AzkarAlarmReceiver.class);
-                intent.setAction(ACTION);
-                intent.setData(Uri.parse("almoazen://alarm/" + section + "/" + triggerEpochMs));
-
-                intent.putExtra("section", section);
-                intent.putExtra("prayerKey", obj.optString("prayerKey", ""));
-                intent.putExtra("title", obj.optString("title", ""));
-                intent.putExtra("body", obj.optString("body", ""));
-                intent.putExtra("audioTrackId", obj.optString("audioTrackId", ""));
-                intent.putExtra("prayerName", obj.optString("prayerName", "الصلاة"));
-                intent.putExtra("cityName", obj.optString("cityName", "مدينتك"));
-                intent.putExtra("iqamaDurationMinutes", obj.optInt("iqamaDurationMinutes", 15));
-                intent.putExtra("volumePercent", obj.optInt("volumePercent", 100));
-                intent.putExtra("alertMode", obj.optString("alertMode", "full_azan"));
-                intent.putExtra("silentDuringPrayer", obj.optBoolean("silentDuringPrayer", false));
-                intent.putExtra("duaAfterPrayerEnabled", obj.optBoolean("duaAfterPrayerEnabled", false));
-                intent.putExtra("autoPlay", obj.optBoolean("autoPlay", true));
-
-                PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                        context,
-                        requestCode,
-                        intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                );
-
-                try {
-                    if ("prayer_azan".equals(section) && canExact) {
-                        try {
+                        @Override
+                        public void scheduleAlarmClock(JSONObject item, int requestCode, long triggerEpochMs) {
+                            PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
                             AlarmManager.AlarmClockInfo clockInfo =
                                     new AlarmManager.AlarmClockInfo(triggerEpochMs, showPendingIntent);
-                            alarmManager.setAlarmClock(clockInfo, pendingIntent);
-                        } catch (SecurityException se) {
-                            Log.w(TAG, "setAlarmClock denied, falling back to setAndAllowWhileIdle", se);
-                            scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
+                            alarmManager.setAlarmClock(clockInfo, pi);
                         }
-                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (canExact) {
-                            try {
-                                alarmManager.setExactAndAllowWhileIdle(
-                                        AlarmManager.RTC_WAKEUP,
-                                        triggerEpochMs,
-                                        pendingIntent
-                                );
-                            } catch (SecurityException se) {
-                                Log.w(TAG, "Exact alarm permission revoked, falling back to inexact while idle", se);
-                                scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
-                            }
-                        } else {
-                            scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
-                        }
-                    } else {
-                        alarmManager.setExact(
-                                AlarmManager.RTC_WAKEUP,
-                                triggerEpochMs,
-                                pendingIntent
-                        );
-                    }
-                    scheduledCount++;
-                } catch (Exception ex) {
-                    Log.e(TAG, "Failed scheduling alarm for " + section + " at " + triggerEpochMs, ex);
-                }
-            }
 
-            // Cancel previous alarms no longer present in the new schedule
+                        @Override
+                        public void scheduleExactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) {
+                            PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pi);
+                            } else {
+                                alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerEpochMs, pi);
+                            }
+                        }
+
+                        @Override
+                        public void scheduleExactLegacy(JSONObject item, int requestCode, long triggerEpochMs) {
+                            PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
+                            alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerEpochMs, pi);
+                        }
+
+                        @Override
+                        public void scheduleInexactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) {
+                            PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
+                            AlarmScheduler.scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pi);
+                        }
+                    }
+            );
+
+            // Cancel previous alarms no longer confirmed in the new schedule
             if (oldJson != null) {
                 try {
                     JSONArray oldArray = new JSONArray(oldJson);
@@ -235,7 +301,7 @@ public class AlarmScheduler {
                         }
 
                         String oldId = oldSection + "_" + oldTrigger;
-                        if (!newAlarmIds.contains(oldId)) {
+                        if (!result.confirmedAlarmIds.contains(oldId)) {
                             cancelAlarm(context, alarmManager, oldSection, oldTrigger);
                         }
                     }
@@ -244,14 +310,26 @@ public class AlarmScheduler {
                 }
             }
 
+            // CRITICAL: Persist ONLY alarms actually accepted by AlarmManager
             prefs.edit()
-                    .putString(SCHEDULE_KEY, persistedArray.toString())
+                    .putString(SCHEDULE_KEY, result.confirmedScheduledArray.toString())
                     .apply();
+            AlarmScheduleTracker.saveOutcome(context, result.outcome);
 
-            Log.d(TAG, "Schedule updated successfully. Scheduled alarms: " + scheduledCount);
+            Log.d(TAG, "Schedule updated. Confirmed alarms=" + result.outcome.scheduledCount
+                    + ", failed=" + result.outcome.failedCount
+                    + ", mode=" + result.outcome.getPrimaryMode().code);
 
+            return result.outcome;
         } catch (Exception e) {
             Log.e(TAG, "Failed to update alarm schedule", e);
+            AlarmScheduleTracker.ScheduleOutcome err = new AlarmScheduleTracker.ScheduleOutcome(
+                    0, 0, 0, 0, 0, 1, false,
+                    e.getMessage() != null ? e.getMessage() : "خطأ في تحديث جدول المنبهات",
+                    now
+            );
+            AlarmScheduleTracker.saveOutcome(context, err);
+            return err;
         }
     }
 

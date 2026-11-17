@@ -9,7 +9,6 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaMetadataRetriever
-import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.ToneGenerator
 import android.net.ConnectivityManager
@@ -99,8 +98,13 @@ object QuranRecitationManager {
     private val _recordingSeconds = MutableStateFlow(0)
     val recordingSeconds: StateFlow<Int> = _recordingSeconds.asStateFlow()
 
+    private val _recordingLimitReached = MutableStateFlow(false)
+    val recordingLimitReached: StateFlow<Boolean> = _recordingLimitReached.asStateFlow()
+
     @Volatile
     private var isRecordingFlag = false
+    @Volatile
+    private var hasUnfinalizedRecording = false
     private var audioRecord: AudioRecord? = null
     private var recordThread: Thread? = null
     private var pcmStream: ByteArrayOutputStream? = null
@@ -109,7 +113,6 @@ object QuranRecitationManager {
     private var audibleFrames = 0
     private var activeSensitivity = 1.0f
     private var activeGateThreshold = 0.008
-    private var testMediaPlayer: MediaPlayer? = null
 
     var lastPreparedClip: PreparedWavClip? = null
         private set
@@ -167,11 +170,7 @@ object QuranRecitationManager {
     }
 
     fun stopPreparedClipPlayback() {
-        runCatching {
-            testMediaPlayer?.stop()
-            testMediaPlayer?.release()
-        }
-        testMediaPlayer = null
+        NativeAudioPlayerManager.stop()
     }
 
     private fun extensionForMime(mime: String): String = when {
@@ -191,27 +190,15 @@ object QuranRecitationManager {
             val ext = extensionForMime(clip.mimeType)
             val file = File(context.cacheDir, "sheikh_mic_test.$ext")
             FileOutputStream(file).use { it.write(clip.wavBytes) }
-            val mp = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                setDataSource(file.absolutePath)
-                setOnCompletionListener {
-                    stopPreparedClipPlayback()
-                    onComplete()
-                }
-                setOnErrorListener { _, _, _ ->
-                    stopPreparedClipPlayback()
-                    onComplete()
-                    true
-                }
-                prepare()
-                start()
-            }
-            testMediaPlayer = mp
+            NativeAudioPlayerManager.playFileAudio(
+                context = context,
+                filePath = file.absolutePath,
+                title = "تشغيل تلاوتك المسجّلة",
+                subtitle = "معلم القرآن الذكي",
+                trackTag = "sheikh_user_clip",
+                onComplete = onComplete,
+                onError = { _ -> onComplete() }
+            )
         } catch (_: Exception) {
             stopPreparedClipPlayback()
             onComplete()
@@ -339,8 +326,9 @@ object QuranRecitationManager {
                     val read = input.read(buf)
                     if (read <= 0) break
                     total += read
-                    if (total > 15 * 1024 * 1024) {
-                        throw IllegalStateException("حجم الملف الصوتي يتجاوز الحد المسموح (15 ميجابايت)")
+                    if (total > RecitationStorageManager.MAX_IMPORT_FILE_BYTES) {
+                        val maxMb = RecitationStorageManager.MAX_IMPORT_FILE_BYTES / (1024 * 1024)
+                        throw IllegalStateException("حجم الملف الصوتي يتجاوز الحد الآمن المسموح (${maxMb} ميجابايت)")
                     }
                     out.write(buf, 0, read)
                 }
@@ -444,7 +432,9 @@ object QuranRecitationManager {
             recordStartMs = System.currentTimeMillis()
             _recordingSeconds.value = 0
             _micLevel.value = 0f
+            _recordingLimitReached.value = false
             isRecordingFlag = true
+            hasUnfinalizedRecording = true
             _uploadState.value = NativeUploadState.RECORDING
 
             recorder.startRecording()
@@ -452,6 +442,7 @@ object QuranRecitationManager {
             recordThread = Thread {
                 val readBuffer = ShortArray(bufferSize / 2)
                 val byteBuffer = ByteArray(bufferSize)
+                var totalPcmWritten = 0
                 while (isRecordingFlag) {
                     val readShorts = recorder.read(readBuffer, 0, readBuffer.size)
                     if (readShorts > 0) {
@@ -463,14 +454,30 @@ object QuranRecitationManager {
                             byteBuffer[i * 2] = (s and 0xFF).toByte()
                             byteBuffer[i * 2 + 1] = ((s shr 8) and 0xFF).toByte()
                         }
-                        pcmStream?.write(byteBuffer, 0, readShorts * 2)
+                        val allowedBytes = RecitationStorageManager.capPcmChunkToWrite(
+                            incomingLength = readShorts * 2,
+                            currentPcmBytes = totalPcmWritten
+                        )
+                        if (allowedBytes > 0) {
+                            pcmStream?.write(byteBuffer, 0, allowedBytes)
+                            totalPcmWritten += allowedBytes
+                        }
 
                         val rawRms = sqrt(sumSquares / readShorts) / 32768.0
                         val scaledRms = rawRms * activeSensitivity
                         if (scaledRms > peakRms) peakRms = scaledRms
                         if (scaledRms > activeGateThreshold) audibleFrames++
                         _micLevel.value = (scaledRms.toFloat() * 6f).coerceIn(0f, 1f)
-                        _recordingSeconds.value = ((System.currentTimeMillis() - recordStartMs) / 1000L).toInt()
+                        val elapsedSec = ((System.currentTimeMillis() - recordStartMs) / 1000L).toInt()
+                        _recordingSeconds.value = elapsedSec
+
+                        if (totalPcmWritten >= RecitationStorageManager.MAX_PCM_BYTES ||
+                            elapsedSec >= RecitationStorageManager.MAX_RECORDING_SECONDS
+                        ) {
+                            _recordingLimitReached.value = true
+                            isRecordingFlag = false
+                            break
+                        }
                     }
                 }
             }.apply { start() }
@@ -483,13 +490,15 @@ object QuranRecitationManager {
     }
 
     suspend fun stopAndFinalizeRecording(): Result<PreparedWavClip> = withContext(Dispatchers.IO) {
-        if (!isRecordingFlag) {
+        if (!isRecordingFlag && !hasUnfinalizedRecording) {
             return@withContext Result.failure(IllegalStateException("لا يوجد تسجيل نشط"))
         }
 
         _uploadState.value = NativeUploadState.PREPARING
         isRecordingFlag = false
+        hasUnfinalizedRecording = false
         val durationMs = (System.currentTimeMillis() - recordStartMs).coerceAtLeast(0L)
+            .coerceAtMost(RecitationStorageManager.MAX_RECORDING_SECONDS * 1000L)
 
         try {
             recordThread?.join(1200)
@@ -543,6 +552,7 @@ object QuranRecitationManager {
 
     fun abortRecording() {
         isRecordingFlag = false
+        hasUnfinalizedRecording = false
         try {
             recordThread?.interrupt()
         } catch (_: Exception) {
@@ -560,7 +570,25 @@ object QuranRecitationManager {
         pcmStream = null
         _micLevel.value = 0f
         _recordingSeconds.value = 0
+        _recordingLimitReached.value = false
         _uploadState.value = NativeUploadState.IDLE
+    }
+
+    fun saveAndEnqueueOfflineUpload(
+        context: Context,
+        clip: PreparedWavClip,
+        meta: RecitationMetadata,
+        reason: String
+    ): StoredRecitationRecord {
+        val record = RecitationStorageManager.saveNewRecording(
+            context = context,
+            clip = clip,
+            meta = meta,
+            initialStatus = RecitationStorageManager.STATUS_PENDING_UPLOAD,
+            initialError = reason
+        )
+        RecitationUploadWorker.enqueue(context)
+        return record
     }
 
     fun resetStatus() {
@@ -863,28 +891,15 @@ object QuranRecitationManager {
             FileOutputStream(ttsFile).use { it.write(audioBytes) }
 
             withContext(Dispatchers.Main) {
-                stopPreparedClipPlayback()
-                val mp = MediaPlayer().apply {
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build()
-                    )
-                    setDataSource(ttsFile.absolutePath)
-                    setOnCompletionListener {
-                        stopPreparedClipPlayback()
-                        onComplete()
-                    }
-                    setOnErrorListener { _, _, _ ->
-                        stopPreparedClipPlayback()
-                        onComplete()
-                        true
-                    }
-                    prepare()
-                    start()
-                }
-                testMediaPlayer = mp
+                NativeAudioPlayerManager.playFileAudio(
+                    context = context,
+                    filePath = ttsFile.absolutePath,
+                    title = "نطق المعلم الذكي",
+                    subtitle = text.trim(),
+                    trackTag = "sheikh_tts_word",
+                    onComplete = onComplete,
+                    onError = { _ -> onComplete() }
+                )
             }
             Result.success(Unit)
         } catch (e: Exception) {

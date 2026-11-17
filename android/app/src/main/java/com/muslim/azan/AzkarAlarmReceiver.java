@@ -28,20 +28,8 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
 
-        if ("com.muslim.azan.ACTION_RESTORE_RINGER".equals(intent.getAction())) {
-            try {
-                SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
-                int prevMode = prefs.getInt("saved_prev_ringer_mode", -1);
-                if (prevMode >= 0) {
-                    android.media.AudioManager am = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-                    if (am != null) {
-                        am.setRingerMode(prevMode);
-                    }
-                    prefs.edit().remove("saved_prev_ringer_mode").apply();
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Could not restore ringer mode automatically", e);
-            }
+        if (RingerRestoreCoordinator.ACTION_RESTORE_RINGER.equals(intent.getAction())) {
+            RingerRestoreCoordinator.handleRestoreTrigger(context);
             return;
         }
 
@@ -62,6 +50,30 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
 
         long nowMs = System.currentTimeMillis();
         Log.d(TAG, "Alarm triggered for section: " + section + ", prayer: " + prayerName + ", isTest: " + isTestAlarm);
+
+        if (isTestAlarm) {
+            AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(context);
+            AlarmScheduleTracker.ScheduleMode prevMode = prevTest != null
+                    ? prevTest.scheduleMode
+                    : AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE;
+            boolean exactAllowed = prevTest != null && prevTest.exactPermissionGranted;
+            long schedAt = prevTest != null ? prevTest.scheduledAtMs : nowMs;
+            long trigAt = prevTest != null ? prevTest.triggerAtMs : nowMs;
+            AlarmScheduleTracker.saveBackgroundTestStatus(
+                    context,
+                    new AlarmScheduleTracker.BackgroundTestStatus(
+                            "receiver_fired",
+                            prevMode,
+                            exactAllowed,
+                            schedAt,
+                            trigAt,
+                            nowMs,
+                            audioTrackId != null ? audioTrackId : "",
+                            "استلم النظام إشارة المنبه في الخلفية",
+                            ""
+                    )
+            );
+        }
 
         SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
 
@@ -132,6 +144,23 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to start foreground service from receiver, posting fallback alarm notification", e);
+            if (isTestAlarm) {
+                AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(context);
+                AlarmScheduleTracker.saveBackgroundTestStatus(
+                        context,
+                        new AlarmScheduleTracker.BackgroundTestStatus(
+                                "failed",
+                                prevTest != null ? prevTest.scheduleMode : AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE,
+                                prevTest != null && prevTest.exactPermissionGranted,
+                                prevTest != null ? prevTest.scheduledAtMs : nowMs,
+                                prevTest != null ? prevTest.triggerAtMs : nowMs,
+                                nowMs,
+                                audioTrackId != null ? audioTrackId : "",
+                                "فشل تشغيل خدمة الصوت في الخلفية",
+                                "تعذر بدء ForegroundService: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())
+                        )
+                );
+            }
             postFallbackNotification(context, section, title, body);
         }
 

@@ -55,6 +55,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (context == null) return;
 
         try {
+            RingerRestoreCoordinator.reconcileOrRescheduleOnWake(context);
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
 
             double lat = 21.4225;

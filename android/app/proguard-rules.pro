@@ -26,10 +26,16 @@
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
 
-# AndroidX, Media & Compose rules
+# AndroidX, WorkManager, Media & Compose rules
 -keep class androidx.compose.** { *; }
 -keep class androidx.lifecycle.** { *; }
 -keep class androidx.media.** { *; }
+-keep class androidx.work.** { *; }
+-keep class * extends androidx.work.Worker
+-keep class * extends androidx.work.CoroutineWorker
+-keep class * extends androidx.work.ListenableWorker
+-keepnames class androidx.work.impl.background.systemalarm.**
+-keepnames class androidx.work.impl.background.systemjob.**
 -dontwarn androidx.compose.**
 -dontwarn sun.misc.Unsafe
 -dontwarn java.lang.invoke.StringConcatFactory

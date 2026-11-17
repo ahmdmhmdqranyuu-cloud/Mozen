@@ -40,6 +40,8 @@ import android.widget.TextView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
+import com.muslim.azan.service.AudioFocusStateMachine;
+import com.muslim.azan.service.FifoAudioQueue;
 import com.muslim.azan.service.NativeAudioPlayerManager;
 
 import java.io.File;
@@ -121,18 +123,67 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
-    private Intent queuedLowerPriorityIntent = null;
+    private final FifoAudioQueue<Intent> pendingAudioQueue = new FifoAudioQueue<>(20);
+    private final AudioFocusStateMachine focusStateMachine = new AudioFocusStateMachine();
+    private volatile boolean currentIsTestAlarm = false;
+    private volatile String currentAudioTrackId = "";
+    private float currentScalarVolume = 1.0f;
 
     private MediaPlayer mediaPlayer;
     private PowerManager.WakeLock wakeLock;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
-        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-            // Only yield if another high-priority alarm or call permanently takes focus
-            if (getSectionPriority(currentSection) < 5) {
-                stopServiceCleanly();
-            }
+        boolean playing = false;
+        try {
+            playing = mediaPlayer != null && mediaPlayer.isPlaying();
+        } catch (Exception ignored) {}
+        AudioFocusStateMachine.FocusAction action = focusStateMachine.onFocusChange(
+                focusChange,
+                playing,
+                getSectionPriority(currentSection) >= 5
+        );
+        switch (action) {
+            case STOP_PERMANENT:
+                if (getSectionPriority(currentSection) < 5) {
+                    stopServiceCleanly();
+                }
+                break;
+            case PAUSE_TRANSIENT:
+                try {
+                    if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                        mediaPlayer.pause();
+                    }
+                } catch (Exception ignored) {}
+                break;
+            case DUCK_VOLUME:
+                try {
+                    if (mediaPlayer != null) {
+                        float ducked = Math.min(0.25f, currentScalarVolume);
+                        mediaPlayer.setVolume(ducked, ducked);
+                    }
+                } catch (Exception ignored) {}
+                break;
+            case RESUME_AFTER_TRANSIENT:
+                try {
+                    if (mediaPlayer != null) {
+                        mediaPlayer.setVolume(currentScalarVolume, currentScalarVolume);
+                        if (!mediaPlayer.isPlaying()) {
+                            mediaPlayer.start();
+                        }
+                    }
+                } catch (Exception ignored) {}
+                break;
+            case RESTORE_VOLUME_ONLY:
+                try {
+                    if (mediaPlayer != null) {
+                        mediaPlayer.setVolume(currentScalarVolume, currentScalarVolume);
+                    }
+                } catch (Exception ignored) {}
+                break;
+            case NONE:
+            default:
+                break;
         }
     };
 
@@ -262,24 +313,25 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         if (!isTestAlarm && !canPreemptCurrentPlayback(section)) {
             if (shouldQueueWhenBlocked(section)) {
-                int incomingPrio = getSectionPriority(section);
-                int queuedPrio = queuedLowerPriorityIntent != null
-                        ? getSectionPriority(queuedLowerPriorityIntent.getStringExtra("section"))
-                        : -1;
-                if (incomingPrio >= queuedPrio) {
-                    queuedLowerPriorityIntent = new Intent(intent);
-                    Log.d(TAG, "Queued deferred audio trigger (" + section + ") until active " + currentSection + " finishes");
-                }
+                String pKey = intent.getStringExtra("prayerKey");
+                String queueKey = (section != null ? section : "unknown") + "_"
+                        + (pKey != null ? pKey : "") + "_"
+                        + (System.currentTimeMillis() / 1000L);
+                pendingAudioQueue.enqueue(queueKey, new Intent(intent));
+                Log.d(TAG, "FIFO queued deferred audio trigger (" + section + "), queueSize=" + pendingAudioQueue.size());
             } else {
                 Log.d(TAG, "Ignoring lower/equal-priority audio trigger (" + section + ") while " + currentSection + " is active");
             }
             return START_NOT_STICKY;
         }
 
+        currentIsTestAlarm = isTestAlarm;
+        String incomingTrackId = intent.getStringExtra("audioTrackId");
+        currentAudioTrackId = incomingTrackId != null ? incomingTrackId : "";
         currentSection = section != null ? section : "";
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
-        String audioTrackId = intent.getStringExtra("audioTrackId");
+        String audioTrackId = incomingTrackId;
         String prayerName = intent.getStringExtra("prayerName");
         String cityName = intent.getStringExtra("cityName");
         int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
@@ -333,7 +385,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
 
         if (silentDuringPrayer && !isTestAlarm && ("prayer_azan".equals(section) || "prePrayerAlert".equals(section))) {
-            activateSilentDuringPrayer(prefs);
+            int durationMin = iqamaDurationMinutes > 0 ? iqamaDurationMinutes : 15;
+            RingerRestoreCoordinator.beginSilentDuringPrayer(this, durationMin, System.currentTimeMillis());
         }
 
         boolean modePlaysSound = !"silent".equals(alertMode) && !"vibrate_only".equals(alertMode);
@@ -365,40 +418,23 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         return START_NOT_STICKY;
     }
 
-    private void activateSilentDuringPrayer(SharedPreferences prefs) {
-        try {
-            if (audioManager == null) return;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                if (nm != null && !nm.isNotificationPolicyAccessGranted()) {
-                    return;
-                }
-            }
-            int currentMode = audioManager.getRingerMode();
-            if (currentMode != AudioManager.RINGER_MODE_SILENT) {
-                prefs.edit().putInt("saved_prev_ringer_mode", currentMode).apply();
-                audioManager.setRingerMode(AudioManager.RINGER_MODE_SILENT);
-                AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-                if (am != null) {
-                    Intent restoreIntent = new Intent(this, AzkarAlarmReceiver.class);
-                    restoreIntent.setAction("com.muslim.azan.ACTION_RESTORE_RINGER");
-                    PendingIntent pi = PendingIntent.getBroadcast(
-                            this,
-                            99115,
-                            restoreIntent,
-                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                    );
-                    long restoreAt = System.currentTimeMillis() + 15 * 60 * 1000L;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, restoreAt, pi);
-                    } else {
-                        am.set(AlarmManager.RTC_WAKEUP, restoreAt, pi);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Unable to toggle silent mode during prayer", e);
-        }
+    private void publishTestFailureIfNeeded(String reason) {
+        if (!currentIsTestAlarm) return;
+        AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(this);
+        AlarmScheduleTracker.saveBackgroundTestStatus(
+                this,
+                new AlarmScheduleTracker.BackgroundTestStatus(
+                        "failed",
+                        prevTest != null ? prevTest.scheduleMode : AlarmScheduleTracker.ScheduleMode.FAILED,
+                        prevTest != null && prevTest.exactPermissionGranted,
+                        prevTest != null ? prevTest.scheduledAtMs : 0L,
+                        prevTest != null ? prevTest.triggerAtMs : 0L,
+                        prevTest != null && prevTest.firedAtMs > 0L ? prevTest.firedAtMs : System.currentTimeMillis(),
+                        currentAudioTrackId,
+                        "تعذر تشغيل صوت الاختبار في الخلفية",
+                        reason != null ? reason : "فشل غير معروف في المشغل"
+                )
+        );
     }
 
     private void triggerShortVibration() {
@@ -754,7 +790,9 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         String resolvedFileName = resolveAudioFileName(audioTrackId, section);
         if (resolvedFileName == null) {
             Log.w(TAG, "No audio file resolved for track: " + audioTrackId);
-            publishAudioState(false, title, "تعذر العثور على الملف الصوتي المحدد");
+            String missingErr = "تعذر العثور على الملف الصوتي المحدد";
+            publishAudioState(false, title, missingErr);
+            publishTestFailureIfNeeded(missingErr);
             finishWithVisualFallback(title, body, section);
             return;
         }
@@ -768,6 +806,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         try {
             float scalarVol = volumePercent <= 0 ? 0.0f : Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
+            currentScalarVolume = scalarVol;
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setAudioAttributes(
                     new AudioAttributes.Builder()
@@ -848,15 +887,36 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 }
                 Log.d(TAG, "Audio started playing successfully: " + resolvedFileName);
                 publishAudioState(true, title + " (" + resolvedFileName + ")", volumeWarning);
+                if (currentIsTestAlarm) {
+                    AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(this);
+                    AlarmScheduleTracker.saveBackgroundTestStatus(
+                            this,
+                            new AlarmScheduleTracker.BackgroundTestStatus(
+                                    "playing",
+                                    prevTest != null ? prevTest.scheduleMode : AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE,
+                                    prevTest != null && prevTest.exactPermissionGranted,
+                                    prevTest != null ? prevTest.scheduledAtMs : System.currentTimeMillis(),
+                                    prevTest != null ? prevTest.triggerAtMs : System.currentTimeMillis(),
+                                    prevTest != null ? prevTest.firedAtMs : System.currentTimeMillis(),
+                                    resolvedFileName,
+                                    "بدأ تشغيل صوت الاختبار (" + resolvedFileName + ") في الخلفية",
+                                    volumeWarning != null ? volumeWarning : ""
+                            )
+                    );
+                }
             } else {
                 Log.e(TAG, "Audio file not found: " + resolvedFileName);
-                publishAudioState(false, title, "لم يتم العثور على الملف الصوتي: " + resolvedFileName);
+                String notFoundErr = "لم يتم العثور على الملف الصوتي: " + resolvedFileName;
+                publishAudioState(false, title, notFoundErr);
+                publishTestFailureIfNeeded(notFoundErr);
                 finishWithVisualFallback(title, body, section);
             }
 
         } catch (Exception e) {
             Log.e(TAG, "Failed playing audio file: " + resolvedFileName, e);
-            publishAudioState(false, title, "تعذر تشغيل الصوت: " + e.getMessage());
+            String playErr = "تعذر تشغيل الصوت: " + e.getMessage();
+            publishAudioState(false, title, playErr);
+            publishTestFailureIfNeeded(playErr);
             finishWithVisualFallback(title, body, section);
         }
     }
@@ -866,17 +926,18 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         removeFloatingOverlay();
         postVisualOnlyNotification(title, body, section);
         releaseWakeLock();
+        currentIsTestAlarm = false;
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         stopSelf();
     }
 
     private void stopServiceCleanly() {
-        mainHandler.removeCallbacks(autoDismissOverlayTestRunnable);
-        mainHandler.removeCallbacks(shortToneStopRunnable);
-        mainHandler.removeCallbacks(overlayTickerRunnable);
+        mainHandler.removeCallbacksAndMessages(null);
         isOverlayOnlyTest = false;
         currentSection = "";
-        queuedLowerPriorityIntent = null;
+        currentIsTestAlarm = false;
+        currentAudioTrackId = "";
+        pendingAudioQueue.clear();
         stopAudioAndCleanUp();
         removeFloatingOverlay();
         releaseWakeLock();
@@ -1067,6 +1128,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
     private void requestAudioFocus() {
         if (audioManager == null) return;
+        focusStateMachine.reset();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAudioAttributes(
@@ -1093,6 +1155,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             @SuppressWarnings("deprecation")
             int ignored = audioManager.abandonAudioFocus(audioFocusChangeListener);
         }
+        focusStateMachine.reset();
     }
 
     private void stopAudioAndCleanUp() {
@@ -1131,12 +1194,31 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     @Override
     public void onCompletion(MediaPlayer mp) {
         Log.d(TAG, "Audio playback completed successfully");
+        if (currentIsTestAlarm) {
+            AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(this);
+            if (prevTest != null && !"failed".equals(prevTest.state)) {
+                AlarmScheduleTracker.saveBackgroundTestStatus(
+                        this,
+                        new AlarmScheduleTracker.BackgroundTestStatus(
+                                "completed",
+                                prevTest.scheduleMode,
+                                prevTest.exactPermissionGranted,
+                                prevTest.scheduledAtMs,
+                                prevTest.triggerAtMs,
+                                prevTest.firedAtMs,
+                                prevTest.audioTrackId,
+                                "اكتمل تشغيل تنبيه الاختبار بنجاح",
+                                prevTest.failureReason
+                        )
+                );
+            }
+            currentIsTestAlarm = false;
+        }
         if (currentDuaAfterPrayerEnabled) {
             postDuaAfterPrayerNotification(currentPrayerName);
             currentDuaAfterPrayerEnabled = false;
         }
-        Intent nextQueued = queuedLowerPriorityIntent;
-        queuedLowerPriorityIntent = null;
+        Intent nextQueued = pendingAudioQueue.pollNext();
         if (nextQueued != null) {
             isPlayingNow = false;
             currentSection = "";
@@ -1151,18 +1233,22 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     @Override
     public boolean onError(MediaPlayer mp, int what, int extra) {
         Log.e(TAG, "MediaPlayer error: what=" + what + ", extra=" + extra);
-        publishAudioState(false, "", "خطأ في مشغل الصوت (what=" + what + ", extra=" + extra + ")");
+        String errText = "خطأ في مشغل الصوت (what=" + what + ", extra=" + extra + ")";
+        publishAudioState(false, "", errText);
+        publishTestFailureIfNeeded(errText);
         stopServiceCleanly();
         return true;
     }
 
     @Override
     public void onDestroy() {
-        mainHandler.removeCallbacks(autoDismissOverlayTestRunnable);
+        mainHandler.removeCallbacksAndMessages(null);
+        pendingAudioQueue.clear();
         stopAudioAndCleanUp();
         removeFloatingOverlaySync();
         releaseWakeLock();
         isPlayingNow = false;
+        currentIsTestAlarm = false;
         super.onDestroy();
     }
 

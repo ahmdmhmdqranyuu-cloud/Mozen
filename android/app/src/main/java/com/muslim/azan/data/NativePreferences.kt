@@ -460,6 +460,9 @@ class NativePreferences(context: Context) {
             calculationMethod = city.recommendedCalcMethod
         }
         activeLocationSource = if (city.isCachedOnline) "online" else "manual"
+        activeLocationPrecision = LocationPrecision.MANUAL.code
+        activeLocationAccuracyMeters = 0
+        activeLocationUpdatedAtMs = System.currentTimeMillis()
         val parts = listOfNotNull(
             city.country.takeIf { it.isNotBlank() },
             city.stateAr.takeIf { it.isNotBlank() },
@@ -474,7 +477,10 @@ class NativePreferences(context: Context) {
         lng: Double,
         timezoneId: String,
         sourceTag: String = "gps",
-        hierarchyText: String = ""
+        hierarchyText: String = "",
+        precisionTag: String = LocationPrecision.PRECISE.code,
+        accuracyMeters: Int = 0,
+        updatedAtMs: Long = System.currentTimeMillis()
     ) {
         cityName = nameAr
         latitude = lat
@@ -482,6 +488,9 @@ class NativePreferences(context: Context) {
         cityTimezoneId = timezoneId
         activeLocationSource = sourceTag
         activeLocationHierarchy = hierarchyText
+        activeLocationPrecision = precisionTag
+        activeLocationAccuracyMeters = accuracyMeters
+        activeLocationUpdatedAtMs = updatedAtMs
     }
 
     var activeLocationSource: String
@@ -491,6 +500,19 @@ class NativePreferences(context: Context) {
     var activeLocationHierarchy: String
         get() = prefs.getString("active_location_hierarchy", "") ?: ""
         set(value) = prefs.edit().putString("active_location_hierarchy", value).apply()
+
+    var activeLocationPrecision: String
+        get() = prefs.getString("active_location_precision", LocationPrecision.MANUAL.code)
+            ?: LocationPrecision.MANUAL.code
+        set(value) = prefs.edit().putString("active_location_precision", value).apply()
+
+    var activeLocationAccuracyMeters: Int
+        get() = prefs.getInt("active_location_accuracy_meters", 0)
+        set(value) = prefs.edit().putInt("active_location_accuracy_meters", value.coerceAtLeast(0)).apply()
+
+    var activeLocationUpdatedAtMs: Long
+        get() = prefs.getLong("active_location_updated_at_ms", 0L)
+        set(value) = prefs.edit().putLong("active_location_updated_at_ms", value.coerceAtLeast(0L)).apply()
 
     fun saveLastGpsResult(result: GpsLocationResult) {
         val o = JSONObject().apply {
@@ -508,6 +530,9 @@ class NativePreferences(context: Context) {
             put("neighborhood", result.neighborhood)
             put("street", result.street)
             put("detectedAtMs", result.detectedAtMs)
+            put("isPreciseLocation", result.isPreciseLocation)
+            put("provider", result.provider)
+            put("fixAgeMs", result.fixAgeMs)
         }
         prefs.edit().putString("last_saved_gps_backup_json", o.toString()).apply()
     }
@@ -518,7 +543,7 @@ class NativePreferences(context: Context) {
             val o = JSONObject(raw)
             val lat = o.optDouble("latitude", Double.NaN)
             val lng = o.optDouble("longitude", Double.NaN)
-            if (lat.isNaN() || lng.isNaN()) return null
+            if (!LocationFixValidator.areCoordinatesValid(lat, lng)) return null
             GpsLocationResult(
                 cityName = o.optString("cityName", "موقع محفوظ"),
                 latitude = lat,
@@ -534,7 +559,10 @@ class NativePreferences(context: Context) {
                 neighborhood = o.optString("neighborhood", ""),
                 street = o.optString("street", ""),
                 isSavedFallback = true,
-                detectedAtMs = o.optLong("detectedAtMs", System.currentTimeMillis())
+                detectedAtMs = o.optLong("detectedAtMs", System.currentTimeMillis()),
+                isPreciseLocation = o.optBoolean("isPreciseLocation", true),
+                provider = o.optString("provider", "gps"),
+                fixAgeMs = o.optLong("fixAgeMs", 0L)
             )
         } catch (_: Exception) {
             null

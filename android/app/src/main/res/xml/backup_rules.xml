@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude private local audio recordings, upload queues, and volatile alarm/ringer runtime prefs -->
+    <exclude domain="file" path="sheikh_recordings/" />
+    <exclude domain="sharedpref" path="azan_runtime_state_prefs.xml" />
+</full-backup-content>

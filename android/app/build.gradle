@@ -173,6 +173,9 @@ dependencies {
     // Media & Audio Playback
     implementation 'androidx.media:media:1.7.0'
 
+    // Background Persistent Offline Queue (WorkManager)
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
+
     // Location Services for Prayer Times & Qibla
     implementation 'com.google.android.gms:play-services-location:21.3.0'
 
@@ -181,6 +184,7 @@ dependencies {
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
     androidTestImplementation platform('androidx.compose:compose-bom:2024.06.00')
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'

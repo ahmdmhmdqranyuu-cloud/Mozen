@@ -62,21 +62,30 @@ class NativeLocationAndCompassManager(private val context: Context) : SensorEven
     @SuppressLint("MissingPermission")
     fun fetchLastKnownLocation(): Pair<Double, Double>? {
         try {
+            val status = com.muslim.azan.data.SystemPermissionHelper.checkPermissions(context)
+            if (!status.locationGranted) return null
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
             val providers = lm.getProviders(true)
-            var bestLocation: Location? = null
+            val candidates = mutableListOf<com.muslim.azan.data.LocationCandidate>()
             for (provider in providers) {
                 val l = lm.getLastKnownLocation(provider) ?: continue
-                val isValidCoords = !l.latitude.isNaN() && !l.longitude.isNaN() &&
-                    l.latitude in -90.0..90.0 && l.longitude in -180.0..180.0 &&
-                    !(abs(l.latitude) < 1e-4 && abs(l.longitude) < 1e-4)
-                if (!isValidCoords) continue
-                if (bestLocation == null || l.accuracy < bestLocation.accuracy) {
-                    bestLocation = l
-                }
+                candidates.add(
+                    com.muslim.azan.data.LocationCandidate(
+                        latitude = l.latitude,
+                        longitude = l.longitude,
+                        accuracyMeters = if (l.hasAccuracy()) l.accuracy else Float.NaN,
+                        timestampMs = l.time,
+                        provider = l.provider ?: provider
+                    )
+                )
             }
-            if (bestLocation != null) {
-                return Pair(bestLocation.latitude, bestLocation.longitude)
+            val best = com.muslim.azan.data.LocationFixValidator.selectBestCandidate(
+                candidates = candidates,
+                nowMs = System.currentTimeMillis(),
+                fineLocationGranted = status.fineLocationGranted
+            )?.first
+            if (best != null) {
+                return Pair(best.latitude, best.longitude)
             }
         } catch (e: Exception) {
             Log.w("LocationManager", "Could not get last known GPS location", e)

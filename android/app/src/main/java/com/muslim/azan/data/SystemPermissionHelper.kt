@@ -42,7 +42,9 @@ data class SpecialPermissionsStatus(
     val batteryUnrestricted: Boolean,
     val fullScreenIntentGranted: Boolean,
     val locationGranted: Boolean,
-    val microphoneGranted: Boolean = false
+    val microphoneGranted: Boolean = false,
+    val fineLocationGranted: Boolean = locationGranted,
+    val coarseLocationGranted: Boolean = locationGranted
 ) {
     val missingBackgroundCount: Int
         get() = listOf(
@@ -69,7 +71,10 @@ data class GpsLocationResult(
     val neighborhood: String = "",
     val street: String = "",
     val isSavedFallback: Boolean = false,
-    val detectedAtMs: Long = System.currentTimeMillis()
+    val detectedAtMs: Long = System.currentTimeMillis(),
+    val isPreciseLocation: Boolean = true,
+    val provider: String = "gps",
+    val fixAgeMs: Long = 0L
 )
 
 object SystemPermissionHelper {
@@ -109,14 +114,17 @@ object SystemPermissionHelper {
             true
         }
 
-        val locationGranted = ContextCompat.checkSelfPermission(
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val coarseLocationGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val locationGranted = fineLocationGranted || coarseLocationGranted
 
         val microphoneGranted = ContextCompat.checkSelfPermission(
             context,
@@ -130,7 +138,9 @@ object SystemPermissionHelper {
             batteryUnrestricted = batteryUnrestricted,
             fullScreenIntentGranted = fullScreenIntentGranted,
             locationGranted = locationGranted,
-            microphoneGranted = microphoneGranted
+            microphoneGranted = microphoneGranted,
+            fineLocationGranted = fineLocationGranted,
+            coarseLocationGranted = coarseLocationGranted
         )
     }
 
@@ -267,20 +277,35 @@ object SystemPermissionHelper {
     ): Result<GpsLocationResult> {
         val status = checkPermissions(context)
         if (!status.locationGranted) {
-            return Result.failure(IllegalStateException("يرجى منح صلاحية الموقع (GPS) أولًا"))
+            return Result.failure(IllegalStateException("يرجى منح صلاحية الموقع (GPS) أولًا — تم الإبقاء على موقعك الحالي دون تغيير"))
         }
 
         if (!isDeviceLocationEnabled(context)) {
-            return Result.failure(IllegalStateException("خدمات الموقع (GPS) مغلقة في الهاتف، يرجى تشغيلها أولًا"))
+            return Result.failure(IllegalStateException("خدمات الموقع (GPS) مغلقة في الهاتف، يرجى تشغيلها أولًا — تم الإبقاء على موقعك الحالي"))
         }
 
-        val location = fetchHighAccuracyLocation(context)
-            ?.takeIf { loc ->
-                !loc.latitude.isNaN() && !loc.longitude.isNaN() &&
-                    loc.latitude in -90.0..90.0 && loc.longitude in -180.0..180.0 &&
-                    !(kotlin.math.abs(loc.latitude) < 1e-4 && kotlin.math.abs(loc.longitude) < 1e-4)
-            }
-            ?: return Result.failure(IllegalStateException("تعذر التقاط إشارة GPS حاليًا، يمكنك إعادة المحاولة أو استخدام آخر موقع محفوظ"))
+        val nowMs = System.currentTimeMillis()
+        val fetched = fetchHighAccuracyLocation(context, status.fineLocationGranted)
+            ?: return Result.failure(IllegalStateException("تعذر التقاط إشارة GPS حاليًا أو كانت الإشارة قديمة وضعيفة، تم الإبقاء على موقعك الحالي دون تغيير"))
+
+        val candidate = LocationCandidate(
+            latitude = fetched.latitude,
+            longitude = fetched.longitude,
+            accuracyMeters = if (fetched.hasAccuracy()) fetched.accuracy else Float.NaN,
+            timestampMs = fetched.time,
+            provider = fetched.provider ?: if (status.fineLocationGranted) "gps" else "network"
+        )
+        val validation = LocationFixValidator.validateCandidate(
+            candidate = candidate,
+            nowMs = nowMs,
+            fineLocationGranted = status.fineLocationGranted
+        )
+        if (!validation.isValid) {
+            return Result.failure(IllegalStateException(validation.rejectionReason.ifBlank {
+                "إشارة الموقع غير صالحة أو قديمة، تم الإبقاء على موقعك الحالي دون تغيير"
+            }))
+        }
+        val location = fetched
 
         val geocode = withTimeoutOrNull(3_500L) {
             withContext(Dispatchers.IO) {
@@ -349,6 +374,8 @@ object SystemPermissionHelper {
         )
 
         val accuracyMeters = if (location.hasAccuracy()) location.accuracy.roundToInt().coerceAtLeast(1) else 0
+        val isPrecise = validation.precision == LocationPrecision.PRECISE
+        val providerName = location.provider ?: if (status.fineLocationGranted) "gps" else "network"
         val result = GpsLocationResult(
             cityName = finalCityName,
             latitude = location.latitude,
@@ -364,7 +391,10 @@ object SystemPermissionHelper {
             neighborhood = neighborhood,
             street = street,
             isSavedFallback = false,
-            detectedAtMs = System.currentTimeMillis()
+            detectedAtMs = nowMs,
+            isPreciseLocation = isPrecise,
+            provider = providerName,
+            fixAgeMs = validation.ageMs
         )
 
         prefs.saveLastGpsResult(result)
@@ -374,7 +404,17 @@ object SystemPermissionHelper {
                 .filter { it.isNotBlank() }
                 .distinct()
                 .joinToString(" • ")
-            prefs.setGpsLocation(finalCityName, location.latitude, location.longitude, tzId, "gps", hierarchy)
+            prefs.setGpsLocation(
+                nameAr = finalCityName,
+                lat = location.latitude,
+                lng = location.longitude,
+                timezoneId = tzId,
+                sourceTag = "gps",
+                hierarchyText = hierarchy,
+                precisionTag = validation.precision.code,
+                accuracyMeters = accuracyMeters,
+                updatedAtMs = nowMs
+            )
             prefs.calculationMethod = resolvedCalcMethod
         }
 
@@ -450,47 +490,84 @@ object SystemPermissionHelper {
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun fetchHighAccuracyLocation(context: Context): Location? {
-        // 1. High-Accuracy FusedLocationProviderClient (8s timeout)
+    private suspend fun fetchHighAccuracyLocation(context: Context, fineGranted: Boolean): Location? {
+        val nowMs = System.currentTimeMillis()
+        val fusedPriority = if (fineGranted) {
+            Priority.PRIORITY_HIGH_ACCURACY
+        } else {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        }
+        // 1. Active FusedLocationProviderClient (8s timeout)
         val fused = withTimeoutOrNull(8_000L) {
             runCatching {
                 val client = LocationServices.getFusedLocationProviderClient(context)
                 suspendCancellableCoroutine<Location?> { cont ->
                     val cts = CancellationTokenSource()
                     cont.invokeOnCancellation { cts.cancel() }
-                    client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                    client.getCurrentLocation(fusedPriority, cts.token)
                         .addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                         .addOnFailureListener { if (cont.isActive) cont.resume(null) }
                 }
             }.getOrNull()
         }
-        if (fused != null) return fused
-
-        // 2. Native Android LocationManager active GPS / Network fix (for devices without Google Play Services)
-        val activeNative = withTimeoutOrNull(8_000L) {
-            requestSingleNativeLocation(context)
+        if (fused != null) {
+            val fusedCand = LocationCandidate(
+                latitude = fused.latitude,
+                longitude = fused.longitude,
+                accuracyMeters = if (fused.hasAccuracy()) fused.accuracy else Float.NaN,
+                timestampMs = fused.time,
+                provider = fused.provider ?: if (fineGranted) "fused_gps" else "fused_coarse"
+            )
+            if (LocationFixValidator.validateCandidate(fusedCand, nowMs, fineGranted, LocationFixValidator.MAX_LIVE_AGE_MS).isValid) {
+                return fused
+            }
         }
-        if (activeNative != null) return activeNative
 
-        // 3. Fallback: Best & freshest lastKnownLocation across all enabled providers
+        // 2. Native Android LocationManager active GPS / Network fix (8s timeout)
+        val activeNative = withTimeoutOrNull(8_000L) {
+            requestSingleNativeLocation(context, fineGranted)
+        }
+        if (activeNative != null) {
+            val nativeCand = LocationCandidate(
+                latitude = activeNative.latitude,
+                longitude = activeNative.longitude,
+                accuracyMeters = if (activeNative.hasAccuracy()) activeNative.accuracy else Float.NaN,
+                timestampMs = activeNative.time,
+                provider = activeNative.provider ?: "network"
+            )
+            if (LocationFixValidator.validateCandidate(nativeCand, System.currentTimeMillis(), fineGranted, LocationFixValidator.MAX_CACHE_AGE_MS).isValid) {
+                return activeNative
+            }
+        }
+
+        // 3. Fallback: Best & freshest validated lastKnownLocation across all enabled providers
         return runCatching {
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-            var best: Location? = null
+            val rawCandidates = mutableListOf<Pair<LocationCandidate, Location>>()
+            val checkNow = System.currentTimeMillis()
             for (provider in lm.getProviders(true)) {
-                val candidate = lm.getLastKnownLocation(provider) ?: continue
-                if (best == null ||
-                    (candidate.time > best.time + 60_000L) ||
-                    (candidate.hasAccuracy() && best.hasAccuracy() && candidate.accuracy < best.accuracy)
-                ) {
-                    best = candidate
-                }
+                val candidateLoc = lm.getLastKnownLocation(provider) ?: continue
+                val cand = LocationCandidate(
+                    latitude = candidateLoc.latitude,
+                    longitude = candidateLoc.longitude,
+                    accuracyMeters = if (candidateLoc.hasAccuracy()) candidateLoc.accuracy else Float.NaN,
+                    timestampMs = candidateLoc.time,
+                    provider = candidateLoc.provider ?: provider
+                )
+                rawCandidates.add(cand to candidateLoc)
             }
-            best
+            val best = LocationFixValidator.selectBestCandidate(
+                candidates = rawCandidates.map { it.first },
+                nowMs = checkNow,
+                fineLocationGranted = fineGranted,
+                maxAgeMs = LocationFixValidator.MAX_CACHE_AGE_MS
+            )?.first ?: return@runCatching null
+            rawCandidates.firstOrNull { it.first === best }?.second
         }.getOrNull()
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun requestSingleNativeLocation(context: Context): Location? =
+    private suspend fun requestSingleNativeLocation(context: Context, fineGranted: Boolean): Location? =
         suspendCancellableCoroutine { cont ->
             val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             if (lm == null) {
@@ -498,7 +575,12 @@ object SystemPermissionHelper {
                 return@suspendCancellableCoroutine
             }
 
-            val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            val allowedProviders = if (fineGranted) {
+                listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            } else {
+                listOf(LocationManager.NETWORK_PROVIDER)
+            }
+            val providers = allowedProviders
                 .filter { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
 
             if (providers.isEmpty()) {

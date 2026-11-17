@@ -11,21 +11,49 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+
+function resolveServerPort(): number {
+  const portFlagIdx = process.argv.findIndex((arg) => arg === '--port' || arg === '-p');
+  if (portFlagIdx >= 0 && process.argv[portFlagIdx + 1]) {
+    const parsed = parseInt(process.argv[portFlagIdx + 1], 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const inlinePortArg = process.argv.find((arg) => arg.startsWith('--port='));
+  if (inlinePortArg) {
+    const parsed = parseInt(inlinePortArg.slice('--port='.length), 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const isDev = process.env.NODE_ENV !== 'production';
+  const envPort = process.env.PORT;
+  const nginxPort = process.env.NGINX_PORT;
+  if (isDev && envPort && nginxPort && envPort === nginxPort) {
+    return parseInt(process.env.DEFAULT_APP_PORT || '3000', 10);
+  }
+  return parseInt(envPort || process.env.DEFAULT_APP_PORT || '3000', 10);
+}
+
+const PORT = resolveServerPort();
 
 // Support both JSON base64 audio payloads and raw binary audio uploads
 app.use(express.json({ limit: '25mb' }));
 app.use('/api/sheikh/evaluate-raw', express.raw({ type: '*/*', limit: '25mb' }));
 
-// Initialize GoogleGenAI client with required header
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || '',
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
+// Lazily initialize GoogleGenAI client with required header
+let cachedAiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  if (!cachedAiClient) {
+    cachedAiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return cachedAiClient;
+}
 
 const SUPPORTED_AUDIO_MIME_REGEX =
   /^audio\/(wav|x-wav|wave|vnd\.wave|webm|mp4|m4a|x-m4a|aac|x-aac|ogg|opus|mpeg|mpeg3|x-mpeg|mp3|3gpp|3gpp2|amr|flac|x-flac)(;.*)?$/i;
@@ -668,7 +696,7 @@ async function runSheikhEvaluation(input: SheikhEvalInput, res: Response): Promi
 - tajweedTips: قائمة نصائح تجويدية عملية مناسبة للموضع.`;
 
   const response = await withGeminiRetry(() =>
-    ai.models.generateContent({
+    getAiClient().models.generateContent({
       model: 'gemini-4-hydrogen',
       contents: [
         {
@@ -911,7 +939,7 @@ app.post('/api/sheikh/speak', async (req: Request, res: Response): Promise<void>
         : 'شيخ ومعلم قرآن وقور يتحدث بلغة عربية فصحى واضحة هادئة ودافئة';
 
     const ttsResponse = await withGeminiRetry(() =>
-      ai.models.generateContent({
+      getAiClient().models.generateContent({
         model: 'gemini-3.8-flash-lite-tts',
         contents: [
           {
@@ -1010,8 +1038,14 @@ async function startServer() {
   const isDev = process.env.NODE_ENV !== 'production';
 
   if (isDev) {
+    const hmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: !hmrDisabled,
+        ...(hmrDisabled ? { ws: false as const } : {}),
+        watch: hmrDisabled ? null : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -1023,11 +1057,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Islamic Muezzin & Smart Sheikh] Server listening on http://0.0.0.0:${PORT}`);
+  });
+  httpServer.on('error', (err) => {
+    console.error('HTTP server failed to listen:', err);
+    process.exit(1);
   });
 }
 
 startServer().catch((err) => {
   console.error('Fatal server startup failure:', err);
+  process.exit(1);
 });
