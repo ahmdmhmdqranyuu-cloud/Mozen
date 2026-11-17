@@ -30,8 +30,10 @@ import android.app.AlarmManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -64,20 +66,95 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     public static final String ACTION_AUDIO_STATE_CHANGED = "com.muslim.azan.AUDIO_STATE_CHANGED";
 
     public static volatile boolean isPlayingNow = false;
+    public static volatile String currentSection = "";
     public static volatile String activeTrackLabel = "";
     public static volatile String lastAudioError = null;
+
+    public static int getSectionPriority(String sec) {
+        if (sec == null) return 0;
+        switch (sec) {
+            case "prayer_azan":
+                return 5;
+            case "iqama":
+                return 4;
+            case "prePrayerAlert":
+            case "duha_prayer":
+                return 3;
+            case "morningAzkar":
+            case "eveningAzkar":
+            case "musaharati":
+            case "iftar":
+            case "dua_after":
+                return 2;
+            case "salawat":
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    public static boolean canPreemptCurrentPlayback(String incomingSection) {
+        if (!isPlayingNow) return true;
+        int incoming = getSectionPriority(incomingSection);
+        int current = getSectionPriority(currentSection);
+        // Active Azan (5) must NEVER be interrupted by a duplicate Azan or equal/lower alert
+        if (current >= 5 && incoming <= current) {
+            return false;
+        }
+        // Only strictly higher-priority triggers preempt running playback
+        return incoming > current;
+    }
+
+    public static boolean shouldQueueWhenBlocked(String incomingSection) {
+        if (incomingSection == null) return false;
+        switch (incomingSection) {
+            case "morningAzkar":
+            case "eveningAzkar":
+            case "salawat":
+            case "musaharati":
+            case "iftar":
+            case "dua_after":
+            case "prePrayerAlert":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private Intent queuedLowerPriorityIntent = null;
 
     private MediaPlayer mediaPlayer;
     private PowerManager.WakeLock wakeLock;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
+    private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            // Only yield if another high-priority alarm or call permanently takes focus
+            if (getSectionPriority(currentSection) < 5) {
+                stopServiceCleanly();
+            }
+        }
+    };
 
     private WindowManager windowManager;
     private View overlayView;
+    private WindowManager.LayoutParams overlayParams;
+    private boolean overlayExpanded = false;
+    private long overlayCountdownEndMs = 0L;
+    private String overlayPrayerLabel = "الأذان";
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean isOverlayOnlyTest = false;
     private boolean currentDuaAfterPrayerEnabled = false;
     private String currentPrayerName = "";
+    private final Runnable overlayTickerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateOverlayCountdownViews();
+            if (overlayView != null) {
+                mainHandler.postDelayed(this, 1000L);
+            }
+        }
+    };
     private final Runnable shortToneStopRunnable = () -> {
         if (mediaPlayer != null) {
             stopServiceCleanly();
@@ -95,7 +172,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         super.onCreate();
         createNotificationChannels();
 
-        Notification initialNotification = buildNotification("تطبيق المؤذن", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
+        Notification initialNotification = buildNotification("مسلم بلس", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
         startForegroundCompat(initialNotification);
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -181,21 +258,42 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         ensureWakeLockHeld();
 
         String section = intent.getStringExtra("section");
+        boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
+
+        if (!isTestAlarm && !canPreemptCurrentPlayback(section)) {
+            if (shouldQueueWhenBlocked(section)) {
+                int incomingPrio = getSectionPriority(section);
+                int queuedPrio = queuedLowerPriorityIntent != null
+                        ? getSectionPriority(queuedLowerPriorityIntent.getStringExtra("section"))
+                        : -1;
+                if (incomingPrio >= queuedPrio) {
+                    queuedLowerPriorityIntent = new Intent(intent);
+                    Log.d(TAG, "Queued deferred audio trigger (" + section + ") until active " + currentSection + " finishes");
+                }
+            } else {
+                Log.d(TAG, "Ignoring lower/equal-priority audio trigger (" + section + ") while " + currentSection + " is active");
+            }
+            return START_NOT_STICKY;
+        }
+
+        currentSection = section != null ? section : "";
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         String audioTrackId = intent.getStringExtra("audioTrackId");
         String prayerName = intent.getStringExtra("prayerName");
         String cityName = intent.getStringExtra("cityName");
+        int iqamaDurationMinutes = intent.getIntExtra("iqamaDurationMinutes", 15);
         int volumePercent = intent.getIntExtra("volumePercent", 100);
         String alertMode = intent.getStringExtra("alertMode");
         if (alertMode == null || alertMode.isEmpty()) alertMode = "full_azan";
         boolean silentDuringPrayer = intent.getBooleanExtra("silentDuringPrayer", false);
         boolean duaAfterPrayerEnabled = intent.getBooleanExtra("duaAfterPrayerEnabled", false);
         boolean autoPlay = intent.getBooleanExtra("autoPlay", true);
-        boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
 
         currentDuaAfterPrayerEnabled = duaAfterPrayerEnabled && ("prayer_azan".equals(section) || "iqama".equals(section));
         currentPrayerName = prayerName != null ? prayerName : "";
+        overlayPrayerLabel = (prayerName != null && !prayerName.isEmpty()) ? prayerName : "الصلاة";
+        overlayCountdownEndMs = System.currentTimeMillis() + Math.max(1, iqamaDurationMinutes) * 60_000L;
 
         if (title == null || title.isEmpty()) {
             if ("prayer_azan".equals(section) && prayerName != null) {
@@ -219,7 +317,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             } else if ("dua_after".equals(section)) {
                 title = "الدعاء القصير بعد الأذان";
             } else {
-                title = "تطبيق المؤذن";
+                title = "مسلم بلس";
             }
         }
 
@@ -325,45 +423,129 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         mainHandler.post(() -> showFloatingOverlayOnMain(title, body, overlayTestMode));
     }
 
+    private TextView bubbleTickerView;
+    private TextView expandedTickerView;
+
+    private String formatRemainingIqama() {
+        long diffMs = Math.max(0L, overlayCountdownEndMs - System.currentTimeMillis());
+        long totalSec = diffMs / 1000L;
+        long mins = totalSec / 60L;
+        long secs = totalSec % 60L;
+        return String.format(java.util.Locale.US, "%02d:%02d", mins, secs);
+    }
+
+    private void updateOverlayCountdownViews() {
+        String ticker = formatRemainingIqama();
+        if (bubbleTickerView != null) {
+            bubbleTickerView.setText(overlayPrayerLabel + " • " + ticker);
+        }
+        if (expandedTickerView != null) {
+            expandedTickerView.setText("متبقي للإقامة: " + ticker);
+        }
+    }
+
     private void showFloatingOverlayOnMain(String title, String body, boolean overlayTestMode) {
         if (windowManager == null) return;
         removeFloatingOverlaySync();
 
         try {
+            // Starts collapsed as a draggable floating bubble outside the app on the phone screen
+            overlayExpanded = overlayTestMode;
+
+            FrameLayout root = new FrameLayout(this);
+            root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+
+            // 1. Collapsed Draggable Bubble
+            LinearLayout bubble = new LinearLayout(this);
+            bubble.setOrientation(LinearLayout.HORIZONTAL);
+            bubble.setGravity(Gravity.CENTER_VERTICAL);
+            bubble.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+            GradientDrawable bubbleBg = new GradientDrawable();
+            bubbleBg.setColor(Color.parseColor("#F5F7F4E8"));
+            bubbleBg.setCornerRadius(dp(99));
+            bubbleBg.setStroke(dp(2), Color.parseColor("#C5A059"));
+            bubble.setBackground(bubbleBg);
+            bubble.setElevation(dp(10));
+
+            TextView badgeDot = new TextView(this);
+            badgeDot.setText("🕌");
+            badgeDot.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            badgeDot.setGravity(Gravity.CENTER);
+            GradientDrawable dotBg = new GradientDrawable();
+            dotBg.setShape(GradientDrawable.OVAL);
+            dotBg.setColor(Color.parseColor("#104B40"));
+            badgeDot.setBackground(dotBg);
+            LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(30), dp(30));
+            dotLp.setMarginEnd(dp(8));
+            bubble.addView(badgeDot, dotLp);
+
+            LinearLayout bubbleTextCol = new LinearLayout(this);
+            bubbleTextCol.setOrientation(LinearLayout.VERTICAL);
+
+            TextView bubbleBrand = new TextView(this);
+            bubbleBrand.setText("مسلم بلس • اضغط للفتح");
+            bubbleBrand.setTextColor(Color.parseColor("#104B40"));
+            bubbleBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            bubbleBrand.setTypeface(null, Typeface.BOLD);
+            bubbleTextCol.addView(bubbleBrand);
+
+            TextView bTicker = new TextView(this);
+            bTicker.setTextColor(Color.parseColor("#9A7732"));
+            bTicker.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            bTicker.setTypeface(null, Typeface.BOLD);
+            bubbleTickerView = bTicker;
+            bubbleTextCol.addView(bTicker);
+            bubble.addView(bubbleTextCol);
+
+            // 2. Expanded Creamy-Ivory & Gold Floating Azan Card
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            int padH = dp(18);
-            int padV = dp(16);
-            card.setPadding(padH, padV, padH, padV);
+            card.setPadding(dp(16), dp(14), dp(16), dp(14));
 
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(Color.parseColor("#F509241C"));
-            bg.setCornerRadius(dp(20));
-            bg.setStroke(dp(2), Color.parseColor("#F59E0B"));
-            card.setBackground(bg);
+            GradientDrawable cardBg = new GradientDrawable();
+            cardBg.setColor(Color.parseColor("#F8F7F4E8"));
+            cardBg.setCornerRadius(dp(20));
+            cardBg.setStroke(dp(2), Color.parseColor("#C5A059"));
+            card.setBackground(cardBg);
             card.setElevation(dp(12));
 
+            LinearLayout headerRow = new LinearLayout(this);
+            headerRow.setOrientation(LinearLayout.HORIZONTAL);
+            headerRow.setGravity(Gravity.CENTER_VERTICAL);
+
             TextView badgeView = new TextView(this);
-            badgeView.setText("تطبيق المؤذن");
-            badgeView.setTextColor(Color.parseColor("#F59E0B"));
+            badgeView.setText("🕌 مسلم بلس");
+            badgeView.setTextColor(Color.parseColor("#9A7732"));
             badgeView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
             badgeView.setTypeface(null, Typeface.BOLD);
-            card.addView(badgeView);
+            LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            );
+            headerRow.addView(badgeView, badgeLp);
+
+            TextView expTicker = new TextView(this);
+            expTicker.setTextColor(Color.parseColor("#104B40"));
+            expTicker.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            expTicker.setTypeface(null, Typeface.BOLD);
+            expandedTickerView = expTicker;
+            headerRow.addView(expTicker);
+            card.addView(headerRow);
 
             TextView titleView = new TextView(this);
             titleView.setText(title);
-            titleView.setTextColor(Color.parseColor("#ECFDF5"));
-            titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+            titleView.setTextColor(Color.parseColor("#104B40"));
+            titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
             titleView.setTypeface(null, Typeface.BOLD);
-            titleView.setPadding(0, dp(4), 0, dp(4));
+            titleView.setPadding(0, dp(4), 0, dp(3));
             card.addView(titleView);
 
             TextView bodyView = new TextView(this);
             bodyView.setText(body);
-            bodyView.setTextColor(Color.parseColor("#A7F3D0"));
-            bodyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-            bodyView.setPadding(0, 0, 0, dp(14));
+            bodyView.setTextColor(Color.parseColor("#4B5B58"));
+            bodyView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            bodyView.setPadding(0, 0, 0, dp(12));
             card.addView(bodyView);
 
             LinearLayout actionsRow = new LinearLayout(this);
@@ -372,8 +554,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
             TextView primaryBtn = createOverlayButton(
                     overlayTestMode ? "إغلاق التجربة" : "إيقاف الأذان",
-                    "#F59E0B",
-                    "#09241C",
+                    "#104B40",
+                    "#FFFFFF",
                     v -> {
                         if (overlayTestMode) {
                             removeFloatingOverlaySync();
@@ -386,26 +568,55 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             LinearLayout.LayoutParams primaryLp = new LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
             );
-            primaryLp.setMarginEnd(dp(8));
+            primaryLp.setMarginEnd(dp(6));
             actionsRow.addView(primaryBtn, primaryLp);
 
-            if (!overlayTestMode) {
-                TextView hideBtn = createOverlayButton(
-                        "إخفاء النافذة",
-                        "#1D4D3E",
-                        "#ECFDF5",
-                        v -> removeFloatingOverlaySync()
-                );
-                LinearLayout.LayoutParams hideLp = new LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-                );
-                actionsRow.addView(hideBtn, hideLp);
-            }
+            TextView minBtn = createOverlayButton(
+                    "تصغير لفقاعة",
+                    "#C5A059",
+                    "#172A28",
+                    v -> {
+                        overlayExpanded = false;
+                        bubble.setVisibility(View.VISIBLE);
+                        card.setVisibility(View.GONE);
+                        if (overlayParams != null && windowManager != null && overlayView != null) {
+                            overlayParams.width = WindowManager.LayoutParams.WRAP_CONTENT;
+                            try {
+                                windowManager.updateViewLayout(overlayView, overlayParams);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+            );
+            LinearLayout.LayoutParams minLp = new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            );
+            minLp.setMarginEnd(dp(6));
+            actionsRow.addView(minBtn, minLp);
+
+            TextView hideBtn = createOverlayButton(
+                    "إخفاء",
+                    "#E6ECD6",
+                    "#172A28",
+                    v -> removeFloatingOverlaySync()
+            );
+            LinearLayout.LayoutParams hideLp = new LinearLayout.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            actionsRow.addView(hideBtn, hideLp);
 
             card.addView(actionsRow);
 
             int screenWidth = getResources().getDisplayMetrics().widthPixels;
-            int cardWidth = (int) (screenWidth * 0.92f);
+            int cardWidth = (int) (screenWidth * 0.90f);
+
+            card.setLayoutParams(new FrameLayout.LayoutParams(cardWidth, FrameLayout.LayoutParams.WRAP_CONTENT));
+            bubble.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            bubble.setVisibility(overlayExpanded ? View.GONE : View.VISIBLE);
+            card.setVisibility(overlayExpanded ? View.VISIBLE : View.GONE);
+
+            root.addView(bubble);
+            root.addView(card);
 
             int overlayType = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -418,18 +629,69 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
 
             WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    cardWidth,
+                    overlayExpanded ? cardWidth : WindowManager.LayoutParams.WRAP_CONTENT,
                     WindowManager.LayoutParams.WRAP_CONTENT,
                     overlayType,
                     flags,
                     PixelFormat.TRANSLUCENT
             );
-            params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-            params.y = dp(42);
+            params.gravity = Gravity.TOP | Gravity.END;
+            params.x = dp(14);
+            params.y = dp(90);
+            overlayParams = params;
 
-            windowManager.addView(card, params);
-            overlayView = card;
-            Log.d(TAG, "Floating Azan overlay displayed above apps");
+            // Draggable touch listener + tap-to-expand on the floating bubble
+            final float[] touchDownRaw = new float[2];
+            final int[] startParamsXY = new int[2];
+            final boolean[] movedSignificantly = new boolean[1];
+            View.OnTouchListener dragListener = (v, event) -> {
+                if (overlayParams == null || windowManager == null) return false;
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        touchDownRaw[0] = event.getRawX();
+                        touchDownRaw[1] = event.getRawY();
+                        startParamsXY[0] = overlayParams.x;
+                        startParamsXY[1] = overlayParams.y;
+                        movedSignificantly[0] = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - touchDownRaw[0];
+                        float dy = event.getRawY() - touchDownRaw[1];
+                        if (Math.hypot(dx, dy) > dp(8)) {
+                            movedSignificantly[0] = true;
+                        }
+                        // Gravity.END means positive x moves leftward from right edge
+                        overlayParams.x = Math.max(0, startParamsXY[0] - Math.round(dx));
+                        overlayParams.y = Math.max(0, startParamsXY[1] + Math.round(dy));
+                        try {
+                            windowManager.updateViewLayout(root, overlayParams);
+                        } catch (Exception ignored) {}
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (!movedSignificantly[0] && !overlayExpanded) {
+                            overlayExpanded = true;
+                            bubble.setVisibility(View.GONE);
+                            card.setVisibility(View.VISIBLE);
+                            overlayParams.width = cardWidth;
+                            overlayParams.x = Math.max(dp(12), (screenWidth - cardWidth) / 2);
+                            try {
+                                windowManager.updateViewLayout(root, overlayParams);
+                            } catch (Exception ignored) {}
+                        }
+                        return true;
+                    default:
+                        return false;
+                }
+            };
+            bubble.setOnTouchListener(dragListener);
+            headerRow.setOnTouchListener(dragListener);
+
+            updateOverlayCountdownViews();
+            windowManager.addView(root, params);
+            overlayView = root;
+            mainHandler.removeCallbacks(overlayTickerRunnable);
+            mainHandler.postDelayed(overlayTickerRunnable, 1000L);
+            Log.d(TAG, "Draggable Floating Azan bubble displayed above apps");
         } catch (Exception e) {
             Log.e(TAG, "Failed to display floating overlay", e);
         }
@@ -439,10 +701,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         TextView btn = new TextView(this);
         btn.setText(label);
         btn.setTextColor(Color.parseColor(textHex));
-        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         btn.setTypeface(null, Typeface.BOLD);
         btn.setGravity(Gravity.CENTER);
-        btn.setPadding(dp(12), dp(10), dp(12), dp(10));
+        btn.setPadding(dp(10), dp(9), dp(10), dp(9));
 
         GradientDrawable btnBg = new GradientDrawable();
         btnBg.setColor(Color.parseColor(bgHex));
@@ -471,12 +733,16 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     }
 
     private void removeFloatingOverlaySync() {
+        mainHandler.removeCallbacks(overlayTickerRunnable);
         if (overlayView != null && windowManager != null) {
             try {
                 windowManager.removeView(overlayView);
             } catch (Exception ignored) {}
             overlayView = null;
         }
+        overlayParams = null;
+        bubbleTickerView = null;
+        expandedTickerView = null;
     }
 
     private void playAudioSafely(String audioTrackId, String section, String title, String body, int volumePercent, boolean shortToneMode) {
@@ -501,7 +767,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         requestAudioFocus();
 
         try {
-            float scalarVol = Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
+            float scalarVol = volumePercent <= 0 ? 0.0f : Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setAudioAttributes(
                     new AudioAttributes.Builder()
@@ -607,7 +873,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private void stopServiceCleanly() {
         mainHandler.removeCallbacks(autoDismissOverlayTestRunnable);
         mainHandler.removeCallbacks(shortToneStopRunnable);
+        mainHandler.removeCallbacks(overlayTickerRunnable);
         isOverlayOnlyTest = false;
+        currentSection = "";
+        queuedLowerPriorityIntent = null;
         stopAudioAndCleanUp();
         removeFloatingOverlay();
         releaseWakeLock();
@@ -668,7 +937,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         } else if ("salawat".equals(section)) {
             return "salawat_1.mp3";
         } else if ("musaharati".equals(section)) {
-            return "musaharati_1.mp3";
+            SharedPreferences sp = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
+            String mTrack = sp.getString("musaharati_audio", "musaharati_1");
+            if (mTrack == null || mTrack.trim().isEmpty()) {
+                return "musaharati_1.mp3";
+            }
+            String cleanM = mTrack.trim();
+            return (cleanM.endsWith(".mp3") || cleanM.endsWith(".wav")) ? cleanM : (cleanM + ".mp3");
         } else if ("iftar".equals(section)) {
             return "iftar_cannon.mp3";
         } else if ("duha_prayer".equals(section)) {
@@ -700,7 +975,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         );
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(R.drawable.ic_notification_muslim_plus)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
@@ -751,7 +1026,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         int notifId = 2000 + Math.abs((section != null ? section : "alert").hashCode() % 100);
         Notification notification = new NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(R.drawable.ic_notification_muslim_plus)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
@@ -800,11 +1075,12 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                                     .build()
                     )
+                    .setOnAudioFocusChangeListener(audioFocusChangeListener)
                     .build();
             audioManager.requestAudioFocus(audioFocusRequest);
         } else {
             @SuppressWarnings("deprecation")
-            int ignored = audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+            int ignored = audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
         }
     }
 
@@ -815,7 +1091,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             audioFocusRequest = null;
         } else {
             @SuppressWarnings("deprecation")
-            int ignored = audioManager.abandonAudioFocus(null);
+            int ignored = audioManager.abandonAudioFocus(audioFocusChangeListener);
         }
     }
 
@@ -858,6 +1134,16 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         if (currentDuaAfterPrayerEnabled) {
             postDuaAfterPrayerNotification(currentPrayerName);
             currentDuaAfterPrayerEnabled = false;
+        }
+        Intent nextQueued = queuedLowerPriorityIntent;
+        queuedLowerPriorityIntent = null;
+        if (nextQueued != null) {
+            isPlayingNow = false;
+            currentSection = "";
+            stopAudioAndCleanUp();
+            removeFloatingOverlay();
+            mainHandler.post(() -> onStartCommand(nextQueued, 0, 0));
+            return;
         }
         stopServiceCleanly();
     }

@@ -5,8 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -18,9 +20,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -39,10 +43,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -57,6 +64,7 @@ import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.model.CityLocation
+import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenSubWidgetBox
 import com.muslim.azan.ui.components.MoazenWidgetCard
@@ -156,22 +164,95 @@ fun SettingsScreen(
     var selectedAzanVoice by remember { mutableStateOf(prefs.azanVoice) }
     var backgroundTestScheduledNote by remember { mutableStateOf<String?>(null) }
 
+    var highLatitudeRule by remember { mutableStateOf(prefs.highLatitudeRule) }
+    var manualLatText by remember { mutableStateOf(String.format(Locale.US, "%.4f", prefs.latitude)) }
+    var manualLngText by remember { mutableStateOf(String.format(Locale.US, "%.4f", prefs.longitude)) }
+    var manualLocationLabel by remember { mutableStateOf("") }
+    var manualCoordError by remember { mutableStateOf<String?>(null) }
+
     var salawatEnabled by remember { mutableStateOf(prefs.salawatEnabled) }
+    var salawatAutoAfterFajr by remember { mutableStateOf(prefs.salawatAutoAfterFajrIqama) }
+    var salawatStartTime by remember { mutableStateOf(prefs.salawatTime) }
+    var salawatEndTime by remember { mutableStateOf(prefs.salawatEndTime) }
+    var salawatRepeatType by remember { mutableStateOf(prefs.salawatRepeatType) }
+    var salawatRepeatUnit by remember { mutableStateOf(prefs.salawatRepeatUnit) }
+    var salawatIntervalStr by remember { mutableStateOf(prefs.salawatRepeatInterval.toString()) }
+    var salawatVolumePercent by remember { mutableIntStateOf(prefs.salawatVolumePercent) }
     var morningAzkarEnabled by remember { mutableStateOf(prefs.morningAzkarEnabled) }
     var eveningAzkarEnabled by remember { mutableStateOf(prefs.eveningAzkarEnabled) }
+    var azkarVolumePercent by remember { mutableIntStateOf(prefs.azkarVolumePercent) }
     var musaharatiEnabled by remember { mutableStateOf(prefs.musaharatiEnabled) }
+    var azkarPreviewCategory by remember { mutableStateOf<String?>(null) }
+
+    var savedMusaharatiAudio by remember { mutableStateOf(prefs.musaharatiAudio) }
+    var pendingMusaharatiAudio by remember { mutableStateOf(prefs.musaharatiAudio) }
+    var musaharatiPreviewTrackId by remember { mutableStateOf<String?>(null) }
+    var musaharatiDurations by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val playerIsPlaying by NativeAudioPlayerManager.isPlaying.collectAsState()
+
+    LaunchedEffect(expandedSection) {
+        if (expandedSection == 7) {
+            savedMusaharatiAudio = prefs.musaharatiAudio
+            pendingMusaharatiAudio = prefs.musaharatiAudio
+            if (musaharatiDurations.isEmpty()) {
+                val loaded = withContext(Dispatchers.IO) {
+                    val map = mutableMapOf<String, String>()
+                    listOf("musaharati_1", "musaharati_2").forEach { trackId ->
+                        val retriever = MediaMetadataRetriever()
+                        try {
+                            val afd = context.assets.openFd("audio/${trackId}.mp3")
+                            retriever.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                            afd.close()
+                            val durMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                            if (durMs > 0L) {
+                                val totalSec = (durMs / 1000L).toInt()
+                                map[trackId] = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
+                            }
+                        } catch (_: Exception) {
+                        } finally {
+                            runCatching { retriever.release() }
+                        }
+                    }
+                    map
+                }
+                if (loaded.isNotEmpty()) {
+                    musaharatiDurations = loaded
+                }
+            }
+        } else if (musaharatiPreviewTrackId != null) {
+            NativeAudioPlayerManager.stop()
+            musaharatiPreviewTrackId = null
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (musaharatiPreviewTrackId != null) {
+                NativeAudioPlayerManager.stop()
+                musaharatiPreviewTrackId = null
+            }
+        }
+    }
+
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     val permStatus = remember(expandedSection, permissionRefreshTick) {
         SystemPermissionHelper.checkPermissions(context)
     }
 
-    fun launchAudioTest(trackId: String, label: String, section: String = "prayer_azan") {
+    fun launchAudioTest(
+        trackId: String,
+        label: String,
+        section: String = "prayer_azan",
+        volumePercent: Int = 100
+    ) {
         val testIntent = Intent(context, AzkarAudioService::class.java).apply {
             putExtra("section", section)
             putExtra("prayerName", label)
             putExtra("title", "تجربة: $label")
             putExtra("cityName", selectedCityName)
             putExtra("audioTrackId", trackId)
+            putExtra("volumePercent", volumePercent.coerceIn(0, 100))
             putExtra("autoPlay", true)
             putExtra("isTestAlarm", true)
         }
@@ -286,110 +367,212 @@ fun SettingsScreen(
         expandedSection = if (expandedSection == index) null else index
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(EmeraldDeep)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // Header: Compact title box matching unified Home Quran widget with dynamically scaled centered title
-        item {
-            MoazenWidgetCard(
-                cornerRadius = 14.dp,
-                borderColor = MoazenCardBorder,
-                modifier = Modifier.fillMaxWidth()
+    BackHandler {
+        when {
+            azkarPreviewCategory != null -> azkarPreviewCategory = null
+            showResetConfirmDialog -> showResetConfirmDialog = false
+            showCountryDropdown -> showCountryDropdown = false
+            showStateDropdown -> showStateDropdown = false
+            expandedSection != null -> {
+                if (musaharatiPreviewTrackId != null) {
+                    NativeAudioPlayerManager.stop()
+                    musaharatiPreviewTrackId = null
+                }
+                expandedSection = null
+            }
+            else -> onBack()
+        }
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val viewportMinHeight = maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = viewportMinHeight)
             ) {
-                BoxWithConstraints(
+                Image(
+                    painter = painterResource(id = R.drawable.bg_settings_fullscreen),
+                    contentDescription = "خلفية الإعدادات",
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
+                    modifier = Modifier.matchParentSize()
+                )
+
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(horizontal = 8.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val density = LocalDensity.current
-                    val availableTextWidthDp = (maxWidth - 112.dp).coerceAtLeast(100.dp)
-                    val titleText = "الإعدادات"
-                    val adaptiveFontSp = remember(availableTextWidthDp, titleText, density.fontScale) {
-                        val baseSize = (availableTextWidthDp.value / (titleText.length.coerceAtLeast(6) * 0.85f))
-                        baseSize.coerceIn(16f, 22f).sp
+                    val settingsPillTitle = remember(prefs.language) {
+                        when (prefs.language) {
+                            "en" -> "Settings"
+                            "fr" -> "Paramètres"
+                            "tr" -> "Ayarlar"
+                            "ur" -> "ترتیبات"
+                            "id" -> "Pengaturan"
+                            "es" -> "Ajustes"
+                            "ru" -> "Настройки"
+                            else -> "الإعدادات"
+                        }
                     }
 
-                    IconButton(
-                        onClick = {
-                            if (expandedSection != null) {
-                                expandedSection = null
-                            } else {
-                                onBack()
-                            }
-                        },
+                    val goldenLineSpacer = if (expandedSection == null) {
+                        (viewportMinHeight * 0.155f - 74.dp).coerceIn(44.dp, 88.dp)
+                    } else {
+                        8.dp
+                    }
+
+                    // Unified Ivory-Cream Back Button + Centered Ivory-Gold Pill ("الإعدادات / Settings") aligned on the golden curved arc
+                    Column(
                         modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .size(40.dp)
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = "رجوع",
-                            tint = MoazenInkEmerald,
-                            modifier = Modifier.size(22.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MoazenWidgetCard(
+                                cornerRadius = 18.dp,
+                                borderColor = MoazenCardBorder,
+                                borderWidth = 1.dp,
+                                elevation = 4.dp,
+                                onClick = {
+                                    if (expandedSection != null) {
+                                        expandedSection = null
+                                    } else {
+                                        onBack()
+                                    }
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowForward,
+                                        contentDescription = "رجوع",
+                                        tint = MoazenInkEmerald,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(goldenLineSpacer))
+
+                        // Centered Ivory-Cream Pill with Gold Border & Subtle Islamic Ornament
+                        BoxWithConstraints(
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        ) {
+                            val density = LocalDensity.current
+                            val pillWidthDp = (maxWidth).coerceIn(175.dp, 248.dp)
+                            val adaptiveFontSp = remember(pillWidthDp, density.fontScale) {
+                                (pillWidthDp.value / 10.6f).coerceIn(16f, 19.5f).sp
+                            }
+                            MoazenWidgetCard(
+                                cornerRadius = 20.dp,
+                                borderColor = MoazenCardBorder,
+                                borderWidth = 1.5.dp,
+                                elevation = 5.dp,
+                                modifier = Modifier
+                                    .width(pillWidthDp)
+                                    .height(36.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    @Suppress("DEPRECATION")
+                                    Text(
+                                        text = settingsPillTitle,
+                                        color = MoazenInkEmerald,
+                                        fontSize = adaptiveFontSp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = TextStyle(
+                                            lineHeight = (adaptiveFontSp.value * 1.15f).sp,
+                                            platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                // Single-screen 10 stacked compact rows when no section is expanded (no scroll needed)
+                if (expandedSection == null) {
+                    Box(modifier = Modifier.padding(horizontal = 12.dp)) {
+                        CompactSettingsOverviewGrid(
+                            selectedCityName = selectedCityName,
+                            onSelectSection = { sectionIndex -> expandedSection = sectionIndex }
                         )
                     }
-
-                    @Suppress("DEPRECATION")
-                    Text(
-                        text = titleText,
-                        color = MoazenInkPrimary,
-                        fontSize = adaptiveFontSp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(
-                            lineHeight = (adaptiveFontSp.value * 1.15f).sp,
-                            platformStyle = PlatformTextStyle(includeFontPadding = false)
-                        ),
+                } else {
+                    MoazenWidgetCard(
+                        cornerRadius = 14.dp,
+                        borderColor = MoazenCardBorder,
+                        borderWidth = 1.dp,
+                        elevation = 3.dp,
+                        onClick = {
+                            if (musaharatiPreviewTrackId != null) {
+                                NativeAudioPlayerManager.stop()
+                                musaharatiPreviewTrackId = null
+                            }
+                            expandedSection = null
+                        },
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .widthIn(max = availableTextWidthDp)
-                    )
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.GridView,
+                                contentDescription = null,
+                                tint = MoazenInkEmerald,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (prefs.language == "en") "Back to All Settings" else "العودة لجميع أقسام الإعدادات",
+                                color = MoazenInkEmerald,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
-            }
-        }
-
-        // Single-screen 2x5 compact widgets grid when no section is expanded (no scrolling needed)
-        if (expandedSection == null) {
-            item {
-                CompactSettingsOverviewGrid(
-                    selectedCityName = selectedCityName,
-                    onSelectSection = { sectionIndex -> expandedSection = sectionIndex }
-                )
-            }
-        } else {
-            item {
-                OutlinedButton(
-                    onClick = { expandedSection = null },
-                    border = BorderStroke(1.dp, GoldAccent.copy(alpha = 0.5f)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.GridView, contentDescription = null, tint = GoldAccent, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("العودة لجميع ودجات الإعدادات", color = GoldAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
 
         // Section 1: Profile & Stats
         if (expandedSection == 1) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "1. الملف الشخصي والإحصائيات",
-                    icon = Icons.Default.Person,
-                    iconResId = R.drawable.ic_settings_profile,
-                    isExpanded = true,
-                    onToggle = { toggleSection(1) }
-                ) {
+            SettingsCollapsibleCard(
+                title = "1. الملف الشخصي والإحصائيات",
+                icon = Icons.Default.Person,
+                iconResId = R.drawable.ic_settings_profile,
+                isExpanded = true,
+                onToggle = { toggleSection(1) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -409,17 +592,17 @@ fun SettingsScreen(
                 }
             }
         }
-        }
 
         // Section 2: Permissions & Overlay
         if (expandedSection == 2) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "2. الأذونات وصلاحيات النظام",
-                    icon = Icons.Default.Security,
-                    isExpanded = true,
-                    onToggle = { toggleSection(2) }
-                ) {
+            SettingsCollapsibleCard(
+                title = "2. الأذونات وصلاحيات النظام",
+                icon = Icons.Default.Security,
+                iconResId = R.drawable.ic_settings_permissions,
+                isExpanded = true,
+                onToggle = { toggleSection(2) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = "لضمان تشغيل الأذان والأذكار والنافذة العائمة في الخلفية وعلى الشاشة المقفلة (Android 14-16):",
@@ -525,17 +708,17 @@ fun SettingsScreen(
                 }
             }
         }
-        }
 
         // Section 3: Location, Smart GPS Confirmation & Global Countries/Regions/Cities DB + Online OSM
         if (expandedSection == 3) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "3. تحديد الموقع ومدن العالم",
-                    icon = Icons.Default.LocationOn,
-                    isExpanded = true,
-                    onToggle = { toggleSection(3) }
-                ) {
+            SettingsCollapsibleCard(
+                title = "3. تحديد الموقع ومدن العالم",
+                icon = Icons.Default.LocationOn,
+                iconResId = R.drawable.ic_settings_location,
+                isExpanded = true,
+                onToggle = { toggleSection(3) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                 val countries = remember(worldCities) {
                     NativeDataManager.getCountries(context, prefs)
                 }
@@ -627,6 +810,155 @@ fun SettingsScreen(
                                 color = MoazenInkMuted,
                                 fontSize = 11.sp
                             )
+                        }
+                    }
+
+                    // High Latitude Rule & Manual Global Coordinates Box
+                    MoazenSubWidgetBox(
+                        cornerRadius = 12.dp,
+                        borderColor = MoazenCardBorder,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "قاعدة خطوط العرض العليا (للمدن الشمالية والجنوبية):",
+                                color = MoazenInkEmerald,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val highLatOptions = listOf(
+                                "angle_based" to "زاوية فلكية (موصى به)",
+                                "one_seventh" to "سُبع الليل",
+                                "middle_of_night" to "منتصف الليل",
+                                "safe_latitude" to "خط آمن 48.5°"
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                highLatOptions.chunked(2).forEach { rowItems ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        rowItems.forEach { (ruleKey, ruleLabel) ->
+                                            val sel = highLatitudeRule == ruleKey
+                                            Surface(
+                                                shape = RoundedCornerShape(9.dp),
+                                                color = if (sel) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.85f),
+                                                border = BorderStroke(1.dp, if (sel) MoazenGold else MoazenCardBorder),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(9.dp))
+                                                    .clickable {
+                                                        highLatitudeRule = ruleKey
+                                                        prefs.highLatitudeRule = ruleKey
+                                                        coroutineScope.launch(Dispatchers.IO) {
+                                                            BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                        }
+                                                    }
+                                            ) {
+                                                Text(
+                                                    text = ruleLabel,
+                                                    color = if (sel) Color.White else MoazenInkPrimary,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(vertical = 7.dp, horizontal = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider(color = MoazenCardBorder, thickness = 1.dp)
+
+                            Text(
+                                text = "إدخال الإحداثيات يدويًا (لأي نقطة في العالم):",
+                                color = MoazenInkEmerald,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = manualLatText,
+                                    onValueChange = {
+                                        manualLatText = it
+                                        manualCoordError = null
+                                    },
+                                    label = { Text("خط العرض (-90..90)", fontSize = 10.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = manualLngText,
+                                    onValueChange = {
+                                        manualLngText = it
+                                        manualCoordError = null
+                                    },
+                                    label = { Text("خط الطول (-180..180)", fontSize = 10.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            OutlinedTextField(
+                                value = manualLocationLabel,
+                                onValueChange = { manualLocationLabel = it },
+                                label = { Text("اسم الموقع الاختياري (مثال: أوسلو - النرويج)", fontSize = 11.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (manualCoordError != null) {
+                                Text(
+                                    text = manualCoordError ?: "",
+                                    color = ErrorRed,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val parsedLat = manualLatText.trim().replace(',', '.').toDoubleOrNull()
+                                    val parsedLng = manualLngText.trim().replace(',', '.').toDoubleOrNull()
+                                    if (parsedLat == null || parsedLng == null || parsedLat < -90.0 || parsedLat > 90.0 || parsedLng < -180.0 || parsedLng > 180.0) {
+                                        manualCoordError = "يرجى إدخال إحداثيات صحيحة (العرض بين -90 و 90، والطول بين -180 و 180)"
+                                        return@OutlinedButton
+                                    }
+                                    val customName = manualLocationLabel.trim().ifBlank {
+                                        String.format(Locale.US, "موقع مخصص (%.2f°, %.2f°)", parsedLat, parsedLng)
+                                    }
+                                    prefs.cityName = customName
+                                    prefs.latitude = parsedLat
+                                    prefs.longitude = parsedLng
+                                    prefs.cityTimezoneId = ""
+                                    prefs.activeLocationSource = "manual"
+                                    prefs.activeLocationHierarchy = String.format(Locale.US, "إحداثيات يدوية: %.4f°, %.4f°", parsedLat, parsedLng)
+                                    selectedCityName = customName
+                                    currentLat = parsedLat
+                                    currentLng = parsedLng
+                                    activeLocationSource = "manual"
+                                    activeLocationHierarchy = prefs.activeLocationHierarchy
+                                    manualCoordError = null
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                    }
+                                    Toast.makeText(context, "تم حفظ الإحداثيات وحساب المواقيت بنجاح", Toast.LENGTH_SHORT).show()
+                                },
+                                border = BorderStroke(1.dp, MoazenInkEmerald),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.MyLocation, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("تطبيق الإحداثيات وحساب المواقيت", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
 
@@ -1170,27 +1502,26 @@ fun SettingsScreen(
                 }
             }
         }
-        }
 
         // Section 4: Language
         if (expandedSection == 4) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "4. لغة التطبيق والواجهة",
-                    icon = Icons.Default.Language,
-                    isExpanded = true,
-                    onToggle = { toggleSection(4) }
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MoazenInkEmerald)
-                                .padding(10.dp)
-                        ) {
-                            Text("العربية (اللغة الافتراضية)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
+            SettingsCollapsibleCard(
+                title = "4. لغة التطبيق والواجهة",
+                icon = Icons.Default.Language,
+                iconResId = R.drawable.ic_settings_language,
+                isExpanded = true,
+                onToggle = { toggleSection(4) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MoazenInkEmerald)
+                            .padding(10.dp)
+                    ) {
+                        Text("العربية (اللغة الافتراضية)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1198,14 +1529,14 @@ fun SettingsScreen(
 
         // Section 5: Azan Settings & Comprehensive Sound Tester
         if (expandedSection == 5) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "5. إعدادات الأذان واختبار الأصوات",
-                    icon = Icons.Default.VolumeUp,
-                    iconResId = R.drawable.ic_settings_azan,
-                    isExpanded = true,
-                    onToggle = { toggleSection(5) }
-                ) {
+            SettingsCollapsibleCard(
+                title = "5. إعدادات الأذان واختبار الأصوات",
+                icon = Icons.Default.VolumeUp,
+                iconResId = R.drawable.ic_settings_azan,
+                isExpanded = true,
+                onToggle = { toggleSection(5) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1438,24 +1769,24 @@ fun SettingsScreen(
                 }
             }
         }
-        }
 
-        // Section 6: Azkar Reminders
+        // Section 6: Azkar Reminders & Salawat Numeric Interval Controls
         if (expandedSection == 6) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "6. تنبيهات الأذكار والصلوات على النبي",
-                    icon = Icons.Default.Alarm,
-                    isExpanded = true,
-                    onToggle = { toggleSection(6) }
-                ) {
+            SettingsCollapsibleCard(
+                title = "6. التحكم في الأذكار والصلوات",
+                icon = Icons.Default.Alarm,
+                iconResId = R.drawable.ic_settings_azkar,
+                isExpanded = true,
+                onToggle = { toggleSection(6) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("تذكير الصلاة على النبي ﷺ الدوري:", color = MoazenInkPrimary, fontSize = 13.sp)
+                            Text("تذكير الصلاة على النبي ﷺ الدوري:", color = MoazenInkPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Switch(
                                 checked = salawatEnabled,
                                 onCheckedChange = {
@@ -1467,6 +1798,232 @@ fun SettingsScreen(
                                 },
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
                             )
+                        }
+
+                        if (salawatEnabled) {
+                            MoazenSubWidgetBox(
+                                cornerRadius = 12.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "نمط التنبيه والمدة الزمنية:",
+                                        color = MoazenInkEmerald,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        listOf("repeat" to "تكرار دوري", "once" to "مرة يوميًا").forEach { (typeKey, typeLabel) ->
+                                            val sel = salawatRepeatType == typeKey
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (sel) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.8f),
+                                                border = BorderStroke(1.dp, if (sel) MoazenGold else MoazenCardBorder),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clickable {
+                                                        salawatRepeatType = typeKey
+                                                        prefs.salawatRepeatType = typeKey
+                                                        coroutineScope.launch(Dispatchers.IO) {
+                                                            BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                        }
+                                                    }
+                                            ) {
+                                                Text(
+                                                    text = typeLabel,
+                                                    color = if (sel) Color.White else MoazenInkPrimary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.padding(vertical = 8.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (salawatRepeatType == "repeat") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            OutlinedTextField(
+                                                value = salawatIntervalStr,
+                                                onValueChange = { raw ->
+                                                    val digits = raw.filter { it.isDigit() }.take(3)
+                                                    salawatIntervalStr = digits
+                                                    val parsed = digits.toIntOrNull()
+                                                    if (parsed != null && parsed in 1..240) {
+                                                        prefs.salawatRepeatInterval = parsed
+                                                        coroutineScope.launch(Dispatchers.IO) {
+                                                            BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                        }
+                                                    }
+                                                },
+                                                label = { Text("كل (1 - 240)", fontSize = 11.sp) },
+                                                singleLine = true,
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = MoazenInkEmerald,
+                                                    unfocusedBorderColor = MoazenCardBorder,
+                                                    focusedTextColor = MoazenInkPrimary,
+                                                    unfocusedTextColor = MoazenInkPrimary
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            )
+
+                                            Row(
+                                                modifier = Modifier.weight(1.2f),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("minutes" to "دقيقة", "hours" to "ساعة").forEach { (uKey, uLabel) ->
+                                                    val sel = salawatRepeatUnit == uKey
+                                                    Surface(
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = if (sel) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.8f),
+                                                        border = BorderStroke(1.dp, if (sel) MoazenGold else MoazenCardBorder),
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .clickable {
+                                                                salawatRepeatUnit = uKey
+                                                                prefs.salawatRepeatUnit = uKey
+                                                                val clamped = (salawatIntervalStr.toIntOrNull() ?: 15).coerceIn(1, 240)
+                                                                salawatIntervalStr = clamped.toString()
+                                                                prefs.salawatRepeatInterval = clamped
+                                                                coroutineScope.launch(Dispatchers.IO) {
+                                                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                                }
+                                                            }
+                                                    ) {
+                                                        Text(
+                                                            text = uLabel,
+                                                            color = if (sel) Color.White else MoazenInkPrimary,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            textAlign = TextAlign.Center,
+                                                            modifier = Modifier.padding(vertical = 12.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalDivider(color = MoazenCardBorder, thickness = 1.dp)
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "بدء تلقائي بعد إقامة الفجر حتى 00:00",
+                                                color = MoazenInkPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = if (salawatAutoAfterFajr)
+                                                    "يعمل تلقائيًا بعد إقامة الفجر ويتوقف منتصف الليل"
+                                                else
+                                                    "نطاق يدوي: من $salawatStartTime إلى $salawatEndTime",
+                                                color = MoazenInkMuted,
+                                                fontSize = 10.5.sp
+                                            )
+                                        }
+                                        Switch(
+                                            checked = salawatAutoAfterFajr,
+                                            onCheckedChange = {
+                                                salawatAutoAfterFajr = it
+                                                prefs.salawatAutoAfterFajrIqama = it
+                                                coroutineScope.launch(Dispatchers.IO) {
+                                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                }
+                                            },
+                                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                                        )
+                                    }
+
+                                    if (!salawatAutoAfterFajr) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf(
+                                                Triple("05:00", "23:59", "05:00 - 00:00"),
+                                                Triple("06:00", "23:59", "06:00 - 00:00"),
+                                                Triple("08:00", "22:00", "08:00 - 22:00")
+                                            ).forEach { (startOpt, endOpt, labelOpt) ->
+                                                val sel = salawatStartTime == startOpt && salawatEndTime == endOpt
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (sel) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.85f),
+                                                    border = BorderStroke(1.dp, if (sel) MoazenGold else MoazenCardBorder),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            salawatStartTime = startOpt
+                                                            salawatEndTime = endOpt
+                                                            prefs.salawatTime = startOpt
+                                                            prefs.salawatEndTime = endOpt
+                                                            coroutineScope.launch(Dispatchers.IO) {
+                                                                BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                            }
+                                                        }
+                                                ) {
+                                                    Text(
+                                                        text = labelOpt,
+                                                        color = if (sel) Color.White else MoazenInkPrimary,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        textAlign = TextAlign.Center,
+                                                        modifier = Modifier.padding(vertical = 6.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("مستوى صوت الصلاة على النبي:", color = MoazenInkEmerald, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("$salawatVolumePercent%", color = MoazenInkPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Slider(
+                                            value = salawatVolumePercent.toFloat(),
+                                            onValueChange = {
+                                                salawatVolumePercent = it.toInt().coerceIn(0, 100)
+                                                prefs.salawatVolumePercent = salawatVolumePercent
+                                            },
+                                            onValueChangeFinished = {
+                                                coroutineScope.launch(Dispatchers.IO) {
+                                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                }
+                                            },
+                                            valueRange = 0f..100f,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = MoazenInkEmerald,
+                                                activeTrackColor = MoazenInkEmerald,
+                                                inactiveTrackColor = MoazenCardBorder
+                                            )
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         Row(
@@ -1506,39 +2063,330 @@ fun SettingsScreen(
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
                             )
                         }
+
+                        MoazenSubWidgetBox(
+                            cornerRadius = 12.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("مستوى صوت أذكار الصباح والمساء:", color = MoazenInkEmerald, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    Text("$azkarVolumePercent%", color = MoazenInkPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Slider(
+                                    value = azkarVolumePercent.toFloat(),
+                                    onValueChange = {
+                                        azkarVolumePercent = it.toInt().coerceIn(0, 100)
+                                        prefs.azkarVolumePercent = azkarVolumePercent
+                                    },
+                                    onValueChangeFinished = {
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                        }
+                                    },
+                                    valueRange = 0f..100f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = MoazenInkEmerald,
+                                        activeTrackColor = MoazenInkEmerald,
+                                        inactiveTrackColor = MoazenCardBorder
+                                    )
+                                )
+                            }
+                        }
+
+                        Text("معاينة فورية للأصوات:", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { launchAudioTest("azkar_sabah", "أذكار الصباح", "morningAzkar", azkarVolumePercent) },
+                                border = BorderStroke(1.dp, MoazenCardBorder),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("أذكار الصباح", color = MoazenInkPrimary, fontSize = 11.sp, maxLines = 1)
+                            }
+                            OutlinedButton(
+                                onClick = { launchAudioTest("azkar_massa", "أذكار المساء", "eveningAzkar", azkarVolumePercent) },
+                                border = BorderStroke(1.dp, MoazenCardBorder),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("أذكار المساء", color = MoazenInkPrimary, fontSize = 11.sp, maxLines = 1)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { launchAudioTest("salawat_1", "الصلاة على النبي ﷺ", "salawat", salawatVolumePercent) },
+                            border = BorderStroke(1.dp, MoazenCardBorder),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("تجربة صوت الصلاة على النبي ﷺ ($salawatVolumePercent%)", color = MoazenInkPrimary, fontSize = 11.sp, maxLines = 1)
+                        }
+
+                        HorizontalDivider(color = MoazenCardBorder, thickness = 1.dp)
+
+                        Text("معاينة نصوص الأذكار (للقراءة فقط):", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { azkarPreviewCategory = "sabah" },
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.WbSunny, contentDescription = null, tint = GoldLight, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("معاينة أذكار الصباح", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            OutlinedButton(
+                                onClick = { azkarPreviewCategory = "masaa" },
+                                border = BorderStroke(1.dp, MoazenGold),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFFAF6EA)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.NightsStay, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("معاينة أذكار المساء", color = MoazenInkEmerald, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                     }
                 }
-            }
         }
 
         // Section 7: Ramadan Settings
         if (expandedSection == 7) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "7. إعدادات شهر رمضان المبارك",
-                    icon = Icons.Default.NightsStay,
-                    isExpanded = true,
-                    onToggle = { toggleSection(7) }
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            SettingsCollapsibleCard(
+                title = "7. إعدادات رمضان والسحور",
+                icon = Icons.Default.NightsStay,
+                iconResId = R.drawable.ic_settings_ramadan,
+                isExpanded = true,
+                onToggle = { toggleSection(7) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("تنبيه نداء المسحراتي قبل الفجر:", color = MoazenInkPrimary, fontSize = 13.sp)
+                        Switch(
+                            checked = musaharatiEnabled,
+                            onCheckedChange = {
+                                musaharatiEnabled = it
+                                prefs.musaharatiEnabled = it
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                }
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                        )
+                    }
+
+                    HorizontalDivider(color = MoazenCardBorder, thickness = 1.dp)
+
+                    Text(
+                        text = "معاينة واختيار نغمة المسحراتي:",
+                        color = MoazenInkEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    val musaharatiTracks = remember {
+                        listOf(
+                            Triple("musaharati_1", "أغنية المسحراتي الرمضانية للأطفال", "«اصحى يا نايم وصحي النوم ده احنا بقينا في شهر الصوم..»"),
+                            Triple("musaharati_2", "مسحراتي التراث - الشيخ سيد مكاوي", "«اصحى يا نايم وحد الدايم.. مسحراتي أنادي أهل الزمن من حارتي»")
+                        )
+                    }
+
+                    musaharatiTracks.forEach { (trackId, trackTitle, trackDesc) ->
+                        val isPendingSelected = pendingMusaharatiAudio == trackId
+                        val isSavedCurrent = savedMusaharatiAudio == trackId
+                        val isThisActive = musaharatiPreviewTrackId == trackId
+                        val isThisPlaying = isThisActive && playerIsPlaying
+                        val durationLabel = musaharatiDurations[trackId]
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isPendingSelected) Color(0xFFEAF4EE) else Color.White.copy(alpha = 0.85f))
+                                .border(
+                                    width = if (isPendingSelected) 1.5.dp else 1.dp,
+                                    color = if (isPendingSelected) MoazenInkEmerald else MoazenCardBorder,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { pendingMusaharatiAudio = trackId }
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("تنبيه نداء المسحراتي قبل الفجر:", color = MoazenInkPrimary, fontSize = 13.sp)
-                            Switch(
-                                checked = musaharatiEnabled,
-                                onCheckedChange = {
-                                    musaharatiEnabled = it
-                                    prefs.musaharatiEnabled = it
-                                    coroutineScope.launch(Dispatchers.IO) {
-                                        BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = isPendingSelected,
+                                    onClick = { pendingMusaharatiAudio = trackId },
+                                    colors = RadioButtonDefaults.colors(selectedColor = MoazenInkEmerald)
+                                )
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = trackTitle,
+                                            color = MoazenInkPrimary,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (!durationLabel.isNullOrBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFFAF6EA),
+                                                border = BorderStroke(0.75.dp, MoazenGold.copy(alpha = 0.55f))
+                                            ) {
+                                                Text(
+                                                    text = durationLabel,
+                                                    color = MoazenGoldDark,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
                                     }
-                                },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
-                            )
+                                    Text(
+                                        text = trackDesc,
+                                        color = MoazenInkMuted,
+                                        fontSize = 10.5.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (isSavedCurrent) {
+                                        Text(
+                                            text = "المعتمد حاليًا",
+                                            color = MoazenInkEmerald,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (isThisActive) {
+                                            NativeAudioPlayerManager.togglePlayPause()
+                                        } else {
+                                            musaharatiPreviewTrackId = trackId
+                                            NativeAudioPlayerManager.playAssetAudio(
+                                                context = context,
+                                                assetPath = "audio/${trackId}.mp3",
+                                                title = trackTitle,
+                                                subtitle = "معاينة صوت المسحراتي"
+                                            )
+                                        }
+                                    },
+                                    border = BorderStroke(1.dp, if (isThisActive) MoazenInkEmerald else MoazenGold.copy(alpha = 0.6f)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isThisPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = MoazenInkEmerald,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = when {
+                                            isThisPlaying -> "إيقاف مؤقت"
+                                            isThisActive -> "متابعة"
+                                            else -> "تشغيل"
+                                        },
+                                        color = MoazenInkEmerald,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                if (isThisActive) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    OutlinedButton(
+                                        onClick = {
+                                            NativeAudioPlayerManager.stop()
+                                            musaharatiPreviewTrackId = null
+                                        },
+                                        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.65f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Stop,
+                                            contentDescription = null,
+                                            tint = ErrorRed,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("إيقاف", color = ErrorRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
                         }
+                    }
+
+                    Button(
+                        onClick = {
+                            prefs.musaharatiAudio = pendingMusaharatiAudio
+                            savedMusaharatiAudio = pendingMusaharatiAudio
+                            coroutineScope.launch(Dispatchers.IO) {
+                                BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                            }
+                            Toast.makeText(context, "تم حفظ واختيار صوت المسحراتي بنجاح", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (pendingMusaharatiAudio != savedMusaharatiAudio) MuslimPlusPillEmerald else MoazenInkEmerald
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (pendingMusaharatiAudio != savedMusaharatiAudio) "حفظ واختيار الصوت" else "تم حفظ هذا الصوت ✓",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -1546,92 +2394,312 @@ fun SettingsScreen(
 
         // Section 8: Privacy Policy
         if (expandedSection == 8) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "8. سياسة الخصوصية وأمان البيانات",
-                    icon = Icons.Default.PrivacyTip,
-                    iconResId = R.drawable.ic_settings_privacy,
-                    isExpanded = true,
-                    onToggle = { toggleSection(8) }
-                ) {
-                    Text(
-                        text = "تطبيق المؤذن يحترم خصوصيتك بنسبة 100%. جميع مواقيت الصلاة والأذكار والتسبيحات تعمل محليًا دون جمع أي بيانات شخصية أو إرسالها إلى أي خوادم خارجية.",
-                        color = MoazenInkMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
+            SettingsCollapsibleCard(
+                title = "8. سياسة الخصوصية",
+                icon = Icons.Default.PrivacyTip,
+                iconResId = R.drawable.ic_settings_privacy,
+                isExpanded = true,
+                onToggle = { toggleSection(8) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Text(
+                    text = "تطبيق مسلم بلس يحترم خصوصيتك بنسبة 100%. جميع مواقيت الصلاة والأذكار والتسبيحات تعمل محليًا دون جمع أي بيانات شخصية أو إرسالها إلى أي خوادم خارجية.",
+                    color = MoazenInkMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
             }
         }
 
         // Section 9: About App (حول التطبيق)
         if (expandedSection == 9) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "9. حول التطبيق",
-                    icon = Icons.Default.Info,
-                    iconResId = R.drawable.ic_settings_about,
-                    isExpanded = true,
-                    onToggle = { toggleSection(9) }
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "أنا مسلم بلس — المؤذن (الإصدار 2.2.0)",
-                            color = MoazenInkEmerald,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "تطبيق إسلامي شامل صدقة جارية خالصة لوجه الله تعالى بدون أي إعلانات.",
-                            color = MoazenInkPrimary,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = "• المصادر المعتمدة: القرآن الكريم والتفسير الميسر (مجمع الملك فهد)، صحيح البخاري ومسلم، وحصن المسلم.",
-                            color = MoazenInkMuted,
-                            fontSize = 11.sp,
-                            lineHeight = 17.sp
-                        )
-                        Text(
-                            text = "• المزايا: مواقيت فلكية دقيقة، أذان في الخلفية وعلى شاشة القفل، GPS هجين، 211 دولة وإقليمًا، ومُعلّم القرآن الذكي «شيخي».",
-                            color = MoazenInkMuted,
-                            fontSize = 11.sp,
-                            lineHeight = 17.sp
-                        )
-                    }
+            SettingsCollapsibleCard(
+                title = "9. حول التطبيق",
+                icon = Icons.Default.Info,
+                iconResId = R.drawable.ic_settings_about,
+                isExpanded = true,
+                onToggle = { toggleSection(9) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "تطبيق مسلم بلس (الإصدار 2.2.0)",
+                        color = MoazenInkEmerald,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "تطبيق إسلامي شامل صدقة جارية خالصة لوجه الله تعالى بدون أي إعلانات.",
+                        color = MoazenInkPrimary,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "• المصادر المعتمدة: القرآن الكريم والتفسير الميسر (مجمع الملك فهد)، صحيح البخاري ومسلم، وحصن المسلم.",
+                        color = MoazenInkMuted,
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp
+                    )
+                    Text(
+                        text = "• المزايا: مواقيت فلكية دقيقة، أذان في الخلفية وعلى شاشة القفل، GPS هجين، 211 دولة وإقليمًا، ومُعلّم القرآن الذكي «شيخي».",
+                        color = MoazenInkMuted,
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp
+                    )
                 }
             }
         }
 
-        // Section 10: Storage
+        // Section 10: Storage & Reset
         if (expandedSection == 10) {
-            item {
-                SettingsCollapsibleCard(
-                    title = "10. إدارة التخزين المؤقت",
-                    icon = Icons.Default.CleaningServices,
-                    isExpanded = true,
-                    onToggle = { toggleSection(10) }
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "تنظيف الملفات المؤقتة فقط دون المساس بالمفضلات أو المحفوظات:",
-                            color = MoazenInkMuted,
-                            fontSize = 12.sp
-                        )
-                        Button(
-                            onClick = {
-                                val freed = MediaFileManager.cleanTemporaryCache(context)
-                                Toast.makeText(context, "تم تنظيف $freed بايت من الملفات المؤقتة بنجاح", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("تنظيف الذاكرة المؤقتة (Cache Cleanup)", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+            SettingsCollapsibleCard(
+                title = "10. تسجيل الخروج وإعادة الضبط",
+                icon = Icons.Default.CleaningServices,
+                iconResId = R.drawable.ic_settings_logout,
+                isExpanded = true,
+                onToggle = { toggleSection(10) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "تنظيف الملفات المؤقتة فقط دون المساس بالمفضلات أو المحفوظات:",
+                        color = MoazenInkMuted,
+                        fontSize = 12.sp
+                    )
+                    Button(
+                        onClick = {
+                            val freed = MediaFileManager.cleanTemporaryCache(context)
+                            Toast.makeText(context, "تم تنظيف $freed بايت من الملفات المؤقتة بنجاح", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("تنظيف الذاكرة المؤقتة (Cache Cleanup)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    HorizontalDivider(color = MoazenCardBorder, thickness = 1.dp)
+
+                    Text(
+                        text = "إعادة ضبط الموقع والإشعارات إلى الإعدادات الافتراضية الآمنة:",
+                        color = MoazenInkMuted,
+                        fontSize = 12.sp
+                    )
+                    OutlinedButton(
+                        onClick = { showResetConfirmDialog = true },
+                        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.65f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.RestartAlt, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("إعادة ضبط إعدادات التطبيق", color = ErrorRed, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+                }
+            }
+        }
+    }
+
+    if (azkarPreviewCategory != null) {
+        val previewItems = remember(azkarPreviewCategory) {
+            if (azkarPreviewCategory == "sabah") NativeDataManager.sampleMorningAzkar
+            else NativeDataManager.sampleEveningAzkar
+        }
+        val isMorning = azkarPreviewCategory == "sabah"
+        Dialog(
+            onDismissRequest = { azkarPreviewCategory = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFFFAF6EA),
+                border = BorderStroke(1.5.dp, MoazenGold),
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .fillMaxHeight(0.84f)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MuslimPlusPillEmerald)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (isMorning) Icons.Default.WbSunny else Icons.Default.NightsStay,
+                                contentDescription = null,
+                                tint = GoldLight,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (isMorning) "معاينة أذكار الصباح المباركة" else "معاينة أذكار المساء المباركة",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "للقراءة والمعاينة فقط • ${previewItems.size} أذكار",
+                                    color = GoldLight,
+                                    fontSize = 10.5.sp
+                                )
+                            }
+                        }
+                        IconButton(onClick = { azkarPreviewCategory = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = Color.White)
+                        }
+                    }
+
+                    Text(
+                        text = "معاينة للقراءة فقط — لا تؤثر على عدّاد الأذكار أو التنبيهات المجدولة.",
+                        color = MoazenInkEmerald,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF3ECD6))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        previewItems.forEachIndexed { idx, zikr ->
+                            MoazenWidgetCard(
+                                cornerRadius = 16.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "ذكر رقم ${idx + 1}",
+                                            color = MoazenInkEmerald,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MuslimPlusPillEmerald
+                                        ) {
+                                            Text(
+                                                text = "التكرار: ${zikr.count} ${if (zikr.count == 1) "مرة" else "مرات"}",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = zikr.textArabic,
+                                        color = MoazenInkPrimary,
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (zikr.fadl.isNotBlank()) {
+                                        Text(
+                                            text = "الفضل: ${zikr.fadl}",
+                                            color = MoazenInkEmerald,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    if (zikr.source.isNotBlank()) {
+                                        Text(
+                                            text = "المصدر: ${zikr.source}",
+                                            color = MoazenInkMuted,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { azkarPreviewCategory = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text("إغلاق المعاينة", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            containerColor = MoazenCardEnd,
+            title = {
+                Text("تأكيد إعادة الضبط", color = MoazenInkEmerald, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "هل تريد استعادة إعدادات الموقع والتنبيهات الافتراضية؟",
+                    color = MoazenInkMuted,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        prefs.cityName = "مكة المكرمة"
+                        prefs.latitude = 21.4225
+                        prefs.longitude = 39.8262
+                        prefs.cityTimezoneId = "Asia/Riyadh"
+                        prefs.calculationMethod = "umm_al_qura"
+                        prefs.azanVoice = "makkah"
+                        prefs.salawatEnabled = true
+                        prefs.salawatRepeatInterval = 15
+                        prefs.salawatRepeatUnit = "minutes"
+                        prefs.salawatRepeatType = "repeat"
+                        selectedCityName = prefs.cityName
+                        currentLat = prefs.latitude
+                        currentLng = prefs.longitude
+                        salawatEnabled = true
+                        salawatIntervalStr = "15"
+                        salawatRepeatUnit = "minutes"
+                        salawatRepeatType = "repeat"
+                        showResetConfirmDialog = false
+                        coroutineScope.launch(Dispatchers.IO) {
+                            BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                        }
+                        Toast.makeText(context, "تمت استعادة الإعدادات الافتراضية بنجاح", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                ) {
+                    Text("إعادة الضبط", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("إلغاء", color = MoazenInkEmerald, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }
 
@@ -1651,39 +2719,38 @@ private fun CompactSettingsOverviewGrid(
     val items = remember(selectedCityName) {
         listOf(
             CompactSettingsTileItem(1, "الملف الشخصي", "الإحصائيات والختمة", Icons.Default.Person, R.drawable.ic_settings_profile),
-            CompactSettingsTileItem(2, "الأذونات والنظام", "البطارية والتنبيهات", Icons.Default.Security),
-            CompactSettingsTileItem(3, "الموقع والمدن", selectedCityName, Icons.Default.LocationOn),
-            CompactSettingsTileItem(4, "لغة التطبيق", "العربية", Icons.Default.Language),
-            CompactSettingsTileItem(5, "إعدادات الأذان", "الأصوات والاختبار", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
-            CompactSettingsTileItem(6, "الأذكار والصلوات", "الصباح والمساء", Icons.Default.Alarm),
-            CompactSettingsTileItem(7, "شهر رمضان", "المسحراتي والإمساك", Icons.Default.NightsStay),
+            CompactSettingsTileItem(2, "الأذونات والصلاحيات", "البطارية والتنبيهات", Icons.Default.Security, R.drawable.ic_settings_permissions),
+            CompactSettingsTileItem(3, "تحديد الموقع والوقت", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
+            CompactSettingsTileItem(4, "اختيار اللغة", "العربية", Icons.Default.Language, R.drawable.ic_settings_language),
+            CompactSettingsTileItem(5, "إعدادات الأذان والإقامة", "الأصوات والاختبار", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
+            CompactSettingsTileItem(6, "التحكم في الأذكار", "الصباح والمساء", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
+            CompactSettingsTileItem(7, "إعدادات رمضان والسحور", "المسحراتي والإمساك", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
             CompactSettingsTileItem(8, "سياسة الخصوصية", "100% أمان محلي", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
             CompactSettingsTileItem(9, "حول التطبيق", "الإصدار والمصادر", Icons.Default.Info, R.drawable.ic_settings_about),
-            CompactSettingsTileItem(10, "التخزين المؤقت", "تنظيف الذاكرة", Icons.Default.CleaningServices)
+            CompactSettingsTileItem(10, "تسجيل الخروج وإعادة الضبط", "التخزين والإعدادات", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         items.forEach { item ->
             MoazenWidgetCard(
-                cornerRadius = 10.dp,
-                elevation = 1.dp,
+                cornerRadius = 12.dp,
+                elevation = 2.dp,
                 onClick = { onSelectSection(item.index) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 3.5.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF0A1412))
-                            .border(1.dp, Color(0xFF1F332E), RoundedCornerShape(8.dp)),
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .border(1.dp, MoazenCardBorder, RoundedCornerShape(7.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (item.iconResId != null) {
@@ -1691,48 +2758,77 @@ private fun CompactSettingsOverviewGrid(
                                 painter = painterResource(id = item.iconResId),
                                 contentDescription = item.title,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        scaleX = 1.16f
-                                        scaleY = 1.16f
-                                    }
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = null,
-                                tint = GoldAccent,
-                                modifier = Modifier.size(24.dp)
+                                tint = MoazenInkEmerald,
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
 
-                    Text(
-                        text = "${item.index}. ${item.title}",
-                        color = MoazenInkPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(MuslimPlusBadgeGreen),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${item.index}",
+                            color = MoazenInkEmerald,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
 
-                    Text(
-                        text = item.subtitle,
-                        color = MoazenInkMuted,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 110.dp)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        @Suppress("DEPRECATION")
+                        Text(
+                            text = item.title,
+                            color = MoazenInkEmerald,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(
+                                lineHeight = 14.sp,
+                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                            )
+                        )
+                        @Suppress("DEPRECATION")
+                        Text(
+                            text = item.subtitle,
+                            color = MoazenInkMuted,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(
+                                lineHeight = 11.sp,
+                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                            )
+                        )
+                    }
 
-                    Icon(
-                        imageVector = Icons.Default.ChevronLeft,
-                        contentDescription = null,
-                        tint = MoazenGoldDark,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(21.dp)
+                            .clip(CircleShape)
+                            .background(MoazenSubCardBg)
+                            .border(1.dp, MoazenCardBorder, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = null,
+                            tint = MoazenInkEmerald,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1854,11 +2950,12 @@ fun SettingsCollapsibleCard(
     isExpanded: Boolean,
     onToggle: () -> Unit,
     @DrawableRes iconResId: Int? = null,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     MoazenWidgetCard(
         cornerRadius = 16.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -1874,10 +2971,9 @@ fun SettingsCollapsibleCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(Color(0xFF0A1412))
-                            .border(1.5.dp, Color(0xFF1F332E), RoundedCornerShape(13.dp)),
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.5.dp, MoazenGold, RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (iconResId != null) {
@@ -1885,19 +2981,14 @@ fun SettingsCollapsibleCard(
                                 painter = painterResource(id = iconResId),
                                 contentDescription = title,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        scaleX = 1.16f
-                                        scaleY = 1.16f
-                                    }
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = GoldAccent,
-                                modifier = Modifier.size(44.dp)
+                                tint = MoazenInkEmerald,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }

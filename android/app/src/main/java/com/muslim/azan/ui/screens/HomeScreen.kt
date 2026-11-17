@@ -1,12 +1,21 @@
 package com.muslim.azan.ui.screens
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,33 +23,48 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.muslim.azan.PrayerTimeCalculator
+import com.muslim.azan.R
+import com.muslim.azan.data.DailyIslamicContent
+import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
 import com.muslim.azan.ui.navigation.Screen
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 
 data class GridItem(
     val titleAr: String,
+    val subtitleAr: String,
     val icon: ImageVector,
-    val screen: Screen?,
-    val badge: String? = null
+    val screen: Screen?
 )
 
 @Composable
@@ -49,6 +73,8 @@ fun HomeScreen(
     onNavigate: (Screen) -> Unit,
     onOpenPrayerSettings: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var refreshTick by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -59,7 +85,6 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Live 1-second ticker so next prayer, countdown, and Duha/day rollover stay always up to date
     var nowEpochMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -73,8 +98,36 @@ fun HomeScreen(
         val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
         Calendar.getInstance(tz).apply { timeInMillis = nowEpochMs }
     }
-    val tzOffsetHours = remember(cityTimezoneId, refreshTick, cal.get(Calendar.DAY_OF_YEAR)) {
-        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis)
+    val tzOffsetHours = remember(cityTimezoneId, prefs.longitude, refreshTick, cal.get(Calendar.DAY_OF_YEAR)) {
+        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis, prefs.longitude)
+    }
+
+    val dailySnapshot = remember(cal.get(Calendar.YEAR), cal.get(Calendar.DAY_OF_YEAR)) {
+        DailyIslamicContent.getTodaySnapshot(cal)
+    }
+
+    val liveDatesLabel = remember(cal.get(Calendar.YEAR), cal.get(Calendar.DAY_OF_YEAR)) {
+        val greg = runCatching {
+            SimpleDateFormat("d MMMM yyyy", Locale("ar")).format(cal.time)
+        }.getOrDefault("")
+        val hijri = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                val hijriCal = android.icu.util.IslamicCalendar()
+                hijriCal.timeInMillis = cal.timeInMillis
+                val months = arrayOf(
+                    "محرم", "صفر", "ربيع الأول", "ربيع الآخر",
+                    "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان",
+                    "رمضان", "شوال", "ذو القعدة", "ذو الحجة"
+                )
+                val hDay = hijriCal.get(android.icu.util.IslamicCalendar.DAY_OF_MONTH)
+                val hMonthIdx = hijriCal.get(android.icu.util.IslamicCalendar.MONTH).coerceIn(0, 11)
+                val hYear = hijriCal.get(android.icu.util.IslamicCalendar.YEAR)
+                "$hDay ${months[hMonthIdx]} $hYear هـ"
+            } else {
+                ""
+            }
+        }.getOrDefault("")
+        if (hijri.isNotBlank() && greg.isNotBlank()) "$hijri • $greg" else greg.ifBlank { "التقويم الهجري والميلادي" }
     }
 
     val prayers = remember(
@@ -83,6 +136,7 @@ fun HomeScreen(
         cityTimezoneId,
         prefs.calculationMethod,
         prefs.asrMethod,
+        prefs.highLatitudeRule,
         prefs.fajrOffsetMinutes,
         prefs.sunriseOffsetMinutes,
         prefs.duhaOffsetMinutes,
@@ -99,7 +153,8 @@ fun HomeScreen(
             prefs.longitude,
             tzOffsetHours,
             prefs.calculationMethod,
-            prefs.asrMethod
+            prefs.asrMethod,
+            prefs.highLatitudeRule
         ).withOffsets(
             prefs.fajrOffsetMinutes,
             prefs.sunriseOffsetMinutes,
@@ -132,234 +187,904 @@ fun HomeScreen(
     val remH = remainingTotalSeconds / 3600
     val remM = (remainingTotalSeconds % 3600) / 60
     val remS = remainingTotalSeconds % 60
-    val countdownText = String.format(Locale.US, "%02d:%02d:%02d", remH, remM, remS)
+    val countdownText = String.format(Locale.US, "%02d : %02d : %02d", remS, remM, remH)
+
+    val calcMethodLabel = remember(prefs.calculationMethod) {
+        when (prefs.calculationMethod) {
+            "egypt" -> "الهيئة المصرية للمساحة"
+            "mwl" -> "رابطة العالم الإسلامي"
+            "isna" -> "الجمعية الإسلامية بأمريكا"
+            "karachi" -> "جامعة كراتشي"
+            "dubai" -> "توقيت الخليج / دبي"
+            else -> "توقيت أم القرى"
+        }
+    }
+
+    val lastSurahObj = remember(prefs.lastReadSurah, refreshTick) {
+        NativeDataManager.surahs.find { it.number == prefs.lastReadSurah }
+    }
 
     val gridItems = listOf(
-        GridItem("المواقيت", Icons.Default.AccessTime, Screen.PrayerTimes),
-        GridItem("المصحف", Icons.Default.MenuBook, Screen.Quran),
-        GridItem("الأذكار", Icons.Default.AutoStories, Screen.Azkar),
-        GridItem("المسبحة", Icons.Default.TouchApp, Screen.Tasbih),
-        GridItem("القبلة", Icons.Default.Explore, Screen.Qibla),
-        GridItem("الأحاديث", Icons.Default.FormatQuote, Screen.Hadith),
-        GridItem("الأدعية", Icons.Default.VolunteerActivism, Screen.Duas),
-        GridItem("رمضان", Icons.Default.NightsStay, Screen.Ramadan, "مبارك"),
-        GridItem("السيرة", Icons.Default.HistoryEdu, Screen.Seerah),
-        GridItem("الأنبياء", Icons.Default.AutoStories, Screen.Prophets),
-        GridItem("الزكاة", Icons.Default.Calculate, Screen.Zakat),
-        GridItem("المسابقات", Icons.Default.Quiz, Screen.Quiz),
-        GridItem("الحج والعمرة", Icons.Default.Mosque, Screen.Hajj),
-        GridItem("الخلفيات", Icons.Default.Wallpaper, Screen.Wallpapers),
-        GridItem("ملفي الشخصي", Icons.Default.Person, Screen.Profile),
-        GridItem("الإعدادات", Icons.Default.Settings, Screen.Settings)
+        GridItem("القرآن الكريم", "قراءة وتفسير", Icons.Default.MenuBook, Screen.Quran),
+        GridItem("مواقيت الصلاة", "تنبيه وأذكار", Icons.Default.AccessTime, Screen.PrayerTimes),
+        GridItem("الأذكار اليومية", "الصباح والمساء", Icons.Default.AutoStories, Screen.Azkar),
+        GridItem("القبلة", "تحديد الاتجاه", Icons.Default.Explore, Screen.Qibla),
+        GridItem("الأحاديث النبوية", "الجامع الصحيح", Icons.Default.FormatQuote, Screen.Hadith),
+        GridItem("الأدعية", "أدعية قرآنية ونبوية", Icons.Default.VolunteerActivism, Screen.Duas),
+        GridItem("السيرة النبوية", "حياة النبي ﷺ", Icons.Default.HistoryEdu, Screen.Seerah),
+        GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj),
+        GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih),
+        GridItem("الزكاة", "حاسبة الزكاة", Icons.Default.Calculate, Screen.Zakat),
+        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets),
+        GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers),
+        GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz),
+        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan),
+        GridItem("ملفي الشخصي", "الإحصائيات والختمة", Icons.Default.Person, Screen.Profile),
+        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings)
     )
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(EmeraldDeep)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Hero Next Prayer Card (Unified Home Quran Mint Style + 7 crisp clickable mini-widgets including صلاة الضحى)
-        item {
-            MoazenWidgetCard(
-                cornerRadius = 24.dp,
-                modifier = Modifier.fillMaxWidth()
+    var isGridExpanded by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val viewportMinHeight = maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = viewportMinHeight)
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_home_fullscreen),
+                    contentDescription = "خلفية مسلم بلس",
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
+                    modifier = Modifier.matchParentSize()
+                )
+
                 Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
+                    // Transparent Top Header & Prayer Times Card anchored cleanly beneath the upper Dome & green mosque horizon
+                    val mosqueClearSpacer = (viewportMinHeight * 0.305f - 70.dp).coerceIn(145.dp, 224.dp)
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .statusBarsPadding()
+                            .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 0.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = MoazenInkEmerald,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = prefs.cityName,
-                                color = MoazenInkPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Text(
-                            text = "متبقي $countdownText",
-                            color = MoazenGoldDark,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "الصلاة القادمة",
-                        color = MoazenInkMuted,
-                        fontSize = 13.sp
-                    )
-
-                    Text(
-                        text = "صلاة $nextPrayerName",
-                        color = MoazenInkEmerald,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // 7 Daily Prayers Mini-Widgets Row (الفجر، الشروق، الضحى، الظهر، العصر، المغرب، العشاء)
-                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                        val isCompactWidth = maxWidth < 330.dp
-                        val labelFontSize = if (isCompactWidth) 9.sp else 10.sp
-                        val timeFontSize = if (isCompactWidth) 9.5.sp else 10.5.sp
-
-                        val miniWidgets = listOf(
-                            Triple("fajr", "الفجر", prayers.fajrMinutes),
-                            Triple("sunrise", "الشروق", prayers.sunriseMinutes),
-                            Triple("duha", "الضحى", prayers.duhaMinutes),
-                            Triple("dhuhr", "الظهر", prayers.dhuhrMinutes),
-                            Triple("asr", "العصر", prayers.asrMinutes),
-                            Triple("maghrib", "المغرب", prayers.maghribMinutes),
-                            Triple("isha", "العشاء", prayers.ishaMinutes)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            miniWidgets.forEach { (key, label, mins) ->
-                                DailyPrayerMiniChip(
-                                    name = label,
-                                    time = PrayerTimeCalculator.formatMinutesToHHmm(mins),
-                                    isNext = nextPrayerName == label,
-                                    isDuha = key == "duha",
-                                    labelFontSize = labelFontSize,
-                                    timeFontSize = timeFontSize,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onOpenPrayerSettings(key) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Daily Ayah / Dhikr Card
-        item {
-            MoazenWidgetCard(
-                cornerRadius = 18.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "آية اليوم المباركة", color = MoazenInkEmerald, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "«أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ»",
-                        color = MoazenInkPrimary,
-                        fontSize = 16.sp,
-                        lineHeight = 24.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Right,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "سورة الرعد - الآية 28",
-                        color = MoazenInkMuted,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-        }
-
-        // Quick Feature Grid Header
-        item {
-            Text(
-                text = "الأقسام والخدمات الإسلامية",
-                color = TextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        // Grid of services
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                val chunked = gridItems.chunked(3)
-                chunked.forEach { rowItems ->
+                    // Top Corner Row: Unboxed Warm Gold Verse + Cream-Ivory Action Icons — leaves central mosque dome completely clear
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        rowItems.forEach { item ->
-                            MoazenWidgetCard(
-                                cornerRadius = 16.dp,
-                                modifier = Modifier.weight(1f),
-                                onClick = {
-                                    item.screen?.let { onNavigate(it) }
-                                }
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "وَما تَوْفِيقِي إِلَّا بِاللَّهِ",
+                                color = Color(0xFFF5D77F),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color(0xCC061C15),
+                                        offset = Offset(0f, 1.5f),
+                                        blurRadius = 4f
+                                    )
+                                )
+                            )
+                            Text(
+                                text = "سورة هود - 88",
+                                color = Color(0xFFF5D77F).copy(alpha = 0.92f),
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = Color(0xCC061C15),
+                                        offset = Offset(0f, 1.5f),
+                                        blurRadius = 4f
+                                    )
+                                )
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MoazenCardStart.copy(alpha = 0.95f),
+                                border = BorderStroke(1.2.dp, MoazenCardBorder),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onNavigate(Screen.Settings) }
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 16.dp, horizontal = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(CircleShape)
-                                            .background(MoazenInkEmerald.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = item.icon,
-                                            contentDescription = item.titleAr,
-                                            tint = MoazenInkEmerald,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = item.titleAr,
-                                        color = MoazenInkPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "الإعدادات",
+                                        tint = MoazenInkEmerald,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = MoazenCardStart.copy(alpha = 0.95f),
+                                border = BorderStroke(1.2.dp, MoazenCardBorder),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onNavigate(Screen.PrayerTimes) }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Notifications,
+                                        contentDescription = "التنبيهات والمواقيت",
+                                        tint = MoazenInkEmerald,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
                         }
-                        for (i in 0 until (3 - rowItems.size)) {
-                            Spacer(modifier = Modifier.weight(1f))
+                    }
+
+                    // Lower PrayerCard cleanly below the green-domed mosque, minaret & trees horizon
+                    Spacer(modifier = Modifier.height(mosqueClearSpacer))
+
+                    // Unified Ivory-Cream Prayer Times Card (#F6EEDC -> #EDE2C8, #D6C18D border)
+                    MoazenWidgetCard(
+                        cornerRadius = 18.dp,
+                        borderColor = MoazenCardBorder,
+                        elevation = 4.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Calc Method + City Location header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = ErrorRed,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = prefs.cityName,
+                                        color = MoazenInkEmerald,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Text(
+                                    text = calcMethodLabel,
+                                    color = MoazenInkMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            // 7 Daily Prayers Row + Countdown Card side by side cleanly (compact responsive fit)
+                            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                                val isCompactWidth = maxWidth < 340.dp
+                                val labelFontSize = if (isCompactWidth) 8.5.sp else 9.5.sp
+                                val timeFontSize = if (isCompactWidth) 9.sp else 10.sp
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Prominent Gold-Bordered Next Prayer Countdown Card
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MoazenSubCardBg,
+                                        border = BorderStroke(1.2.dp, MoazenGold),
+                                        modifier = Modifier
+                                            .width(if (isCompactWidth) 96.dp else 108.dp)
+                                            .clickable { onNavigate(Screen.PrayerTimes) }
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(1.5.dp),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = nextPrayerName,
+                                                color = MoazenInkEmerald,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = "متبقي للصلاة",
+                                                color = MoazenGoldDark,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = countdownText,
+                                                color = MoazenInkPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Icon(
+                                                imageVector = Icons.Default.VolumeUp,
+                                                contentDescription = null,
+                                                tint = MoazenInkEmerald,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 7 Prayer Columns (Fajr, Sunrise, Duha, Dhuhr, Asr, Maghrib, Isha)
+                                    val miniWidgets = listOf(
+                                        Triple("fajr", "الفجر", prayers.fajrMinutes),
+                                        Triple("sunrise", "الشروق", prayers.sunriseMinutes),
+                                        Triple("duha", "الضحى", prayers.duhaMinutes),
+                                        Triple("dhuhr", "الظهر", prayers.dhuhrMinutes),
+                                        Triple("asr", "العصر", prayers.asrMinutes),
+                                        Triple("maghrib", "المغرب", prayers.maghribMinutes),
+                                        Triple("isha", "العشاء", prayers.ishaMinutes)
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        miniWidgets.forEach { (key, label, mins) ->
+                                            DailyPrayerMiniChip(
+                                                name = label,
+                                                time = PrayerTimeCalculator.formatMinutesToHHmm(mins),
+                                                isNext = nextPrayerName == label,
+                                                isDuha = key == "duha",
+                                                labelFontSize = labelFontSize,
+                                                timeFontSize = timeFontSize,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onOpenPrayerSettings(key) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+
+                    // Unified Ivory-Cream Feature Cards Grid: tighter spacing + bare far-right expand arrow
+                    val primaryGridItems = remember(gridItems) { gridItems.take(8) }
+                    val extraGridItems = remember(gridItems) { gridItems.drop(8) }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.5.dp)
+                    ) {
+                        primaryGridItems.chunked(4).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                rowItems.forEach { item ->
+                                    MoazenWidgetCard(
+                                        cornerRadius = 12.dp,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            item.screen?.let { onNavigate(it) }
+                                        }
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 3.5.dp, horizontal = 2.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MoazenSubCardBg)
+                                                    .border(1.dp, MoazenCardBorder, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = item.icon,
+                                                    contentDescription = item.titleAr,
+                                                    tint = MoazenInkEmerald,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = item.titleAr,
+                                                color = MoazenInkEmerald,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Text(
+                                                text = item.subtitleAr,
+                                                color = MoazenInkMuted,
+                                                fontSize = 7.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                }
+                                for (i in 0 until (4 - rowItems.size)) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = isGridExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.5.dp)) {
+                                extraGridItems.chunked(4).forEach { rowItems ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        rowItems.forEach { item ->
+                                            MoazenWidgetCard(
+                                                cornerRadius = 12.dp,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = {
+                                                    item.screen?.let { onNavigate(it) }
+                                                }
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 3.5.dp, horizontal = 2.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(24.dp)
+                                                            .clip(CircleShape)
+                                                            .background(MoazenSubCardBg)
+                                                            .border(1.dp, MoazenCardBorder, CircleShape),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = item.icon,
+                                                            contentDescription = item.titleAr,
+                                                            tint = MoazenInkEmerald,
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = item.titleAr,
+                                                        color = MoazenInkEmerald,
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                    Text(
+                                                        text = item.subtitleAr,
+                                                        color = MoazenInkMuted,
+                                                        fontSize = 7.5.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        for (i in 0 until (4 - rowItems.size)) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Simple bare arrow toggle aligned to the physical far right edge (no background/circle/border)
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 2.dp),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clickable { isGridExpanded = !isGridExpanded }
+                                        .padding(horizontal = 6.dp, vertical = 0.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isGridExpanded) {
+                                            Icons.Default.KeyboardArrowUp
+                                        } else {
+                                            Icons.Default.KeyboardArrowDown
+                                        },
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Prominent Featured Quran Banner Widget (Slightly more compact, daily-rotating Ayah + Dynamic Share)
+                    val activeSurahName = dailySnapshot.ayah.surahName
+                    val activeAyahSnippet = dailySnapshot.ayah.arabicText
+                    MoazenWidgetCard(
+                        cornerRadius = 18.dp,
+                        borderColor = MoazenGold,
+                        borderWidth = 1.5.dp,
+                        elevation = 6.dp,
+                        watermarkAlpha = 0f,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onNavigate(Screen.Quran)
+                        }
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            // Large borderless Open Mushaf integrated smoothly into creamy-ivory surface
+                            Image(
+                                painter = painterResource(id = R.drawable.img_quran_mushaf),
+                                contentDescription = "المصحف الشريف المفتوح",
+                                contentScale = ContentScale.Crop,
+                                alpha = 0.86f,
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .align(Alignment.CenterEnd)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            0.0f to Color(0x30EDE2C8),
+                                            0.48f to Color(0xE8F6EEDC),
+                                            1.0f to Color(0xFFF6EEDC)
+                                        )
+                                    )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            0.0f to Color(0x88F6EEDC),
+                                            0.5f to Color.Transparent,
+                                            1.0f to Color(0x88EDE2C8)
+                                        )
+                                    )
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(1.5.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.MenuBook,
+                                            contentDescription = null,
+                                            tint = MoazenInkEmerald,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "آية اليوم • القرآن الكريم",
+                                            color = MoazenInkEmerald,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "• صفحة ${dailySnapshot.ayah.pageNumber} من 604",
+                                            color = MoazenInkMuted,
+                                            fontSize = 9.5.sp
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "سورة $activeSurahName • الآية ${dailySnapshot.ayah.ayahNumber}",
+                                        color = MoazenInkPrimary,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Text(
+                                        text = activeAyahSnippet,
+                                        color = MoazenInkEmerald,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MuslimPlusPillEmerald,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    onNavigate(Screen.Quran)
+                                                }
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            ) {
+                                                Text(
+                                                    text = "متابعة القراءة",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.ChevronLeft,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFFE7C768),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    onNavigate(Screen.Quran)
+                                                }
+                                        ) {
+                                            Text(
+                                                text = "معلم القرآن AI",
+                                                color = MoazenInkEmerald,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Share Button over soft cream pill
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MoazenCardStart.copy(alpha = 0.92f),
+                                    border = BorderStroke(1.dp, MoazenCardBorder),
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            val shareText = "✦ آية اليوم • سورة $activeSurahName (${dailySnapshot.ayah.ayahNumber}) ✦\n\n$activeAyahSnippet\n\n📚 المصدر: صفحة ${dailySnapshot.ayah.pageNumber} من المصحف الشريف\n🕌 عبر تطبيق مسلم بلس"
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "مشاركة آية اليوم"))
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "مشاركة الآية",
+                                            tint = MoazenInkEmerald,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Prominent Daily Cards Row: Azkar & Hadith with Seamless Blended Tasbih & Mosque Images + Share + Haptics
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        MoazenWidgetCard(
+                            cornerRadius = 16.dp,
+                            borderColor = MoazenGold,
+                            borderWidth = 1.5.dp,
+                            elevation = 6.dp,
+                            watermarkAlpha = 0f,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onNavigate(Screen.Azkar)
+                            }
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.img_azkar_tasbih),
+                                    contentDescription = "سبحة وأذكار",
+                                    contentScale = ContentScale.Crop,
+                                    alpha = 0.80f,
+                                    modifier = Modifier.matchParentSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                0.0f to Color(0xF5F6EEDC),
+                                                0.55f to Color(0xB8F6EEDC),
+                                                1.0f to Color(0x6CEEE2C8)
+                                            )
+                                        )
+                                )
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.AutoStories,
+                                                contentDescription = null,
+                                                tint = MoazenInkEmerald,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "دعاء اليوم",
+                                                color = MoazenInkEmerald,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MoazenCardStart.copy(alpha = 0.90f),
+                                            border = BorderStroke(0.8.dp, MoazenCardBorder),
+                                            modifier = Modifier
+                                                .size(21.dp)
+                                                .clip(CircleShape)
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    val shareText = "✦ دعاء اليوم ✦\n\n«${dailySnapshot.dua.text}»\n\n📚 المصدر: ${dailySnapshot.dua.source}\n🕌 عبر تطبيق مسلم بلس"
+                                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                                        type = "text/plain"
+                                                    }
+                                                    context.startActivity(Intent.createChooser(sendIntent, "مشاركة دعاء اليوم"))
+                                                }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Share,
+                                                    contentDescription = "مشاركة الدعاء",
+                                                    tint = MoazenInkEmerald,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = dailySnapshot.dua.text,
+                                        color = MoazenInkPrimary,
+                                        fontSize = 9.5.sp,
+                                        lineHeight = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+                        MoazenWidgetCard(
+                            cornerRadius = 16.dp,
+                            borderColor = MoazenGold,
+                            borderWidth = 1.5.dp,
+                            elevation = 6.dp,
+                            watermarkAlpha = 0f,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onNavigate(Screen.Hadith)
+                            }
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.img_hadith_mosque),
+                                    contentDescription = "المسجد النبوي الشريف",
+                                    contentScale = ContentScale.Crop,
+                                    alpha = 0.80f,
+                                    modifier = Modifier.matchParentSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                0.0f to Color(0xF5F6EEDC),
+                                                0.55f to Color(0xB8F6EEDC),
+                                                1.0f to Color(0x6CEEE2C8)
+                                            )
+                                        )
+                                )
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.MenuBook,
+                                                contentDescription = null,
+                                                tint = MoazenInkEmerald,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "حديث اليوم",
+                                                color = MoazenInkEmerald,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MoazenCardStart.copy(alpha = 0.90f),
+                                            border = BorderStroke(0.8.dp, MoazenCardBorder),
+                                            modifier = Modifier
+                                                .size(21.dp)
+                                                .clip(CircleShape)
+                                                .clickable {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    val shareText = "✦ حديث اليوم ✦\n\n${dailySnapshot.hadith.fullText}\n\n📚 المصدر: ${dailySnapshot.hadith.source}\n🕌 عبر تطبيق مسلم بلس"
+                                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                                        type = "text/plain"
+                                                    }
+                                                    context.startActivity(Intent.createChooser(sendIntent, "مشاركة حديث اليوم"))
+                                                }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Share,
+                                                    contentDescription = "مشاركة الحديث",
+                                                    tint = MoazenInkEmerald,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = dailySnapshot.hadith.snippet,
+                                        color = MoazenInkPrimary,
+                                        fontSize = 9.5.sp,
+                                        lineHeight = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Enlarged Live Hijri & Gregorian Dates Bar
+                    MoazenWidgetCard(
+                        cornerRadius = 14.dp,
+                        borderColor = MoazenCardBorder,
+                        elevation = 3.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        onClick = { onNavigate(Screen.Ramadan) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 5.5.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = MoazenInkEmerald,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = liveDatesLabel,
+                                    color = MoazenInkPrimary,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = "رمضان والمناسبات ←",
+                                color = MoazenGoldDark,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
             }
         }
     }
+}
 }
 
 @Suppress("DEPRECATION")
@@ -369,16 +1094,16 @@ fun DailyPrayerMiniChip(
     time: String,
     isNext: Boolean,
     isDuha: Boolean = false,
-    labelFontSize: TextUnit = 10.sp,
-    timeFontSize: TextUnit = 10.5.sp,
+    labelFontSize: TextUnit = 9.5.sp,
+    timeFontSize: TextUnit = 10.sp,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = if (isNext) MoazenInkEmerald else Color.White.copy(alpha = 0.78f),
+        color = if (isNext) MuslimPlusPillEmerald else MoazenSubCardBg,
         border = when {
-            isNext -> null
+            isNext -> BorderStroke(1.dp, MoazenGold)
             isDuha -> BorderStroke(1.dp, MoazenGoldDark.copy(alpha = 0.65f))
             else -> BorderStroke(0.75.dp, MoazenCardBorder)
         },
@@ -388,10 +1113,10 @@ fun DailyPrayerMiniChip(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 2.dp, vertical = 7.dp)
+                .padding(horizontal = 2.dp, vertical = 3.dp)
         ) {
             Text(
                 text = name,

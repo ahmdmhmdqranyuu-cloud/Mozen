@@ -94,7 +94,7 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
 
   const handleCopy = (item: NameOfAllah) => {
     navigator.clipboard.writeText(
-      `من أسماء الله الحسنى:\n【${item.name}】\nالمعنى: ${item.meaning}\n${item.quranReference ? `الشاهد القرآني: ${item.quranReference}\n` : ''}— تطبيق المؤذن`
+      `من أسماء الله الحسنى:\n【${item.name}】\nالمعنى: ${item.meaning}\n${item.quranReference ? `الشاهد القرآني: ${item.quranReference}\n` : ''}— تطبيق مسلم بلس`
     );
     setCopiedId(item.number);
     setTimeout(() => setCopiedId(null), 2000);

@@ -2,6 +2,7 @@ package com.muslim.azan.ui.screens
 
 import android.Manifest
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -61,22 +62,24 @@ fun PrayerTimesScreen(
     var isDetectingGps by remember { mutableStateOf(false) }
     var gpsDetail by remember { mutableStateOf<String?>(null) }
 
+    val highLatRule = remember { prefs.highLatitudeRule }
     val cal = remember(cityTimezoneId) {
         val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
         Calendar.getInstance(tz)
     }
-    val tzOffsetHours = remember(cityTimezoneId) {
-        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis)
+    val tzOffsetHours = remember(cityTimezoneId, lng) {
+        PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis, lng)
     }
 
-    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
+    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, highLatRule, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
         PrayerTimeCalculator.calculateDailyPrayers(
             cal,
             lat,
             lng,
             tzOffsetHours,
             calcMethod,
-            asrMethod
+            asrMethod,
+            highLatRule
         ).withOffsets(fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff)
     }
 
@@ -86,6 +89,14 @@ fun PrayerTimesScreen(
     }
 
     var showCalcMethodDialog by remember { mutableStateOf(false) }
+
+    BackHandler {
+        if (showCalcMethodDialog) {
+            showCalcMethodDialog = false
+        } else {
+            onBack()
+        }
+    }
 
     fun triggerGpsDetection() {
         if (!SystemPermissionHelper.isDeviceLocationEnabled(context)) {

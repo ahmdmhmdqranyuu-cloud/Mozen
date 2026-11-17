@@ -1,6 +1,7 @@
 package com.muslim.azan.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,7 @@ import com.muslim.azan.ui.components.MoazenWidgetCard
 fun HadithScreen(
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     val hadiths = listOf(
         HadithItem(
@@ -101,7 +103,7 @@ fun HadithScreen(
 
                             IconButton(
                                 onClick = {
-                                    val shareText = "${h.hadithArabic}\n\nالراوي: ${h.narrator} | المصدر: ${h.source}\n- من تطبيق المؤذن"
+                                    val shareText = "${h.hadithArabic}\n\nالراوي: ${h.narrator} | المصدر: ${h.source}\n- من تطبيق مسلم بلس"
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                         type = "text/plain"

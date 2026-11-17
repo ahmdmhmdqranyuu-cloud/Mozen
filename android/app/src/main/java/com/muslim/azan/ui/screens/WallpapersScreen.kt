@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.LruCache
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -228,6 +229,17 @@ fun WallpapersScreen(
     var isPreparingShare by remember { mutableStateOf(false) }
 
     val filteredOnline = catalog
+
+    BackHandler {
+        when {
+            previewingWallpaper != null || previewingSavedRecord != null -> {
+                previewingWallpaper = null
+                previewingSavedRecord = null
+            }
+            showingSavedTab -> showingSavedTab = false
+            else -> onBack()
+        }
+    }
 
     // Load full-resolution image into memory ONLY when dialog opens
     LaunchedEffect(previewingWallpaper?.id, fullReloadTick) {
@@ -781,7 +793,7 @@ fun WallpapersScreen(
                                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                             type = "image/*"
                                             putExtra(Intent.EXTRA_STREAM, shareUri)
-                                            putExtra(Intent.EXTRA_TEXT, "$activeTitle — من تطبيق المؤذن")
+                                            putExtra(Intent.EXTRA_TEXT, "$activeTitle — من تطبيق مسلم بلس")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         context.startActivity(Intent.createChooser(shareIntent, "مشاركة الخلفية"))

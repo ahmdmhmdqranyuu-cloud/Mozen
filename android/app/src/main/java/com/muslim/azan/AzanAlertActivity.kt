@@ -91,7 +91,7 @@ class AzanAlertActivity : ComponentActivity() {
                             }
 
                             Text(
-                                text = "تطبيق المؤذن",
+                                text = "تطبيق مسلم بلس",
                                 color = MoazenGoldDark,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -175,7 +175,7 @@ class AzanAlertActivity : ComponentActivity() {
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "فتح تطبيق المؤذن",
+                                    text = "فتح تطبيق مسلم بلس",
                                     color = MoazenInkEmerald,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold

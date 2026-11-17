@@ -12,35 +12,39 @@ export interface AudioTrackOption {
 
 export interface MorningAzkarSettings {
   enabled: boolean;
-  startTime: string; // "06:30"
+  startTime: string; // "08:00"
   audioFile: string; // 'azkar_sabah_1'
   autoPlaySound: boolean;
   repeatType: RepeatType;
   repeatInterval: number; // e.g. 30
   repeatUnit: RepeatUnit; // 'minutes' | 'hours'
   endTime: string; // "10:30"
+  volumePercent?: number; // 0..100 independent Azkar volume
 }
 
 export interface EveningAzkarSettings {
   enabled: boolean;
-  startTime: string; // "17:00"
+  startTime: string; // "21:00"
   audioFile: string; // 'azkar_massa_1'
   autoPlaySound: boolean;
   repeatType: RepeatType;
   repeatInterval: number; // e.g. 30
   repeatUnit: RepeatUnit;
-  endTime: string; // "21:00"
+  endTime: string; // "23:00"
+  volumePercent?: number; // 0..100 independent Azkar volume
 }
 
 export interface SalawatSettings {
   enabled: boolean;
-  startTime: string; // "08:00"
+  autoAfterFajrIqama?: boolean; // Automatically starts right after Fajr Iqama until 00:00 midnight
+  startTime: string; // Manual fallback start time e.g. "06:00"
   audioFile: string; // 'salawat_1' | 'salawat_2' | 'salawat_3'
   autoPlaySound: boolean;
   repeatType: RepeatType;
-  repeatInterval: number; // e.g. 60
+  repeatInterval: number; // e.g. 15
   repeatUnit: RepeatUnit;
-  endTime: string; // "22:00"
+  endTime: string; // "23:59" (00:00 midnight boundary)
+  volumePercent?: number; // 0..100 independent Salawat volume
 }
 
 export interface MusaharatiSettings {
@@ -96,39 +100,44 @@ export interface ComprehensiveRemindersSettings {
   prePrayerAlert: PrePrayerAlertSettings;
   qiyam: QiyamSettings;
   ruqyah: RuqyahSettings;
+  azkarVolumePercent?: number; // Shared independent volume (0..100) for Morning & Evening Azkar
   hasCompletedFirstTimeSetup: boolean;
 }
 
 export const DEFAULT_REMINDERS_SETTINGS: ComprehensiveRemindersSettings = {
   morningAzkar: {
     enabled: true,
-    startTime: '06:30',
+    startTime: '08:00',
     audioFile: 'azkar_sabah_1',
     autoPlaySound: true,
     repeatType: 'once',
     repeatInterval: 30,
     repeatUnit: 'minutes',
     endTime: '10:30',
+    volumePercent: 100,
   },
   eveningAzkar: {
     enabled: true,
-    startTime: '17:00',
+    startTime: '21:00',
     audioFile: 'azkar_massa_1',
     autoPlaySound: true,
     repeatType: 'once',
     repeatInterval: 30,
     repeatUnit: 'minutes',
-    endTime: '20:30',
+    endTime: '23:00',
+    volumePercent: 100,
   },
   salawat: {
     enabled: true,
-    startTime: '08:00',
+    autoAfterFajrIqama: true,
+    startTime: '06:00',
     audioFile: 'salawat_1',
     autoPlaySound: true,
     repeatType: 'repeat',
-    repeatInterval: 1,
-    repeatUnit: 'hours',
-    endTime: '22:00',
+    repeatInterval: 15,
+    repeatUnit: 'minutes',
+    endTime: '23:59',
+    volumePercent: 85,
   },
   musaharati: {
     enabled: true,
@@ -165,6 +174,8 @@ export const DEFAULT_REMINDERS_SETTINGS: ComprehensiveRemindersSettings = {
     enabled: true,
     audioFile: 'ruqyah_shariah',
   },
+  azkarVolumePercent: 100,
   hasCompletedFirstTimeSetup: false,
 };
+
 

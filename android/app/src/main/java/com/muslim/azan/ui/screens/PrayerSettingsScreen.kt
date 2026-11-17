@@ -3,6 +3,7 @@ package com.muslim.azan.ui.screens
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -126,6 +127,17 @@ fun PrayerSettingsScreen(
     var helpDialogTitle by remember { mutableStateOf<String?>(null) }
     var helpDialogBody by remember { mutableStateOf<String?>(null) }
     var showApplyAllDialog by remember { mutableStateOf(false) }
+
+    BackHandler {
+        when {
+            helpDialogTitle != null -> {
+                helpDialogTitle = null
+                helpDialogBody = null
+            }
+            showApplyAllDialog -> showApplyAllDialog = false
+            else -> onBack()
+        }
+    }
 
     fun openHelp(title: String, body: String) {
         helpDialogTitle = title

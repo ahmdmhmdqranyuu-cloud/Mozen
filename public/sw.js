@@ -1,7 +1,7 @@
 // Service Worker for المؤذن الإسلامي (Android & iOS Offline-First Application)
 // Pre-caches all sections, audio files (including Iqama 1, 2, 3), icons, images, and Quran data for 100% offline operation
 
-const CACHE_NAME = 'moazen-islamic-app-v9';
+const CACHE_NAME = 'moazen-islamic-app-v12';
 const MAP_CACHE_NAME = 'moazen-map-tiles-v1';
 const MAX_CACHED_TILES = 500;
 const OFFLINE_ASSETS = [
@@ -42,8 +42,6 @@ const OFFLINE_ASSETS = [
   '/assets/icons/dua.png',
   '/assets/icons/hadith.png',
   '/assets/icons/hajj.png',
-  '/assets/icons/masajid.png',
-  '/assets/icons/more.png',
   '/assets/icons/prayer.png',
   '/assets/icons/qibla.png',
   '/assets/icons/quran.png',
@@ -62,21 +60,9 @@ const OFFLINE_ASSETS = [
   '/assets/icons/nav_quran.png',
   '/assets/icons/nav_qibla.png',
   '/assets/icons/nav_settings.png',
-  // Settings Page Widgets & Banners
-  '/assets/settings/settings_header.jpg',
-  '/assets/settings/settings_footer_mosque.jpg',
-  '/assets/settings/widget_location.jpg',
-  '/assets/settings/widget_azan.jpg',
-  '/assets/settings/widget_azkar.jpg',
-  '/assets/settings/widget_ramadan.jpg',
-  '/assets/settings/widget_profile.jpg',
-  '/assets/settings/widget_privacy.jpg',
-  '/assets/settings/widget_about.jpg',
-  '/assets/settings/widget_logout.jpg',
-  '/assets/settings/widget_language.png',
-  '/assets/settings/widget_permissions.png',
-  // App Images & Wallpapers
-  '/assets/images/home_header_mosque.jpg',
+  // App Backgrounds & Wallpapers
+  '/assets/aistudio/________________ae325fdd.jpg',
+  '/assets/aistudio/_______________________c271e9db.png',
   '/assets/images/mosque_header_bg_1792330870635.jpg',
   '/assets/images/mosque_sunset_header_1792265336563.jpg',
   '/assets/images/open_mushaf_rehal_1792331334829.jpg',

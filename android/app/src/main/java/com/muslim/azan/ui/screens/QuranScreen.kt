@@ -1,5 +1,6 @@
 package com.muslim.azan.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -65,6 +66,15 @@ fun QuranScreen(
     var pageJumpInput by remember { mutableStateOf(currentPage.toString()) }
     var showSheikhTutor by remember { mutableStateOf(false) }
     var bookmarks by remember { mutableStateOf(prefs.getBookmarks()) }
+
+    BackHandler(enabled = !showSheikhTutor) {
+        when {
+            showReciterDialog -> showReciterDialog = false
+            showPageJumpDialog -> showPageJumpDialog = false
+            section != QuranHubSection.HUB -> section = QuranHubSection.HUB
+            else -> onBack()
+        }
+    }
 
     if (showSheikhTutor) {
         SheikhTutorSection(

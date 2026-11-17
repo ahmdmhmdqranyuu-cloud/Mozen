@@ -23,7 +23,7 @@
     <application
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
-        android:icon="@android:drawable/ic_lock_idle_alarm"
+        android:icon="@drawable/ic_launcher_muslim_plus"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen, Share2, Check, Image as ImageIcon } from 'lucide-react';
 import { shareIslamicText, shareOrDownloadAsImageCard } from '../utils/shareContent';
 import { AppLanguage, getTranslation } from '../utils/i18n';
+import { triggerLightHaptic } from '../utils/haptics';
+import { getDailyIslamicContent, getLocalCalendarDateKey } from '../data/dailyContent';
 
 interface DailyCardsProps {
   onOpenAzkar: () => void;
@@ -15,15 +17,44 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
   language,
 }) => {
   const [sharedCard, setSharedCard] = useState<'hadith' | 'dua' | null>(null);
+  const [dateKey, setDateKey] = useState(() => getLocalCalendarDateKey());
   const t = getTranslation(language);
+
+  useEffect(() => {
+    const checkRollover = () => {
+      const k = getLocalCalendarDateKey();
+      if (k !== dateKey) setDateKey(k);
+    };
+    const timer = setInterval(checkRollover, 60000);
+    document.addEventListener('visibilitychange', checkRollover);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', checkRollover);
+    };
+  }, [dateKey]);
+
+  const daily = getDailyIslamicContent();
+  const dailyHadith = daily.hadith;
+  const dailyDua = daily.dua;
+
+  const handleOpenHadithCard = () => {
+    triggerLightHaptic();
+    onOpenHadith();
+  };
+
+  const handleOpenAzkarCard = () => {
+    triggerLightHaptic();
+    onOpenAzkar();
+  };
 
   const handleShareHadithOfDay = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerLightHaptic();
     const res = await shareIslamicText({
-      title: 'حديث اليوم',
+      title: t.hadithOfTheDay || 'حديث اليوم',
       category: 'الحديث النبوي الشريف',
-      arabicText: 'قال رسول الله ﷺ: «إنَّما الأعمال بالنيات، وإنَّما لكل امرئ ما نوى»',
-      source: 'متفق عليه (رواه البخاري ومسلم)',
+      arabicText: dailyHadith.fullText,
+      source: dailyHadith.source,
     });
     if (res !== 'cancelled') {
       setSharedCard('hadith');
@@ -33,21 +64,23 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
 
   const handleShareHadithCardImage = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerLightHaptic();
     await shareOrDownloadAsImageCard({
-      title: 'حديث اليوم',
+      title: t.hadithOfTheDay || 'حديث اليوم',
       category: 'الحديث النبوي الشريف',
-      arabicText: 'قال رسول الله ﷺ: «إنَّما الأعمال بالنيات، وإنَّما لكل امرئ ما نوى»',
-      source: 'متفق عليه (رواه البخاري ومسلم)',
+      arabicText: dailyHadith.fullText,
+      source: dailyHadith.source,
     });
   };
 
   const handleShareDuaOfDay = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerLightHaptic();
     const res = await shareIslamicText({
-      title: 'دعاء وذكر اليوم',
-      category: 'الأذكار والأدعية اليومية',
-      arabicText: '«اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ، وَشُكْرِكَ، وَحُسْنِ عِبَادَتِكَ» • ﴿رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ﴾',
-      source: 'حصن المسلم والقرآن الكريم',
+      title: t.azkarAndDua || 'دعاء اليوم',
+      category: dailyDua.category,
+      arabicText: dailyDua.text,
+      source: dailyDua.source,
     });
     if (res !== 'cancelled') {
       setSharedCard('dua');
@@ -57,41 +90,42 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
 
   const handleShareDuaCardImage = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    triggerLightHaptic();
     await shareOrDownloadAsImageCard({
-      title: 'دعاء وذكر اليوم',
-      category: 'الأذكار والأدعية اليومية',
-      arabicText: '«اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ، وَشُكْرِكَ، وَحُسْنِ عِبَادَتِكَ» • ﴿رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ﴾',
-      source: 'حصن المسلم والقرآن الكريم',
+      title: t.azkarAndDua || 'دعاء اليوم',
+      category: dailyDua.category,
+      arabicText: dailyDua.text,
+      source: dailyDua.source,
     });
   };
 
   return (
-    <div className="mx-3.5 mt-1.5 grid grid-cols-2 gap-2 select-none shrink-0">
-      {/* Right Card in RTL: حديث اليوم (Hadith Banner with Attractive Mosque Image + Quick Share) */}
+    <div className="mx-3 mt-0.5 grid grid-cols-2 gap-1.5 select-none shrink-0">
+      {/* Right Card in RTL: حديث اليوم — Large Integrated Mosque Background with Smooth Cream Fade */}
       <div
-        onClick={onOpenHadith}
-        className="relative rounded-2xl bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] border border-emerald-950/10 py-1.5 px-2 flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition-shadow cursor-pointer group min-h-[86px] sm:min-h-[92px]"
+        onClick={handleOpenHadithCard}
+        className="moazen-widget moazen-widget-featured relative rounded-2xl border-[1.5px] border-[#C5A059] py-1 px-2 flex flex-col justify-between overflow-hidden transition-all cursor-pointer group min-h-[58px] sm:min-h-[62px]"
       >
-        {/* Subtle atmospheric mosque background watermark */}
         <img
           src="/assets/images/hadith_widget_mosque_1793589264940.jpg"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
+          alt="المسجد النبوي الشريف"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-78 group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
         />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#F6EEDC]/96 from-24% via-[#F6EEDC]/68 via-58% to-[#EDE2C8]/45" />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-l from-[#F6EEDC]/60 via-transparent to-[#EDE2C8]/35" />
 
         <div className="relative z-10">
-          {/* Header with Share Buttons */}
           <div className="flex items-center justify-between gap-1 text-[#104B40] mb-0.5">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handleShareHadithOfDay}
-                className="p-1 rounded-full bg-white/80 hover:bg-white text-[#104B40] border border-emerald-900/10 shadow-2xs transition-all cursor-pointer active:scale-90"
+                className="p-1 rounded-full bg-[#F6EEDC]/92 hover:bg-[#EDE2C8] text-[#104B40] border border-[#D6C18D] shadow-2xs transition-all cursor-pointer active:scale-90"
                 title="مشاركة نص الحديث"
               >
                 {sharedCard === 'hadith' ? (
-                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                  <Check className="w-2.5 h-2.5 text-emerald-700" />
                 ) : (
                   <Share2 className="w-2.5 h-2.5" />
                 )}
@@ -99,79 +133,65 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
               <button
                 type="button"
                 onClick={handleShareHadithCardImage}
-                className="p-1 rounded-full bg-amber-50/90 hover:bg-amber-100 text-[#9A7732] border border-amber-300/40 shadow-2xs transition-all cursor-pointer active:scale-90"
+                className="p-1 rounded-full bg-[#F6EEDC]/92 hover:bg-[#EDE2C8] text-[#9A7732] border border-[#D6C18D] shadow-2xs transition-all cursor-pointer active:scale-90"
                 title="مشاركة بـ 5 خلفيات إسلامية بدون إنترنت"
               >
                 <ImageIcon className="w-2.5 h-2.5" />
               </button>
             </div>
             <div className="flex items-center gap-1">
-              <h4 className="text-[10px] sm:text-[10.5px] font-black leading-tight">{t.hadithOfTheDay}</h4>
+              <h4 className="text-[10.5px] font-black leading-tight">{t.hadithOfTheDay}</h4>
               <BookOpen className="w-3 h-3 fill-[#104B40]" />
             </div>
           </div>
 
-          {/* Hadith quote */}
-          <p className="text-[9px] font-bold text-[#172A28] leading-snug font-quran text-right mt-0 line-clamp-1">
-            {'.«إنَّما الأعمال بالنيات {وإنَّما لكل امرئ ما نوى}»'}
+          <p className="text-[9px] font-bold text-[#172A28] leading-snug font-quran text-right mt-0.5 line-clamp-2 drop-shadow-[0_1px_1px_rgba(246,238,220,0.9)]">
+            {dailyHadith.snippet}
           </p>
-
-          {/* Attractive Prophet's Mosque Banner Image */}
-          <div className="my-0.5 flex items-center justify-center">
-            <div className="w-full h-6.5 sm:h-7 rounded-lg overflow-hidden shadow-xs border border-emerald-900/15 relative">
-              <img
-                src="/assets/images/hadith_widget_mosque_1793589264940.jpg"
-                alt="المسجد النبوي الشريف"
-                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end justify-end px-1.5 pb-0.5">
-                <span className="text-[7px] text-amber-200 font-bold drop-shadow leading-none">
-                  رواه البخاري ومسلم
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Action Button */}
-        <div className="relative z-10 mt-0.5 flex items-center justify-between">
+        <div className="relative z-10 mt-1 flex items-center justify-between gap-1">
           <button
             type="button"
-            className="bg-[#104B40] hover:bg-[#0B3D35] text-white text-[8px] font-bold px-2 py-0.5 rounded-full shadow-xs transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenHadithCard();
+            }}
+            className="bg-[#104B40] hover:bg-[#0B3D35] text-white text-[7.5px] font-bold px-2 py-0.5 rounded-full shadow-xs transition-colors cursor-pointer"
           >
             {t.readMore}
           </button>
-          {sharedCard === 'hadith' && (
-            <span className="text-[7.5px] font-bold text-emerald-700">تمت المشاركة ✓</span>
-          )}
+          <span className="text-[7px] text-[#104B40] font-black bg-[#F6EEDC]/88 px-1.5 py-0.5 rounded-full border border-[#D6C18D]/70 leading-none truncate">
+            {sharedCard === 'hadith' ? 'تمت المشاركة ✓' : dailyHadith.shortSource}
+          </span>
         </div>
       </div>
 
-      {/* Left Card in RTL: أذكار ودعاء (Unified background with Hadith widget + Quick Share) */}
+      {/* Left Card in RTL: دعاء وأذكار اليوم — Large Integrated Tasbih Beads Background */}
       <div
-        onClick={onOpenAzkar}
-        className="relative rounded-2xl bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] border border-emerald-950/10 py-1.5 px-2 flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md transition-shadow cursor-pointer group min-h-[86px] sm:min-h-[92px]"
+        onClick={handleOpenAzkarCard}
+        className="moazen-widget moazen-widget-featured relative rounded-2xl border-[1.5px] border-[#C5A059] py-1 px-2 flex flex-col justify-between overflow-hidden transition-all cursor-pointer group min-h-[58px] sm:min-h-[62px]"
       >
-        {/* Subtle atmospheric mosque background watermark matching Hadith widget */}
         <img
-          src="/assets/images/hadith_widget_mosque_1793589264940.jpg"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
+          src="/assets/images/tasbih_prayer_beads_1792265378950.jpg"
+          alt="سبحة وأذكار"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-78 group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
         />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#F6EEDC]/96 from-24% via-[#F6EEDC]/68 via-58% to-[#EDE2C8]/42" />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-[#F6EEDC]/60 via-transparent to-[#EDE2C8]/35" />
 
         <div className="relative z-10">
-          {/* Header with Share Buttons */}
           <div className="flex items-center justify-between gap-1 text-[#104B40] mb-0.5">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={handleShareDuaOfDay}
-                className="p-1 rounded-full bg-white/80 hover:bg-white text-[#104B40] border border-emerald-900/10 shadow-2xs transition-all cursor-pointer active:scale-90"
-                title="مشاركة نص الدعاء"
+                className="p-1 rounded-full bg-[#F6EEDC]/92 hover:bg-[#EDE2C8] text-[#104B40] border border-[#D6C18D] shadow-2xs transition-all cursor-pointer active:scale-90"
+                title="مشاركة دعاء اليوم"
               >
                 {sharedCard === 'dua' ? (
-                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                  <Check className="w-2.5 h-2.5 text-emerald-700" />
                 ) : (
                   <Share2 className="w-2.5 h-2.5" />
                 )}
@@ -179,14 +199,14 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
               <button
                 type="button"
                 onClick={handleShareDuaCardImage}
-                className="p-1 rounded-full bg-amber-50/90 hover:bg-amber-100 text-[#9A7732] border border-amber-300/40 shadow-2xs transition-all cursor-pointer active:scale-90"
+                className="p-1 rounded-full bg-[#F6EEDC]/92 hover:bg-[#EDE2C8] text-[#9A7732] border border-[#D6C18D] shadow-2xs transition-all cursor-pointer active:scale-90"
                 title="مشاركة بـ 5 خلفيات إسلامية بدون إنترنت"
               >
                 <ImageIcon className="w-2.5 h-2.5" />
               </button>
             </div>
             <div className="flex items-center gap-1">
-              <h4 className="text-[10px] sm:text-[10.5px] font-black leading-tight">{t.azkarAndDua}</h4>
+              <h4 className="text-[10.5px] font-black leading-tight">{t.azkarAndDua}</h4>
               <svg viewBox="0 0 24 24" className="w-3 h-3 fill-[#104B40]">
                 <circle cx="12" cy="5" r="2" />
                 <circle cx="17" cy="8" r="2" />
@@ -200,33 +220,25 @@ export const DailyCards: React.FC<DailyCardsProps> = ({
             </div>
           </div>
 
-          <p className="text-[9px] text-[#172A28] font-bold text-right mt-0 leading-snug line-clamp-1">
-            {t.azkarSubtitle}
+          <p className="text-[9px] text-[#172A28] font-bold text-right mt-0.5 leading-snug line-clamp-2 drop-shadow-[0_1px_1px_rgba(246,238,220,0.9)]">
+            {dailyDua.text}
           </p>
-
-          {/* Prayer Beads Image */}
-          <div className="my-0.5 flex items-center justify-center">
-            <div className="w-full h-6.5 sm:h-7 rounded-lg overflow-hidden shadow-xs border border-emerald-900/15">
-              <img
-                src="/assets/images/tasbih_prayer_beads_1792265378950.jpg"
-                alt="سبحة وأذكار"
-                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-          </div>
         </div>
 
-        {/* Action Button */}
-        <div className="relative z-10 mt-0.5 flex items-center justify-between">
+        <div className="relative z-10 mt-1 flex items-center justify-between gap-1">
           <button
             type="button"
-            className="bg-[#104B40] hover:bg-[#0B3D35] text-white text-[8px] font-bold px-2 py-0.5 rounded-full shadow-xs transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenAzkarCard();
+            }}
+            className="bg-[#104B40] hover:bg-[#0B3D35] text-white text-[7.5px] font-bold px-2 py-0.5 rounded-full shadow-xs transition-colors cursor-pointer"
           >
             {t.viewAzkar}
           </button>
-          {sharedCard === 'dua' && (
-            <span className="text-[7.5px] font-bold text-emerald-700">تمت المشاركة ✓</span>
-          )}
+          <span className="text-[7px] text-[#104B40] font-black bg-[#F6EEDC]/88 px-1.5 py-0.5 rounded-full border border-[#D6C18D]/70 leading-none truncate">
+            {sharedCard === 'dua' ? 'تمت المشاركة ✓' : dailyDua.source}
+          </span>
         </div>
       </div>
     </div>

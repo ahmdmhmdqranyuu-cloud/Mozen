@@ -29,6 +29,33 @@ class NativePreferences(context: Context) {
         }
         set(value) = prefs.edit().putString("city_longitude", value.toString()).apply()
 
+    init {
+        val defaultsVer = prefs.getInt("reminders_defaults_version", 1)
+        if (defaultsVer < 2) {
+            val editor = prefs.edit()
+            val prevMorning = prefs.getString("morning_azkar_time", null)
+            if (prevMorning == null || prevMorning == "06:30") {
+                editor.putString("morning_azkar_time", "08:00")
+            }
+            val prevEvening = prefs.getString("evening_azkar_time", null)
+            if (prevEvening == null || prevEvening == "17:00") {
+                editor.putString("evening_azkar_time", "21:00")
+            }
+            val prevSalawatStart = prefs.getString("salawat_time", null)
+            if (prevSalawatStart == null || prevSalawatStart == "08:00") {
+                editor.putString("salawat_time", "06:00")
+            }
+            val prevSalawatEnd = prefs.getString("salawat_end_time", null)
+            if (prevSalawatEnd == null || prevSalawatEnd == "22:00") {
+                editor.putString("salawat_end_time", "23:59")
+            }
+            if (!prefs.contains("salawat_auto_after_fajr_iqama")) {
+                editor.putBoolean("salawat_auto_after_fajr_iqama", true)
+            }
+            editor.putInt("reminders_defaults_version", 2).apply()
+        }
+    }
+
     var calculationMethod: String
         get() = prefs.getString("calc_method", "umm_al_qura") ?: "umm_al_qura"
         set(value) = prefs.edit().putString("calc_method", value).apply()
@@ -36,6 +63,10 @@ class NativePreferences(context: Context) {
     var asrMethod: String
         get() = prefs.getString("asr_method", "standard") ?: "standard"
         set(value) = prefs.edit().putString("asr_method", value).apply()
+
+    var highLatitudeRule: String
+        get() = prefs.getString("high_latitude_rule", "angle_based") ?: "angle_based"
+        set(value) = prefs.edit().putString("high_latitude_rule", value).apply()
 
     var azanVoice: String
         get() = prefs.getString("azan_voice", "makkah") ?: "makkah"
@@ -74,20 +105,40 @@ class NativePreferences(context: Context) {
         get() = prefs.getBoolean("salawat_enabled", true)
         set(value) = prefs.edit().putBoolean("salawat_enabled", value).apply()
 
+    var salawatAutoAfterFajrIqama: Boolean
+        get() = prefs.getBoolean("salawat_auto_after_fajr_iqama", true)
+        set(value) = prefs.edit().putBoolean("salawat_auto_after_fajr_iqama", value).apply()
+
     var salawatTime: String
-        get() = prefs.getString("salawat_time", "08:00") ?: "08:00"
+        get() = prefs.getString("salawat_time", "06:00") ?: "06:00"
         set(value) = prefs.edit().putString("salawat_time", value).apply()
 
+    var salawatEndTime: String
+        get() = prefs.getString("salawat_end_time", "23:59") ?: "23:59"
+        set(value) = prefs.edit().putString("salawat_end_time", value).apply()
+
+    var salawatRepeatType: String
+        get() = prefs.getString("salawat_repeat_type", "repeat") ?: "repeat"
+        set(value) = prefs.edit().putString("salawat_repeat_type", value).apply()
+
     var salawatRepeatInterval: Int
-        get() = prefs.getInt("salawat_repeat_interval", 15)
-        set(value) = prefs.edit().putInt("salawat_repeat_interval", value).apply()
+        get() = prefs.getInt("salawat_repeat_interval", 15).coerceIn(1, 240)
+        set(value) = prefs.edit().putInt("salawat_repeat_interval", value.coerceIn(1, 240)).apply()
+
+    var salawatRepeatUnit: String
+        get() = prefs.getString("salawat_repeat_unit", "minutes") ?: "minutes"
+        set(value) = prefs.edit().putString("salawat_repeat_unit", value).apply()
+
+    var salawatVolumePercent: Int
+        get() = prefs.getInt("salawat_volume_percent", 85).coerceIn(0, 100)
+        set(value) = prefs.edit().putInt("salawat_volume_percent", value.coerceIn(0, 100)).apply()
 
     var morningAzkarEnabled: Boolean
         get() = prefs.getBoolean("morning_azkar_enabled", true)
         set(value) = prefs.edit().putBoolean("morning_azkar_enabled", value).apply()
 
     var morningAzkarTime: String
-        get() = prefs.getString("morning_azkar_time", "06:30") ?: "06:30"
+        get() = prefs.getString("morning_azkar_time", "08:00") ?: "08:00"
         set(value) = prefs.edit().putString("morning_azkar_time", value).apply()
 
     var eveningAzkarEnabled: Boolean
@@ -95,8 +146,12 @@ class NativePreferences(context: Context) {
         set(value) = prefs.edit().putBoolean("evening_azkar_enabled", value).apply()
 
     var eveningAzkarTime: String
-        get() = prefs.getString("evening_azkar_time", "17:00") ?: "17:00"
+        get() = prefs.getString("evening_azkar_time", "21:00") ?: "21:00"
         set(value) = prefs.edit().putString("evening_azkar_time", value).apply()
+
+    var azkarVolumePercent: Int
+        get() = prefs.getInt("azkar_volume_percent", 100).coerceIn(0, 100)
+        set(value) = prefs.edit().putInt("azkar_volume_percent", value.coerceIn(0, 100)).apply()
 
     var musaharatiEnabled: Boolean
         get() = prefs.getBoolean("musaharati_enabled", false)
@@ -105,6 +160,10 @@ class NativePreferences(context: Context) {
     var musaharatiTime: String
         get() = prefs.getString("musaharati_time", "03:30") ?: "03:30"
         set(value) = prefs.edit().putString("musaharati_time", value).apply()
+
+    var musaharatiAudio: String
+        get() = prefs.getString("musaharati_audio", "musaharati_1") ?: "musaharati_1"
+        set(value) = prefs.edit().putString("musaharati_audio", value).apply()
 
     fun getBookmarks(): List<QuranBookmark> {
         val json = prefs.getString("quran_bookmarks_list", null) ?: return emptyList()
@@ -762,5 +821,36 @@ class NativePreferences(context: Context) {
             root.remove(oldest)
         }
         prefs.edit().putString("sheikh_daily_history", root.toString()).apply()
+    }
+
+    // =========================================================================
+    // Ramadan 30-Day Fasting Tracker Persistence
+    // =========================================================================
+    fun getRamadanFastingDays(): MutableMap<Int, String> {
+        val raw = prefs.getString("ramadan_fasting_tracker_v1", null) ?: return mutableMapOf()
+        val result = mutableMapOf<Int, String>()
+        try {
+            val o = JSONObject(raw)
+            for (day in 1..30) {
+                val status = o.optString(day.toString(), "")
+                if (status == "fasted" || status == "missed" || status == "pending") {
+                    result[day] = status
+                }
+            }
+        } catch (_: Exception) {}
+        return result
+    }
+
+    fun setRamadanDayStatus(day: Int, status: String) {
+        if (day !in 1..30) return
+        val normalized = when (status) {
+            "fasted", "missed", "pending" -> status
+            else -> "pending"
+        }
+        val map = getRamadanFastingDays()
+        map[day] = normalized
+        val o = JSONObject()
+        map.forEach { (d, s) -> o.put(d.toString(), s) }
+        prefs.edit().putString("ramadan_fasting_tracker_v1", o.toString()).apply()
     }
 }

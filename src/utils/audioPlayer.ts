@@ -333,10 +333,17 @@ export const IQAMA_VOICES: IqamaVoiceOption[] = [
   },
 ];
 
+import {
+  audioPriorityCoordinator,
+  AudioChannelCategory,
+  getCategoryPriority,
+} from './audioPriorityCoordinator';
+
 class SoundService {
   private currentAudio: HTMLAudioElement | null = null;
   private currentVoiceId: string | null = null;
   private currentCategory: string | null = null;
+  private activeTokenId: string | null = null;
   private audioContext: AudioContext | null = null;
   private isSynthesizing = false;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -345,11 +352,20 @@ class SoundService {
     if (typeof window !== 'undefined') {
       window.addEventListener('AUDIO_PLAYBACK_START', (e: Event) => {
         const custom = e as CustomEvent<{ source?: string }>;
-        if (custom.detail?.source === 'disk') {
-          this.stopAudio();
+        if (custom.detail?.source === 'disk' || custom.detail?.source === 'recitation') {
+          if (getCategoryPriority(this.currentCategory || '') < 5) {
+            this.stopAudio(false);
+          }
         }
       });
     }
+    audioPriorityCoordinator.onPreempt((incomingPriority, source) => {
+      if (source !== 'soundService' && this.currentAudio) {
+        if (getCategoryPriority(this.currentCategory || '') < incomingPriority) {
+          this.stopAudio(false);
+        }
+      }
+    });
   }
 
   private getAudioContext(): AudioContext | null {
@@ -433,25 +449,25 @@ class SoundService {
    * Harmonious offline synthesized Adhan melody that plays 100% without internet
    */
   public playOfflineSynthesizedAdhan(onEnd?: () => void) {
-    this.stopAudio();
+    this.stopAudio(false);
     const ctx = this.getAudioContext();
     if (!ctx) {
+      audioPriorityCoordinator.notifyFinished(this.activeTokenId || undefined);
       if (onEnd) onEnd();
       return;
     }
 
     this.isSynthesizing = true;
     const now = ctx.currentTime;
-    
-    // Rast / Bayati melodic notes sequence evoking the traditional Adhan
+
     const adhanNotes = [
-      { f: 293.66, d: 0.8 }, // D4 (Al-)
-      { f: 329.63, d: 0.6 }, // E4 (-la-)
-      { f: 349.23, d: 1.4 }, // F4 (-hu)
-      { f: 329.63, d: 0.6 }, // E4
-      { f: 293.66, d: 1.8 }, // D4 (Akbar)
-      { f: 261.63, d: 1.2 }, // C4
-      { f: 293.66, d: 2.2 }, // D4
+      { f: 293.66, d: 0.8 },
+      { f: 329.63, d: 0.6 },
+      { f: 349.23, d: 1.4 },
+      { f: 329.63, d: 0.6 },
+      { f: 293.66, d: 1.8 },
+      { f: 261.63, d: 1.2 },
+      { f: 293.66, d: 2.2 },
     ];
 
     let offset = 0;
@@ -478,13 +494,16 @@ class SoundService {
 
     setTimeout(() => {
       this.isSynthesizing = false;
+      const doneToken = this.activeTokenId;
+      this.activeTokenId = null;
+      audioPriorityCoordinator.notifyFinished(doneToken || undefined);
       if (onEnd) onEnd();
     }, offset * 1000);
   }
 
   /**
    * Plays selected local Azan audio file from public/audio/ in FULL without early cutoff.
-   * Completely offline, self-contained, no external CDN needed.
+   * Priority 5 (Highest): Never gets cut off by lower/duplicate Azan notifications.
    */
   public playAzan(
     voiceId: string = 'makkah',
@@ -504,7 +523,6 @@ class SoundService {
       isFajr = isFajrOrOnEnd;
     }
 
-    // If Fajr prayer and no specific voice chosen, prefer the dedicated Fajr Adhan with As-Salatu Khayrun Minan-Nawm
     let voiceKey = voiceId;
     if (isFajr) {
       if (voiceId && FAJR_AZAN_VOICES.some((v) => v.id === voiceId)) {
@@ -535,22 +553,37 @@ class SoundService {
         : null) ||
       (isFajr ? FAJR_AZAN_VOICES[0] : AZAN_VOICES[0]);
     const localAudioPath = selectedVoice.filePath;
-
     const normalizedVol = Math.max(0, Math.min(1, volumePercent / 100));
 
-    // Prevent interrupting if the exact same Azan is already actively playing
+    // Prevent interrupting ANY currently active Azan
     if (
       this.currentAudio &&
       !this.currentAudio.paused &&
       !this.currentAudio.ended &&
-      this.currentCategory === 'azan' &&
-      this.currentVoiceId === selectedVoice.id
+      this.currentCategory === 'azan'
     ) {
-      this.currentAudio.volume = normalizedVol;
+      if (this.currentVoiceId === selectedVoice.id) {
+        this.currentAudio.volume = normalizedVol;
+      }
       return true;
     }
 
-    this.stopAudio();
+    const token = `azan_${selectedVoice.id}_${Date.now()}`;
+    const outcome = audioPriorityCoordinator.requestStart(token, 'azan', 'soundService');
+    if (outcome !== 'started') {
+      return true;
+    }
+
+    this.stopAudio(false);
+    this.activeTokenId = token;
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('AUDIO_PLAYBACK_START', {
+          detail: { source: 'soundService', category: 'azan', priority: 5 },
+        })
+      );
+    }
 
     try {
       const audio = new Audio(localAudioPath);
@@ -563,23 +596,12 @@ class SoundService {
 
       if (maxDurationMs && maxDurationMs > 0) {
         this.stopTimer = setTimeout(() => {
-          this.stopAudio();
+          this.stopAudio(true);
           if (actualOnEnd) actualOnEnd();
         }, maxDurationMs);
       }
 
-      audio.onerror = (e) => {
-        console.warn('Audio error loading:', localAudioPath, e);
-        if (this.currentAudio === audio) {
-          this.currentAudio = null;
-          this.currentVoiceId = null;
-          this.currentCategory = null;
-        }
-        if (actualOnEnd) actualOnEnd();
-        if (onError) onError(e);
-      };
-
-      audio.onended = () => {
+      const finish = () => {
         if (this.stopTimer) {
           clearTimeout(this.stopTimer);
           this.stopTimer = null;
@@ -588,7 +610,20 @@ class SoundService {
           this.currentAudio = null;
           this.currentVoiceId = null;
           this.currentCategory = null;
+          this.activeTokenId = null;
         }
+        audioPriorityCoordinator.notifyFinished(token);
+      };
+
+      audio.onerror = (e) => {
+        console.warn('Audio error loading:', localAudioPath, e);
+        finish();
+        if (actualOnEnd) actualOnEnd();
+        if (onError) onError(e);
+      };
+
+      audio.onended = () => {
+        finish();
         if (actualOnEnd) actualOnEnd();
       };
 
@@ -596,11 +631,7 @@ class SoundService {
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
           console.warn('Audio play() interrupted or blocked by browser:', err);
-          if (this.currentAudio === audio) {
-            this.currentAudio = null;
-            this.currentVoiceId = null;
-            this.currentCategory = null;
-          }
+          finish();
           if (actualOnEnd) actualOnEnd();
           if (onError) onError(err);
         });
@@ -611,6 +642,8 @@ class SoundService {
       this.currentAudio = null;
       this.currentVoiceId = null;
       this.currentCategory = null;
+      this.activeTokenId = null;
+      audioPriorityCoordinator.notifyFinished(token);
       if (actualOnEnd) actualOnEnd();
       if (onError) onError(err);
       return false;
@@ -654,7 +687,11 @@ class SoundService {
     onEnd?: () => void,
     reciter: string = 'ar.alafasy'
   ): HTMLAudioElement | null {
-    this.stopAudio();
+    if (getCategoryPriority(this.currentCategory || '') >= 5 && this.isPlaying('azan')) {
+      if (onEnd) onEnd();
+      return null;
+    }
+    this.stopAudio(true);
 
     if (ayahText && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -693,7 +730,10 @@ class SoundService {
     onEnd?: () => void,
     onError?: (err: unknown) => void
   ): HTMLAudioElement | null {
-    this.stopAudio();
+    if (getCategoryPriority(this.currentCategory || '') >= 5 && this.isPlaying('azan')) {
+      return null;
+    }
+    this.stopAudio(true);
 
     const formattedSurah = String(surahNumber).padStart(3, '0');
     const serverMap: Record<string, string> = {
@@ -752,8 +792,9 @@ class SoundService {
   }
 
   /**
-   * Unified local track player that plays the full selected audio file from start to finish
-   * without cutting off active Azan or terminating early.
+   * Unified local track player obeying audioPriorityCoordinator:
+   * - Priority: Azan (5) > Iqama (4) > Pre-prayer/Duha (3) > Morning/Evening Azkar (2) > Salawat (1) > Media (0)
+   * - Deferred queueing ensures Morning/Evening Azkar (and Salawat when desired) play immediately after Azan completes without overlapping.
    */
   public playTrack(
     filePath: string,
@@ -761,35 +802,66 @@ class SoundService {
     category: string = 'general',
     onEnd?: () => void,
     onError?: (err: unknown) => void,
-    volumePercent: number = 100
+    volumePercent: number = 100,
+    options?: { isScheduled?: boolean; forceUserAction?: boolean }
   ): boolean {
-    // If Azan is currently playing, do not let an automatic reminder cut off the Azan; queue it right after Azan ends
-    if (
-      this.currentAudio &&
-      !this.currentAudio.paused &&
-      !this.currentAudio.ended &&
-      this.currentCategory === 'azan' &&
-      (category === 'salawat' || category === 'sabah' || category === 'massa')
-    ) {
-      const activeAzanAudio = this.currentAudio;
-      activeAzanAudio.addEventListener(
-        'ended',
-        () => {
-          this.playTrack(filePath, trackId, category, onEnd, onError, volumePercent);
+    const channelCategory = (category || 'general') as AudioChannelCategory;
+    const isScheduledReminder =
+      options?.isScheduled === true ||
+      category === 'sabah' ||
+      category === 'massa' ||
+      category === 'salawat' ||
+      category === 'musaharati' ||
+      category === 'cannon';
+    const token = `${category}_${trackId}_${Date.now()}`;
+
+    const outcome = audioPriorityCoordinator.requestStart(
+      token,
+      channelCategory,
+      'soundService',
+      {
+        deferIfBlocked: isScheduledReminder,
+        forceUserAction: options?.forceUserAction,
+        onExecuteDeferred: () => {
+          this.playTrack(filePath, trackId, category, onEnd, onError, volumePercent, options);
         },
-        { once: true }
-      );
+      }
+    );
+
+    if (outcome === 'queued') {
       return true;
     }
+    if (outcome === 'blocked_same_or_higher') {
+      if (onEnd) onEnd();
+      return false;
+    }
 
-    this.stopAudio();
+    this.stopAudio(false);
+    this.activeTokenId = token;
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
-        new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'soundService' } })
+        new CustomEvent('AUDIO_PLAYBACK_START', {
+          detail: {
+            source: 'soundService',
+            category,
+            priority: getCategoryPriority(category),
+          },
+        })
       );
     }
     this.currentCategory = category;
     this.currentVoiceId = trackId;
+
+    const finish = () => {
+      if (this.currentAudio) {
+        this.currentAudio = null;
+      }
+      this.currentVoiceId = null;
+      this.currentCategory = null;
+      this.activeTokenId = null;
+      audioPriorityCoordinator.notifyFinished(token);
+    };
 
     try {
       const audio = new Audio(filePath);
@@ -799,22 +871,14 @@ class SoundService {
       this.currentAudio = audio;
 
       audio.onended = () => {
-        if (this.currentAudio === audio) {
-          this.currentAudio = null;
-          this.currentVoiceId = null;
-          this.currentCategory = null;
-        }
+        finish();
         if (onEnd) onEnd();
       };
 
       audio.onerror = (err) => {
         console.warn(`Audio playback error for ${filePath}:`, err);
-        if (this.currentAudio === audio) {
-          this.currentAudio = null;
-          this.currentVoiceId = null;
-          this.currentCategory = null;
-        }
-        this.playOfflineSynthesizedAdhan(onEnd);
+        finish();
+        if (onEnd) onEnd();
         if (onError) onError(err);
       };
 
@@ -822,69 +886,93 @@ class SoundService {
       if (promise !== undefined) {
         promise.catch((err) => {
           console.warn('Playback blocked by browser autoplay policy:', err);
-          if (this.currentAudio === audio) {
-            this.currentAudio = null;
-            this.currentVoiceId = null;
-            this.currentCategory = null;
-          }
+          finish();
           if (onEnd) onEnd();
           if (onError) onError(err);
         });
       }
       return true;
     } catch (err) {
-      this.currentAudio = null;
-      this.currentVoiceId = null;
-      this.currentCategory = null;
+      finish();
       if (onEnd) onEnd();
       if (onError) onError(err);
       return false;
     }
   }
 
-  public playSalawat(trackIdOrOnEnd?: string | (() => void), onEnd?: () => void): boolean {
+  public playSalawat(
+    trackIdOrOnEnd?: string | (() => void),
+    onEnd?: () => void,
+    volumePercent: number = 85
+  ): boolean {
     const trackId = typeof trackIdOrOnEnd === 'string' ? trackIdOrOnEnd : 'salawat_1';
     const cb = typeof trackIdOrOnEnd === 'function' ? trackIdOrOnEnd : onEnd;
     const track =
       SALAWAT_AUDIO_OPTIONS.find((t) => t.id === trackId || t.filePath === trackId) ||
       SALAWAT_AUDIO_OPTIONS[0];
-    return this.playTrack(track.filePath, track.id, 'salawat', cb);
+    return this.playTrack(track.filePath, track.id, 'salawat', cb, undefined, volumePercent, {
+      isScheduled: true,
+    });
   }
 
-  public playAzkarSabah(trackIdOrOnEnd?: string | (() => void), onEnd?: () => void): boolean {
+  public playAzkarSabah(
+    trackIdOrOnEnd?: string | (() => void),
+    onEnd?: () => void,
+    volumePercent: number = 100
+  ): boolean {
     const trackId = typeof trackIdOrOnEnd === 'string' ? trackIdOrOnEnd : 'azkar_sabah_1';
     const cb = typeof trackIdOrOnEnd === 'function' ? trackIdOrOnEnd : onEnd;
     const track =
       MORNING_AZKAR_AUDIO_OPTIONS.find((t) => t.id === trackId || t.filePath === trackId) ||
       MORNING_AZKAR_AUDIO_OPTIONS[0];
-    return this.playTrack(track.filePath, track.id, 'sabah', cb);
+    return this.playTrack(track.filePath, track.id, 'sabah', cb, undefined, volumePercent, {
+      isScheduled: true,
+    });
   }
 
-  public playAzkarMassa(trackIdOrOnEnd?: string | (() => void), onEnd?: () => void): boolean {
+  public playAzkarMassa(
+    trackIdOrOnEnd?: string | (() => void),
+    onEnd?: () => void,
+    volumePercent: number = 100
+  ): boolean {
     const trackId = typeof trackIdOrOnEnd === 'string' ? trackIdOrOnEnd : 'azkar_massa_1';
     const cb = typeof trackIdOrOnEnd === 'function' ? trackIdOrOnEnd : onEnd;
     const track =
       EVENING_AZKAR_AUDIO_OPTIONS.find((t) => t.id === trackId || t.filePath === trackId) ||
       EVENING_AZKAR_AUDIO_OPTIONS[0];
-    return this.playTrack(track.filePath, track.id, 'massa', cb);
+    return this.playTrack(track.filePath, track.id, 'massa', cb, undefined, volumePercent, {
+      isScheduled: true,
+    });
   }
 
-  public playMusaharati(trackIdOrOnEnd?: string | (() => void), onEnd?: () => void): boolean {
+  public playMusaharati(
+    trackIdOrOnEnd?: string | (() => void),
+    onEnd?: () => void,
+    volumePercent: number = 100
+  ): boolean {
     const trackId = typeof trackIdOrOnEnd === 'string' ? trackIdOrOnEnd : 'musaharati_1';
     const cb = typeof trackIdOrOnEnd === 'function' ? trackIdOrOnEnd : onEnd;
     const track =
       MUSAHARATI_AUDIO_OPTIONS.find((t) => t.id === trackId || t.filePath === trackId) ||
       MUSAHARATI_AUDIO_OPTIONS[0];
-    return this.playTrack(track.filePath, track.id, 'musaharati', cb);
+    return this.playTrack(track.filePath, track.id, 'musaharati', cb, undefined, volumePercent, {
+      isScheduled: true,
+    });
   }
 
-  public playIftarCannon(trackIdOrOnEnd?: string | (() => void), onEnd?: () => void): boolean {
+  public playIftarCannon(
+    trackIdOrOnEnd?: string | (() => void),
+    onEnd?: () => void,
+    volumePercent: number = 100
+  ): boolean {
     const trackId = typeof trackIdOrOnEnd === 'string' ? trackIdOrOnEnd : 'iftar_cannon_1';
     const cb = typeof trackIdOrOnEnd === 'function' ? trackIdOrOnEnd : onEnd;
     const track =
       IFTAR_CANNON_AUDIO_OPTIONS.find((t) => t.id === trackId || t.filePath === trackId) ||
       IFTAR_CANNON_AUDIO_OPTIONS[0];
-    return this.playTrack(track.filePath, track.id, 'cannon', cb);
+    return this.playTrack(track.filePath, track.id, 'cannon', cb, undefined, volumePercent, {
+      isScheduled: true,
+    });
   }
 
   /**
@@ -905,23 +993,37 @@ class SoundService {
       asmaa_allah_al_husna: '/audio/asmaa_allah_al_husna.mp3',
     };
     const path = fileMap[trackId] || '/audio/pre_prayer_15m.mp3';
-    return this.playTrack(path, trackId, 'pre_prayer', onEnd, onError, volumePercent);
+    return this.playTrack(path, trackId, 'pre_prayer', onEnd, onError, volumePercent, {
+      isScheduled: true,
+    });
   }
 
   /**
    * Qiyam al-Layl First Third of Night:
    * Plays: Surah Al-Muzzammil «يا أيها المزمل * قم الليل إلا قليلا»
    */
-  public playQiyamFirstThird(onEnd?: () => void, onError?: (err: unknown) => void): boolean {
-    return this.playTrack('/audio/qiyam_first_third.mp3', 'qiyam_first_third', 'qiyam', onEnd, onError);
+  public playQiyamFirstThird(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
+  ): boolean {
+    return this.playTrack('/audio/qiyam_first_third.mp3', 'qiyam_first_third', 'qiyam', onEnd, onError, volumePercent, {
+      isScheduled: true,
+    });
   }
 
   /**
    * Qiyam al-Layl & Suhoor Last Third of Night:
    * Plays: «وَبِالْأَسْحَارِ هُمْ يَسْتَغْفِرُونَ»
    */
-  public playQiyamLastThird(onEnd?: () => void, onError?: (err: unknown) => void): boolean {
-    return this.playTrack('/audio/qiyam_last_third.mp3', 'qiyam_last_third', 'qiyam', onEnd, onError);
+  public playQiyamLastThird(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
+  ): boolean {
+    return this.playTrack('/audio/qiyam_last_third.mp3', 'qiyam_last_third', 'qiyam', onEnd, onError, volumePercent, {
+      isScheduled: true,
+    });
   }
 
   /**
@@ -947,7 +1049,9 @@ class SoundService {
     onError?: (err: unknown) => void,
     volumePercent: number = 100
   ): boolean {
-    return this.playTrack(DUHA_AUDIO_FILE, 'duha_surah', 'duha', onEnd, onError, volumePercent);
+    return this.playTrack(DUHA_AUDIO_FILE, 'duha_surah', 'duha', onEnd, onError, volumePercent, {
+      isScheduled: true,
+    });
   }
 
   /**
@@ -964,7 +1068,8 @@ class SoundService {
       'dua_after',
       onEnd,
       onError,
-      volumePercent
+      volumePercent,
+      { isScheduled: true }
     );
   }
 
@@ -998,17 +1103,85 @@ class SoundService {
         this.playOfflineSynthesizedAdhan(onEnd);
         if (onError) onError(err);
       },
-      volumePercent
+      volumePercent,
+      { isScheduled: true }
     );
   }
 
-  public stopAudio() {
+  public pauseAudio(): boolean {
+    if (this.currentAudio && !this.currentAudio.paused && !this.currentAudio.ended) {
+      try {
+        this.currentAudio.pause();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  public resumeAudio(): boolean {
+    if (this.currentAudio && this.currentAudio.paused && !this.currentAudio.ended) {
+      try {
+        const promise = this.currentAudio.play();
+        if (promise) {
+          promise.catch(() => {});
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  public isPaused(trackId?: string): boolean {
+    if (!this.currentAudio) return false;
+    if (trackId && this.currentVoiceId !== trackId) return false;
+    return this.currentAudio.paused && !this.currentAudio.ended && this.currentAudio.currentTime > 0;
+  }
+
+  public getAudioDurationFormatted(filePath: string): Promise<string> {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') {
+        resolve('--:--');
+        return;
+      }
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      let settled = false;
+      const done = (secs?: number) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        audio.src = '';
+        if (secs && Number.isFinite(secs) && secs > 0) {
+          const mins = Math.floor(secs / 60);
+          const rem = Math.round(secs % 60);
+          resolve(`${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`);
+        } else {
+          resolve('--:--');
+        }
+      };
+      const timer = setTimeout(() => done(), 3500);
+      audio.onloadedmetadata = () => done(audio.duration);
+      audio.onerror = () => done();
+      audio.src = filePath;
+    });
+  }
+
+  public stopAudio(notifyCoordinator: boolean = true) {
     if (this.stopTimer) {
       clearTimeout(this.stopTimer);
       this.stopTimer = null;
     }
+    const prevToken = this.activeTokenId;
+    this.activeTokenId = null;
+
     if (this.currentAudio) {
       try {
+        this.currentAudio.onended = null;
+        this.currentAudio.onerror = null;
         this.currentAudio.pause();
         this.currentAudio.currentTime = 0;
       } catch {
@@ -1022,6 +1195,9 @@ class SoundService {
       window.speechSynthesis.cancel();
     }
     this.isSynthesizing = false;
+    if (notifyCoordinator && prevToken) {
+      audioPriorityCoordinator.notifyFinished(prevToken);
+    }
   }
 
   public isPlaying(category?: string): boolean {

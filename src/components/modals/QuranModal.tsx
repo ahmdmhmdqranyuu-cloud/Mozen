@@ -330,6 +330,37 @@ export const QuranModal: React.FC<QuranModalProps> = ({
     return unsub;
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleBack = (e: Event) => {
+      if (showJumpDialog) {
+        e.preventDefault();
+        setShowJumpDialog(false);
+      } else if (activeTafseerAyah) {
+        e.preventDefault();
+        setActiveTafseerAyah(null);
+      } else if (showBookmarks) {
+        e.preventDefault();
+        setShowBookmarks(false);
+      } else if (showSettings) {
+        e.preventDefault();
+        setShowSettings(false);
+      } else if (showIndex && indexView !== 'hub') {
+        e.preventDefault();
+        setIndexView('hub');
+      } else if (!showIndex) {
+        e.preventDefault();
+        setIndexView('hub');
+        setShowIndex(true);
+      } else {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('moazenBackRequested', handleBack);
+    return () => window.removeEventListener('moazenBackRequested', handleBack);
+  }, [isOpen, showJumpDialog, activeTafseerAyah, showBookmarks, showSettings, showIndex, indexView, onClose]);
+
   // Bookmarks
   const [bookmarks, setBookmarks] = useState<QuranBookmark[]>(() => {
     try {

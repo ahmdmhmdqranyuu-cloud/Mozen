@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Crescent Moon at Peak -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,1.2L12,2.4M12.9,2.8A2.1,2.1 0 1,1 10.6,4.9A1.6,1.6 0 1,0 12.9,2.8Z" />
+    <!-- Mosque Dome & Silhouette -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,5.5C9.2,5.5 7.1,7.7 7.1,10.5L7.1,12L16.9,12L16.9,10.5C16.9,7.7 14.8,5.5 12,5.5ZM4.5,8.5L3.7,11.5L3.7,21L5.3,21L5.3,11.5ZM19.5,8.5L18.7,11.5L18.7,21L20.3,21L20.3,11.5ZM6.2,13L6.2,21L10.3,21L10.3,17.5C10.3,16.5 11.1,15.7 12,15.7C12.9,15.7 13.7,16.5 13.7,17.5L13.7,21L17.8,21L17.8,13Z" />
+</vector>

@@ -146,7 +146,10 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
     user.city,
     user.calculationMethod,
     user.asrJuristicMethod || 'standard',
-    user.manualPrayerAdjustments || {}
+    user.manualPrayerAdjustments || {},
+    undefined,
+    user.dstMode,
+    user.highLatitudeRule || 'angle_based'
   );
 
   // Today's prayer times for sharing
@@ -156,7 +159,8 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
     user.calculationMethod,
     user.asrJuristicMethod || 'standard',
     user.manualPrayerAdjustments || {},
-    user.dstMode
+    user.dstMode,
+    user.highLatitudeRule || 'angle_based'
   );
   const todayFajr = todayPrayers.find((p) => p.key === 'fajr');
   const todayMaghrib = todayPrayers.find((p) => p.key === 'maghrib');
@@ -164,7 +168,10 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
   // Fasting tracker state
   const trackerData = user.ramadanFastingTracker || {};
   const totalFastedDays = Object.values(trackerData).filter((d) => d.fasted).length;
+  const remainingOrMissedDays = Math.max(0, 30 - totalFastedDays);
+  const fastingPercent = Math.round((totalFastedDays / 30) * 100);
   const totalTaraweehDays = Object.values(trackerData).filter((d) => d.taraweeh).length;
+  const activeRamadanDay = imsakiyaList.find((d) => d.isToday)?.dayNumber || 1;
 
   const handleToggleDayDeed = (day: number, field: keyof RamadanFastingDayRecord) => {
     if (!onUpdateFastingTracker) return;
@@ -190,7 +197,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
     await shareIslamicText({
       title: `إمساكية شهر رمضان المبارك - ${user.city.name}`,
       body: `مواعيد اليوم في ${user.city.name} (${user.city.country}):\n• موعد الإمساك: ${imsakStr}\n• أذان الفجر: ${todayFajr?.time || ''}\n• أذان المغرب (الإفطار): ${todayMaghrib?.time || ''}`,
-      source: 'تطبيق المؤذن',
+      source: 'تطبيق مسلم بلس',
       extraFooter: 'تقبل الله منا ومنكم الصيام والقيام وصالح الأعمال 🌙',
     });
     setCopiedMessage(true);
@@ -273,10 +280,10 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#F7F6F2] flex flex-col overflow-hidden select-none animate-fadeIn">
-      <div className="w-full h-full max-w-2xl mx-auto flex flex-col overflow-hidden bg-[#F7F6F2] text-[#172A28] relative">
-        {/* Clean White Header */}
-        <div className="bg-white text-[#172A28] px-4 pt-5 pb-3 flex items-center justify-between shadow-sm border-b border-gray-100 relative shrink-0" dir="rtl">
+    <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none animate-fadeIn">
+      <div className="w-full h-full max-w-2xl mx-auto flex flex-col overflow-hidden text-[#172A28] relative">
+        {/* Unified Ivory Header */}
+        <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3 flex items-center justify-between shadow-sm border-b border-[#D6C18D] relative shrink-0" dir="rtl">
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => {
@@ -1052,28 +1059,105 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: FASTING TRACKER (DAY BY DAY CHECKLIST) */}
+          {/* TAB 2: FASTING TRACKER (DAY BY DAY 30-DAY TRACKER & CHECKLIST) */}
           {activeTab === 'tracker' && (
-            <div className="space-y-3">
-              {/* Summary Stats */}
-              <div className="moazen-widget p-4 rounded-2xl shadow-sm text-right">
-                <h4 className="text-xs font-bold text-[#104B40]">مفكرة إنجاز شهر رمضان المبارك</h4>
-                <p className="text-[11px] text-[#4B5B58] mt-1 leading-relaxed">
-                  تتبّع صيامك وصلاتك وتلاوتك يوماً بيوم. تُحفظ بياناتك محلياً على جهازك دون الحاجة لحساب.
-                </p>
-                <div className="grid grid-cols-2 gap-2 mt-3 text-center">
-                  <div className="moazen-widget-sub p-2 rounded-xl">
-                    <span className="text-base font-black text-[#104B40] block">{totalFastedDays} / 30</span>
-                    <span className="text-[10px] text-[#4B5B58]">أيام الصيام المنجزة</span>
+            <div className="space-y-3" dir="rtl">
+              {/* Summary Stats & 30-Day Progress */}
+              <div className="moazen-widget p-4 rounded-2xl border border-[#D6C18D] shadow-sm text-right space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-black text-[#104B40] font-cairo">
+                      متابعة الصيام ويوميات الصائم (30 يوماً)
+                    </h4>
+                    <p className="text-[11px] text-[#4B5B58] mt-0.5 leading-relaxed">
+                      حدد حالة كل يوم (صائم / مفطر) وتابع صلواتك والقيام مع حفظ تلقائي فوري على جهازك.
+                    </p>
                   </div>
-                  <div className="moazen-widget-sub p-2 rounded-xl">
-                    <span className="text-base font-black text-[#9A7732] block">{totalTaraweehDays} / 30</span>
-                    <span className="text-[10px] text-[#4B5B58]">ليالي التراويح والقيام</span>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleDayDeed(activeRamadanDay, 'fasted')}
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all cursor-pointer border ${
+                      trackerData[activeRamadanDay]?.fasted
+                        ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                        : 'bg-[#104B40] text-white border-[#C5A059]/60 hover:bg-[#0B3D35]'
+                    }`}
+                  >
+                    {trackerData[activeRamadanDay]?.fasted
+                      ? `✓ صمت اليوم (${activeRamadanDay})`
+                      : `تسجيل صيام اليوم (${activeRamadanDay})`}
+                  </button>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-[#104B40]">
+                    <span>نسبة إنجاز صيام الشهر الكريم</span>
+                    <span className="font-mono">{fastingPercent}% ({totalFastedDays}/30)</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-[#EDE2C8] rounded-full overflow-hidden border border-[#D6C18D]/70">
+                    <div
+                      className="h-full bg-gradient-to-l from-[#104B40] to-emerald-600 rounded-full transition-all duration-300"
+                      style={{ width: `${fastingPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Live Fasted vs Not Fasted / Taraweeh Counters */}
+                <div className="grid grid-cols-3 gap-2 pt-0.5 text-center">
+                  <div className="moazen-widget-sub p-2.5 rounded-xl border border-emerald-700/20">
+                    <span className="text-lg font-black text-emerald-800 font-mono block">
+                      {totalFastedDays}
+                    </span>
+                    <span className="text-[10px] font-bold text-[#104B40]">تم صيامه (صائم)</span>
+                  </div>
+                  <div className="moazen-widget-sub p-2.5 rounded-xl border border-amber-700/20">
+                    <span className="text-lg font-black text-[#9A7732] font-mono block">
+                      {remainingOrMissedDays}
+                    </span>
+                    <span className="text-[10px] font-bold text-[#4B5B58]">مفطر / متبقي من 30</span>
+                  </div>
+                  <div className="moazen-widget-sub p-2.5 rounded-xl border border-[#D6C18D]">
+                    <span className="text-lg font-black text-[#104B40] font-mono block">
+                      {totalTaraweehDays}
+                    </span>
+                    <span className="text-[10px] font-bold text-[#4B5B58]">ليالي التراويح</span>
                   </div>
                 </div>
               </div>
 
-              {/* Day by Day checklist */}
+              {/* Quick 30-Day Interactive Grid */}
+              <div className="moazen-widget p-3.5 rounded-2xl border border-[#D6C18D] shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-[#104B40]">
+                    لوحة أيام رمضان السريعة (اضغط على اليوم للتبديل بين صائم / مفطر)
+                  </span>
+                  <span className="text-[10px] text-[#8a6214] font-bold">30 يوماً</span>
+                </div>
+                <div className="grid grid-cols-6 sm:grid-cols-10 gap-1.5">
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((dayNum) => {
+                    const isFasted = Boolean(trackerData[dayNum]?.fasted);
+                    return (
+                      <button
+                        key={dayNum}
+                        type="button"
+                        onClick={() => handleToggleDayDeed(dayNum, 'fasted')}
+                        className={`py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                          isFasted
+                            ? 'bg-[#104B40] text-white border-emerald-800 shadow-xs'
+                            : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:border-[#C5A059]'
+                        }`}
+                      >
+                        <span className="text-[11px] font-black font-mono leading-none">{dayNum}</span>
+                        <span className="text-[8px] font-bold mt-0.5 leading-none">
+                          {isFasted ? 'صائم ✓' : 'مفطر'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Day by Day Detailed Checklist */}
               <div className="space-y-2">
                 {imsakiyaList.map((day) => {
                   const record = trackerData[day.dayNumber] || {
@@ -1087,35 +1171,46 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                   return (
                     <div
                       key={day.dayNumber}
-                      className="moazen-widget p-3 rounded-2xl border border-gray-100 shadow-xs text-right space-y-2"
+                      className="moazen-widget p-3 rounded-2xl border border-[#D6C18D] shadow-xs text-right space-y-2"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-sans text-gray-400">
-                          {day.gregorianDateStr}
-                        </span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold font-quran text-gray-800">
+                          <span
+                            className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                              record.fasted
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-50 text-amber-900 border-amber-200'
+                            }`}
+                          >
+                            {record.fasted ? 'صائم ✓' : 'مفطر / غير مسجل'}
+                          </span>
+                          <span className="text-[10px] font-sans text-[#4B5B58]">
+                            {day.gregorianDateStr}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold font-quran text-[#172A28]">
                             اليوم {day.dayNumber} من رمضان
                           </span>
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-[#104B40] text-[#F5D77F] text-[10px] font-bold flex items-center justify-center">
                             {day.dayNumber}
                           </div>
                         </div>
                       </div>
 
                       {/* Interactive Action Badges */}
-                      <div className="grid grid-cols-5 gap-1 pt-1 border-t border-gray-50 text-[10px] font-bold">
+                      <div className="grid grid-cols-5 gap-1 pt-1 border-t border-[#D6C18D]/40 text-[10px] font-bold">
                         {/* 1. الصيام */}
                         <button
                           onClick={() => handleToggleDayDeed(day.dayNumber, 'fasted')}
                           className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                             record.fasted
                               ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                              : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:bg-[#EDE2C8]'
                           }`}
                         >
                           {record.fasted ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          <span>صيام اليوم</span>
+                          <span>{record.fasted ? 'صائم' : 'مفطر'}</span>
                         </button>
 
                         {/* 2. صلاة الجماعة */}
@@ -1124,7 +1219,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                           className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                             record.prayedCongregation
                               ? 'bg-[#104B40] text-white border-emerald-800 shadow-xs'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                              : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:bg-[#EDE2C8]'
                           }`}
                         >
                           {record.prayedCongregation ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
@@ -1137,7 +1232,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                           className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                             record.taraweeh
                               ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                              : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:bg-[#EDE2C8]'
                           }`}
                         >
                           {record.taraweeh ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
@@ -1150,7 +1245,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                           className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                             record.quranRead
                               ? 'bg-teal-600 text-white border-teal-700 shadow-xs'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                              : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:bg-[#EDE2C8]'
                           }`}
                         >
                           {record.quranRead ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
@@ -1163,7 +1258,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
                           className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                             record.charity
                               ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
-                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                              : 'bg-[#F6EEDC] text-[#4B5B58] border-[#D6C18D] hover:bg-[#EDE2C8]'
                           }`}
                         >
                           {record.charity ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}

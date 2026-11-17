@@ -1,5 +1,6 @@
 package com.muslim.azan.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -36,6 +37,7 @@ fun QiblaScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     val compassManager = remember {
         NativeLocationAndCompassManager(context).apply {
@@ -62,35 +64,52 @@ fun QiblaScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(EmeraldDeep)
+            .background(MuslimPlusCanvasBrush)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        MoazenWidgetCard(
+            cornerRadius = 18.dp,
+            borderColor = MoazenCardBorder,
+            elevation = 3.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = TextPrimary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                }
+                Text(
+                    text = "بوصلة القبلة الشريفة",
+                    color = MoazenInkEmerald,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        MoazenWidgetCard(
+            cornerRadius = 14.dp,
+            borderColor = if (isAligned) MoazenGold else MoazenCardBorder,
+            elevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text(
-                text = "بوصلة القبلة الشريفة",
-                color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
+                text = if (isAligned) "أنت تواجه الكعبة المشرفة الآن مباشرةً ✓" else "قم بتدوير الهاتف حتى يتطابق المؤشر الذهبي مع الأعلى",
+                color = if (isAligned) MoazenInkEmerald else MoazenInkPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = if (isAligned) "أنت تواجه الكعبة المشرفة الآن مباشرةً ✓" else "قم بتدوير الهاتف حتى يتطابق المؤشر الذهبي مع الأعلى",
-            color = if (isAligned) EmeraldPrimary else TextSecondary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
-
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         // Compass Visualizer (Unified Mint + Mosque Watermark Dial)
         Box(

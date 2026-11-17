@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AppLanguage, getTranslation } from '../utils/i18n';
 
 export type TabKey = 'home' | 'quran' | 'prayer' | 'qibla' | 'ramadan' | 'settings' | 'profile' | 'more';
@@ -10,52 +10,55 @@ interface BottomNavProps {
   hidden?: boolean;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({
+export const BottomNav: React.FC<BottomNavProps> = React.memo(({
   activeTab,
   onTabChange,
   language,
   hidden = false,
 }) => {
+  const t = useMemo(() => getTranslation(language), [language]);
+  const tabs: { id: TabKey; label: string; iconSrc: string }[] = useMemo(
+    () => [
+      {
+        id: 'home',
+        label: t.navHome,
+        iconSrc: '/assets/icons/nav_home.png?v=2',
+      },
+      {
+        id: 'prayer',
+        label: t.navPrayer,
+        iconSrc: '/assets/icons/nav_prayer.png?v=2',
+      },
+      {
+        id: 'quran',
+        label: t.navQuran,
+        iconSrc: '/assets/icons/nav_quran.png?v=2',
+      },
+      {
+        id: 'qibla',
+        label: t.navQibla,
+        iconSrc: '/assets/icons/nav_qibla.png?v=2',
+      },
+      {
+        id: 'settings',
+        label: t.navSettings,
+        iconSrc: '/assets/icons/nav_settings.png?v=2',
+      },
+    ],
+    [t]
+  );
+
   // Completely hide inside Settings page and all of its sub-pages
   if (hidden || activeTab === 'settings') {
     return null;
   }
 
-  const t = getTranslation(language);
-  const tabs: { id: TabKey; label: string; iconSrc: string }[] = [
-    {
-      id: 'home',
-      label: t.navHome,
-      iconSrc: '/assets/icons/nav_home.png?v=2',
-    },
-    {
-      id: 'prayer',
-      label: t.navPrayer,
-      iconSrc: '/assets/icons/nav_prayer.png?v=2',
-    },
-    {
-      id: 'quran',
-      label: t.navQuran,
-      iconSrc: '/assets/icons/nav_quran.png?v=2',
-    },
-    {
-      id: 'qibla',
-      label: t.navQibla,
-      iconSrc: '/assets/icons/nav_qibla.png?v=2',
-    },
-    {
-      id: 'settings',
-      label: t.navSettings,
-      iconSrc: '/assets/icons/nav_settings.png?v=2',
-    },
-  ];
-
   return (
     <nav
       aria-label="الشريط السفلي"
-      className="moazen-widget fixed bottom-0 inset-x-0 w-full z-[60] backdrop-blur-md border-t border-emerald-950/15 shadow-[0_-4px_18px_rgba(16,75,64,0.10)] select-none transition-all duration-200 pb-[env(safe-area-inset-bottom,0px)]"
+      className="fixed bottom-0 inset-x-0 w-full z-[60] moazen-bottom-nav rounded-t-[24px] rounded-b-none border-t-[1.5px] border-x border-b-0 border-[#D6C18D] shadow-[0_-6px_20px_rgba(9,43,33,0.18)] select-none transition-all duration-200 pb-[env(safe-area-inset-bottom,0px)]"
     >
-      <div className="w-full max-w-2xl mx-auto px-2 py-1">
+      <div className="w-full max-w-2xl mx-auto px-2 py-0.5">
         <div className="flex items-center justify-between">
           {tabs.map((tab) => {
             const isActive =
@@ -74,21 +77,22 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 title={tab.label}
               >
                 <div
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg overflow-hidden flex items-center justify-center transition-all duration-150 ${
+                  className={`w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full overflow-hidden flex items-center justify-center transition-all duration-150 p-0.5 ${
                     isActive
-                      ? 'scale-105 ring-1 ring-[#104B40]/30 bg-emerald-50/40'
-                      : 'opacity-85 hover:opacity-100'
+                      ? 'scale-105 ring-2 ring-[#C5A059] bg-[#C5A059]/20 shadow-xs'
+                      : 'bg-[#EDE2C8]/90 border border-[#D6C18D] opacity-90 hover:opacity-100'
                   }`}
                 >
                   <img
                     src={tab.iconSrc}
                     alt={tab.label}
+                    decoding="async"
                     className="w-full h-full object-contain"
                   />
                 </div>
                 <span
-                  className={`text-[9px] sm:text-[9.5px] leading-tight mt-0.5 tracking-tight transition-colors ${
-                    isActive ? 'text-[#104B40] font-black' : 'text-gray-500 font-bold'
+                  className={`text-[8.5px] sm:text-[9px] leading-tight mt-0.5 tracking-tight transition-colors ${
+                    isActive ? 'text-[#104B40] font-black' : 'text-[#4B5B58] font-bold'
                   }`}
                 >
                   {tab.label}
@@ -104,5 +108,5 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       </div>
     </nav>
   );
-};
+});
 

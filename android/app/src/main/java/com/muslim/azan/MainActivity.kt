@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
@@ -103,16 +104,26 @@ class MainActivity : ComponentActivity() {
                     !prefs.suppressSpecialPermissionsPrompt &&
                     permStatus.missingBackgroundCount > 0
 
+                var showExitConfirmDialog by remember { mutableStateOf(false) }
+
+                BackHandler(enabled = showSpecialPermDialog) {
+                    sessionDismissed = true
+                }
+
+                BackHandler(enabled = currentRoute == Screen.Home.route && !showSpecialPermDialog && !showExitConfirmDialog) {
+                    showExitConfirmDialog = true
+                }
+
                 Scaffold(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(EmeraldDeep),
-                    containerColor = EmeraldDeep,
-                    contentWindowInsets = WindowInsets.safeDrawing,
+                        .background(MuslimPlusCanvasBrush),
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     bottomBar = {
                         Column(
                             modifier = Modifier
-                                .background(EmeraldDeep)
+                                .background(Color.Transparent)
                                 .navigationBarsPadding()
                         ) {
                             FloatingAudioBar()
@@ -130,11 +141,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
+                    val isFullBleedTopRoute =
+                        currentRoute == Screen.Home.route || currentRoute == Screen.Settings.route
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(innerPadding)
-                            .background(EmeraldDeep)
+                            .padding(bottom = innerPadding.calculateBottomPadding())
+                            .then(if (isFullBleedTopRoute) Modifier else Modifier.statusBarsPadding())
+                            .background(MuslimPlusCanvasBrush)
                     ) {
                         NavHost(
                             navController = navController,
@@ -263,6 +277,48 @@ class MainActivity : ComponentActivity() {
                                 onNeverAskAgain = {
                                     prefs.suppressSpecialPermissionsPrompt = true
                                     sessionDismissed = true
+                                }
+                            )
+                        }
+
+                        if (showExitConfirmDialog) {
+                            BackHandler(enabled = true) {
+                                showExitConfirmDialog = false
+                            }
+                            AlertDialog(
+                                onDismissRequest = { showExitConfirmDialog = false },
+                                containerColor = MoazenCardEnd,
+                                title = {
+                                    Text(
+                                        text = "الخروج من تطبيق مسلم بلس",
+                                        color = MoazenInkEmerald,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                text = {
+                                    Text(
+                                        text = "هل تريد الخروج من تطبيق مسلم بلس؟ سيستمر أي صوت أو أذان مجدول في العمل وفق إعداداتك.",
+                                        color = MoazenInkMuted,
+                                        fontSize = 13.sp,
+                                        lineHeight = 20.sp
+                                    )
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            showExitConfirmDialog = false
+                                            finish()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
+                                    ) {
+                                        Text("نعم، خروج", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showExitConfirmDialog = false }) {
+                                        Text("البقاء في التطبيق", color = MoazenInkEmerald, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             )
                         }

@@ -4,12 +4,13 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -22,11 +23,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
-import com.muslim.azan.model.AzkarItem
 import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
@@ -39,6 +40,13 @@ fun AzkarScreen(
     val context = LocalContext.current
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator }
     var selectedCategoryIndex by remember { mutableStateOf(0) }
+
+    val isPlayingAudio by NativeAudioPlayerManager.isPlaying.collectAsState()
+    val currentAudioTitle by NativeAudioPlayerManager.currentTitle.collectAsState()
+
+    BackHandler {
+        onBack()
+    }
 
     val categories = listOf("أذكار الصباح", "أذكار المساء")
     val items = if (selectedCategoryIndex == 0) NativeDataManager.sampleMorningAzkar else NativeDataManager.sampleEveningAzkar
@@ -53,8 +61,8 @@ fun AzkarScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(EmeraldDeep)
-            .padding(16.dp)
+            .background(MuslimPlusCanvasBrush)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -63,34 +71,184 @@ fun AzkarScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = TextPrimary)
+                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
                 }
                 Text(
                     text = "الأذكار وحصن المسلم",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
+                    color = MoazenInkEmerald,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            // Play Audio for category
             IconButton(
                 onClick = {
                     val trackName = if (selectedCategoryIndex == 0) "azkar_sabah.mp3" else "azkar_massa.mp3"
                     val title = if (selectedCategoryIndex == 0) "أذكار الصباح المباركة" else "أذكار المساء المباركة"
-                    NativeAudioPlayerManager.playAssetAudio(context, "audio/$trackName", title, "بصوت خاشع")
+                    if (isPlayingAudio && currentAudioTitle == title) {
+                        NativeAudioPlayerManager.stop()
+                    } else {
+                        NativeAudioPlayerManager.playAssetAudio(context, "audio/$trackName", title, "بصوت خاشع")
+                    }
                 }
             ) {
                 Icon(
                     imageVector = Icons.Default.VolumeUp,
                     contentDescription = "استماع صوتي",
-                    tint = GoldAccent,
+                    tint = MoazenGoldDark,
                     modifier = Modifier.size(26.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Dedicated Audio Preview Panel for Morning & Evening Azkar
+        MoazenWidgetCard(
+            cornerRadius = 16.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Headphones,
+                            contentDescription = null,
+                            tint = MoazenInkEmerald,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "معاينة أصوات أذكار الصباح والمساء",
+                            color = MoazenInkEmerald,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (isPlayingAudio && (currentAudioTitle == "أذكار الصباح المباركة" || currentAudioTitle == "أذكار المساء المباركة")) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = ErrorRed.copy(alpha = 0.14f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { NativeAudioPlayerManager.stop() }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("إيقاف", color = ErrorRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val isSabahPlaying = isPlayingAudio && currentAudioTitle == "أذكار الصباح المباركة"
+                    val isMassaPlaying = isPlayingAudio && currentAudioTitle == "أذكار المساء المباركة"
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSabahPlaying) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.72f),
+                        border = BorderStroke(1.dp, if (isSabahPlaying) MoazenGold else MoazenCardBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                if (isSabahPlaying) {
+                                    NativeAudioPlayerManager.stop()
+                                } else {
+                                    NativeAudioPlayerManager.playAssetAudio(
+                                        context,
+                                        "audio/azkar_sabah.mp3",
+                                        "أذكار الصباح المباركة",
+                                        "معاينة أذكار الصباح"
+                                    )
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isSabahPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = if (isSabahPlaying) Color.White else MoazenInkEmerald,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isSabahPlaying) "إيقاف الصباح" else "معاينة الصباح",
+                                color = if (isSabahPlaying) Color.White else MoazenInkPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isMassaPlaying) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.72f),
+                        border = BorderStroke(1.dp, if (isMassaPlaying) MoazenGold else MoazenCardBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                if (isMassaPlaying) {
+                                    NativeAudioPlayerManager.stop()
+                                } else {
+                                    NativeAudioPlayerManager.playAssetAudio(
+                                        context,
+                                        "audio/azkar_massa.mp3",
+                                        "أذكار المساء المباركة",
+                                        "معاينة أذكار المساء"
+                                    )
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isMassaPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = if (isMassaPlaying) Color.White else MoazenInkEmerald,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isMassaPlaying) "إيقاف المساء" else "معاينة المساء",
+                                color = if (isMassaPlaying) Color.White else MoazenInkPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Tabs Row
         Row(
@@ -104,7 +262,7 @@ fun AzkarScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(GoldDark)
+                            .background(MuslimPlusPillEmerald)
                             .clickable { selectedCategoryIndex = index }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
@@ -140,7 +298,7 @@ fun AzkarScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -194,7 +352,7 @@ fun AzkarScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isCompleted) MoazenInkEmerald else GoldAccent)
+                                    .background(if (isCompleted) MuslimPlusPillEmerald else GoldAccent)
                                     .clickable {
                                         if (remaining > 0) {
                                             countsMap[item.id] = remaining - 1
@@ -205,7 +363,6 @@ fun AzkarScreen(
                                                 vibrator?.vibrate(40)
                                             }
                                         } else {
-                                            // Reset
                                             countsMap[item.id] = item.count
                                         }
                                     }

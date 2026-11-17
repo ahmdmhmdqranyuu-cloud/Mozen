@@ -194,6 +194,7 @@ export default function App() {
   const [prayerSettingsKey, setPrayerSettingsKey] = useState<PrayerKey | null>(null);
   const [firstRunPermissionsOpen, setFirstRunPermissionsOpen] = useState<boolean>(false);
   const [focusedPermissionKey, setFocusedPermissionKey] = useState<ManagedPermissionKey | null>(null);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState<boolean>(false);
   const [firstTimeSetupOpen, setFirstTimeSetupOpen] = useState<boolean>(() => {
     return (
       !reminderScheduler.getSettings().hasCompletedFirstTimeSetup ||
@@ -478,7 +479,8 @@ export default function App() {
         currentUser.calculationMethod,
         currentUser.asrJuristicMethod || 'standard',
         currentUser.manualPrayerAdjustments || {},
-        currentUser.dstMode
+        currentUser.dstMode,
+        currentUser.highLatitudeRule || 'angle_based'
       );
 
       // 0. Check Ramadan Iftar Cannon: automatically fires 16 seconds before Maghrib Azan in Ramadan
@@ -523,22 +525,31 @@ export default function App() {
               (prayerMatch.key === 'maghrib' ? 7 : isObligatory ? 15 : 0);
             const nowMs = Date.now();
 
-            if (
-              isObligatory &&
-              isSmartAzanWidgetEnabled() &&
-              (extSetup.floatingAzanWindowEnabled || extSetup.lockScreenAzanEnabled)
-            ) {
-              setSmartAzanSession({
-                prayerKey: prayerMatch.key,
-                prayerName: prayerMatch.name,
-                azanTimeStr: prayerMatch.time,
-                cityName: currentUser.city.name,
-                iqamaDurationMinutes: iqamaDuration,
-                startedAtMs: nowMs,
-                iqamaTargetMs: nowMs + iqamaDuration * 60 * 1000,
-              });
-              setSmartAzanMinimized(false);
-            } else if (isPrayerAzanAllowed) {
+            // Dispatch floating window bubble to Native Android Bridge when available (without blocking inside-app UI)
+            try {
+              const winBridge = window as unknown as {
+                AndroidPrayerBridge?: { showFloatingAzanOverlay?: (payload: string) => void };
+              };
+              if (
+                isObligatory &&
+                extSetup.floatingAzanWindowEnabled &&
+                typeof winBridge.AndroidPrayerBridge?.showFloatingAzanOverlay === 'function'
+              ) {
+                winBridge.AndroidPrayerBridge.showFloatingAzanOverlay(
+                  JSON.stringify({
+                    prayerKey: prayerMatch.key,
+                    prayerName: prayerMatch.name,
+                    cityName: currentUser.city.name,
+                    azanTimeStr: prayerMatch.time,
+                    iqamaMinutes: iqamaDuration,
+                  })
+                );
+              }
+            } catch {
+              // Ignore native bridge unavailable
+            }
+
+            if (isPrayerAzanAllowed) {
               setActiveAzanBanner({
                 prayerKey: prayerMatch.key,
                 prayerName: prayerMatch.name,
@@ -734,8 +745,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Feature grid item selection
-  const handleSelectFeature = (key: FeatureKey) => {
+  // Feature grid item selection (memoized for React.memo FeatureGrid)
+  const lastReadPageRef = useRef<number>(user.lastReadPage || 1);
+  useEffect(() => {
+    lastReadPageRef.current = user.lastReadPage || 1;
+  }, [user.lastReadPage]);
+
+  const handleSelectFeature = useCallback((key: FeatureKey) => {
     switch (key) {
       case 'qibla':
         setQiblaOpen(true);
@@ -750,7 +766,7 @@ export default function App() {
         setAzkarOpen(true);
         break;
       case 'quran':
-        setQuranInitialPage(user.lastReadPage || 1);
+        setQuranInitialPage(lastReadPageRef.current || 1);
         setQuranOpen(true);
         break;
       case 'dua':
@@ -793,10 +809,10 @@ export default function App() {
         setRuqyahOpen(true);
         break;
     }
-  };
+  }, []);
 
   // Close all section modals when switching via Floating Bottom Bar
-  const closeAllSectionModals = () => {
+  const closeAllSectionModals = useCallback(() => {
     setQuranOpen(false);
     setAzkarOpen(false);
     setPrayerOpen(false);
@@ -818,30 +834,154 @@ export default function App() {
     setRecitationsOpen(false);
     setWallpapersOpen(false);
     setProphetsOpen(false);
-  };
+  }, []);
 
-  // Bottom Navigation tab changes
-  const handleTabChange = (tab: TabKey) => {
-    closeAllSectionModals();
-    setActiveTab(tab);
-    if (tab === 'quran') {
-      setQuranInitialPage(user.lastReadPage || 1);
-      setQuranOpen(true);
-    } else if (tab === 'prayer') {
-      setPrayerOpen(true);
-    } else if (tab === 'qibla') {
-      setQiblaOpen(true);
-    } else if (tab === 'ramadan') {
-      setRamadanOpen(true);
-    } else if (tab === 'settings') {
-      setSettingsOpen(true);
-    } else if (tab === 'profile') {
-      setProfileOpen(true);
-    } else if (tab === 'more') {
-      setMoreSubTab('menu');
-      setMoreOpen(true);
+  // Unified Hardware/Gesture Back Navigation & Exit Confirmation Dialog
+  const hasAnyModalOpen =
+    quranOpen ||
+    azkarOpen ||
+    prayerOpen ||
+    qiblaOpen ||
+    hadithOpen ||
+    seerahOpen ||
+    hajjOpen ||
+    masajidOpen ||
+    duaOpen ||
+    moreOpen ||
+    settingsOpen ||
+    ramadanOpen ||
+    profileOpen ||
+    notificationsOpen ||
+    ruqyahOpen ||
+    quizOpen ||
+    tasbihOpen ||
+    namesOpen ||
+    recitationsOpen ||
+    wallpapersOpen ||
+    prophetsOpen ||
+    prayerSettingsKey !== null ||
+    firstRunPermissionsOpen ||
+    firstTimeSetupOpen;
+
+  useEffect(() => {
+    try {
+      window.history.pushState({ moazenNavGuard: true }, '');
+    } catch {
+      // ignore
     }
-  };
+  }, [hasAnyModalOpen, activeTab]);
+
+  const handleBackNavigationStep = useCallback(() => {
+    if (exitConfirmOpen) {
+      setExitConfirmOpen(false);
+      return;
+    }
+
+    // 1. Let active modal internal subviews/dialogs consume back first
+    const backEv = new CustomEvent('moazenBackRequested', { cancelable: true });
+    window.dispatchEvent(backEv);
+    if (backEv.defaultPrevented) {
+      return;
+    }
+
+    // 2. Close topmost overlay / modal WITHOUT stopping active audio or losing reading state
+    if (prayerSettingsKey !== null) {
+      setPrayerSettingsKey(null);
+      return;
+    }
+    if (firstRunPermissionsOpen) {
+      setFirstRunPermissionsOpen(false);
+      return;
+    }
+    if (firstTimeSetupOpen) {
+      setFirstTimeSetupOpen(false);
+      return;
+    }
+    if (notificationsOpen) {
+      setNotificationsOpen(false);
+      return;
+    }
+    if (hasAnyModalOpen) {
+      closeAllSectionModals();
+      setActiveTab('home');
+      return;
+    }
+
+    // 3. On Home screen with no popups: ask for exit confirmation
+    setExitConfirmOpen(true);
+  }, [
+    exitConfirmOpen,
+    prayerSettingsKey,
+    firstRunPermissionsOpen,
+    firstTimeSetupOpen,
+    notificationsOpen,
+    hasAnyModalOpen,
+  ]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      try {
+        window.history.pushState({ moazenNavGuard: true }, '');
+      } catch {
+        // ignore
+      }
+      handleBackNavigationStep();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleBackNavigationStep();
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [handleBackNavigationStep]);
+
+  // Bottom Navigation tab changes (memoized)
+  const handleTabChange = useCallback(
+    (tab: TabKey) => {
+      closeAllSectionModals();
+      setActiveTab(tab);
+      if (tab === 'quran') {
+        setQuranInitialPage(lastReadPageRef.current || 1);
+        setQuranOpen(true);
+      } else if (tab === 'prayer') {
+        setPrayerOpen(true);
+      } else if (tab === 'qibla') {
+        setQiblaOpen(true);
+      } else if (tab === 'ramadan') {
+        setRamadanOpen(true);
+      } else if (tab === 'settings') {
+        setSettingsOpen(true);
+      } else if (tab === 'profile') {
+        setProfileOpen(true);
+      } else if (tab === 'more') {
+        setMoreSubTab('menu');
+        setMoreOpen(true);
+      }
+    },
+    [closeAllSectionModals]
+  );
+
+  const handleOpenNotifications = useCallback(() => setNotificationsOpen(true), []);
+  const handleOpenSettingsFromHome = useCallback(() => {
+    setActiveTab('settings');
+    setSettingsOpen(true);
+  }, []);
+  const handleOpenProfileFromHome = useCallback(() => {
+    setActiveTab('profile');
+    setProfileOpen(true);
+  }, []);
+  const handleOpenPrayerFromCard = useCallback(() => {
+    setActiveTab('prayer');
+    setPrayerOpen(true);
+  }, []);
+  const handleOpenPrayerSettingsFromCard = useCallback((key: PrayerKey) => {
+    setPrayerSettingsKey(key);
+  }, []);
 
   const handleUpdateFastingTracker = useCallback((dayNumber: number, record: Partial<RamadanFastingDayRecord>) => {
     setUser((prev) => {
@@ -898,15 +1038,15 @@ export default function App() {
     }));
   }, []);
 
-  const handleOpenReaderAt = (_surah: number, _ayah: number, pageNumber?: number) => {
-    setQuranInitialPage(pageNumber || user.lastReadPage || 1);
+  const handleOpenReaderAt = useCallback((_surah: number, _ayah: number, pageNumber?: number) => {
+    setQuranInitialPage(pageNumber || lastReadPageRef.current || 1);
     setQuranOpen(true);
-  };
+  }, []);
 
-  const handleStopAzanAlert = () => {
+  const handleStopAzanAlert = useCallback(() => {
     soundService.stopAudio();
     setActiveAzanBanner(null);
-  };
+  }, []);
 
   const isFloatingBottomNavHidden =
     settingsOpen ||
@@ -916,7 +1056,7 @@ export default function App() {
     quranOpen;
 
   return (
-    <div className="min-h-[100dvh] bg-[#FAF9F5] text-[#172A28] flex flex-col justify-between w-full relative overflow-x-hidden">
+    <div className="h-[100dvh] bg-[#0E2B22] text-[#172A28] flex flex-col w-full relative overflow-hidden">
       {/* Real-Time Live Azan Notification Banner */}
       {activeAzanBanner && (
         <div className="fixed top-3 inset-x-3 max-w-xl mx-auto z-50 moazen-widget text-[#172A28] p-3 rounded-2xl shadow-2xl border border-[#C5A059]/70 flex items-center justify-between animate-bounce">
@@ -987,81 +1127,86 @@ export default function App() {
         </div>
       )}
 
-      {/* Scrollable Main Application Content: DailyCards is the last visible widget above BottomNav without scrolling; IslamicEventsBar sits below and appears on scroll */}
-      <div className="flex-1 overflow-y-auto pb-[56px] scrollbar-none select-none max-w-2xl mx-auto w-full px-2 sm:px-4">
-        <div className="min-h-[calc(100dvh-56px)] flex flex-col justify-between pb-1">
-          {/* Top Header */}
-          <Header
-            user={user}
-            onOpenNotifications={() => setNotificationsOpen(true)}
-            onOpenSettings={() => {
-              setActiveTab('settings');
-              setSettingsOpen(true);
-            }}
-            onOpenProfile={() => {
-              setActiveTab('profile');
-              setProfileOpen(true);
-            }}
+      {/* Scrollable Main Application Content with Integrated Synchronized Background (Fits cleanly in 1 viewport by default) */}
+      <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden smooth-scroll-container scrollbar-none select-none w-full">
+        <div className="relative min-h-full w-full flex flex-col justify-between bg-[#EFE8D1]">
+          <img
+            src="/assets/aistudio/________________ae325fdd.jpg"
+            alt="خلفية الصفحة الرئيسية"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none z-0"
           />
 
-          {/* Prayer Times Highlight Card with live countdown for every prayer */}
-          <PrayerCard
-            city={user.city}
-            azanVoice={user.azanVoice}
-            iqamaVoice={user.iqamaVoice}
-            calculationMethod={user.calculationMethod}
-            asrJuristicMethod={user.asrJuristicMethod}
-            manualAdjustments={user.manualPrayerAdjustments}
-            iqamaIntervals={user.iqamaIntervals}
-            dstMode={user.dstMode}
-            language={user.language}
-            onOpenPrayerModal={() => {
-              setActiveTab('prayer');
-              setPrayerOpen(true);
-            }}
-            onOpenPrayerSettings={(key) => {
-              setPrayerSettingsKey(key);
-            }}
-            onOpenCitySelector={() => {
-              setActiveTab('settings');
-              setSettingsOpen(true);
-            }}
-          />
+          <div className="relative z-10 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-between pt-[env(safe-area-inset-top,0px)] pb-[calc(54px+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-1 flex flex-col justify-between pb-0">
+              {/* Transparent Top Flow: leaves sunrise mosque arch clear and anchors PrayerCard cleanly below */}
+              <div className="relative w-full pb-0 shrink-0">
+                <div className="relative z-10 flex flex-col">
+                  <Header
+                    user={user}
+                    hideBackground
+                    leaveDomeClear
+                    onOpenNotifications={handleOpenNotifications}
+                    onOpenSettings={handleOpenSettingsFromHome}
+                    onOpenProfile={handleOpenProfileFromHome}
+                  />
 
-          {/* 16 Features Grid: 8 shown initially + 8 toggleable with down arrow */}
-          <FeatureGrid onSelectFeature={handleSelectFeature} language={user.language} />
+                  <PrayerCard
+                    city={user.city}
+                    azanVoice={user.azanVoice}
+                    iqamaVoice={user.iqamaVoice}
+                    calculationMethod={user.calculationMethod}
+                    asrJuristicMethod={user.asrJuristicMethod}
+                    manualAdjustments={user.manualPrayerAdjustments}
+                    iqamaIntervals={user.iqamaIntervals}
+                    dstMode={user.dstMode}
+                    highLatitudeRule={user.highLatitudeRule}
+                    language={user.language}
+                    onOpenPrayerModal={handleOpenPrayerFromCard}
+                    onOpenPrayerSettings={handleOpenPrayerSettingsFromCard}
+                    onOpenCitySelector={handleOpenSettingsFromHome}
+                  />
+                </div>
+              </div>
 
-          {/* Featured Quran Card: Last Read Banner */}
-          <FeaturedQuranBanner
-            user={user}
-            language={user.language}
-            onOpenQuranReader={(surah, ayah, page) => {
-              setQuranInitialTab('surah');
-              handleOpenReaderAt(surah, ayah, page);
-            }}
-            onOpenSheikhTutor={() => {
-              setQuranInitialTab('sheikh');
-              setQuranOpen(true);
-            }}
-          />
+              <div className="px-1 sm:px-2.5 flex-1 flex flex-col justify-evenly pt-0">
+                {/* Feature Grid: 8 icons by default with simple backgroundless arrow toggle on far right */}
+                <FeatureGrid onSelectFeature={handleSelectFeature} language={user.language} />
 
-          {/* Daily Cards: Hadith of the day & Azkar of the day (Last visible widget without scrolling) */}
-          <DailyCards
-            language={user.language}
-            onOpenAzkar={() => setAzkarOpen(true)}
-            onOpenHadith={() => setHadithOpen(true)}
-          />
-        </div>
+                {/* Featured Quran Card: Slightly prominent */}
+                <FeaturedQuranBanner
+                  user={user}
+                  language={user.language}
+                  onOpenQuranReader={(surah, ayah, page) => {
+                    setQuranInitialTab('surah');
+                    handleOpenReaderAt(surah, ayah, page);
+                  }}
+                  onOpenSheikhTutor={() => {
+                    setQuranInitialTab('sheikh');
+                    setQuranOpen(true);
+                  }}
+                />
 
-        {/* Islamic Events Bar placed below DailyCards so it appears when scrolling down */}
-        <div className="mt-2.5 mb-2">
-          <IslamicEventsBar
-            language={user.language}
-            onOpenEvents={() => {
-              setMoreSubTab('events');
-              setMoreOpen(true);
-            }}
-          />
+                {/* Daily Cards: Hadith of the day & Azkar of the day */}
+                <DailyCards
+                  language={user.language}
+                  onOpenAzkar={() => setAzkarOpen(true)}
+                  onOpenHadith={() => setHadithOpen(true)}
+                />
+              </div>
+            </div>
+
+            {/* Islamic Events Bar anchored cleanly above BottomNav */}
+            <div className="mt-0.5 mb-0.5 px-1 sm:px-2.5 shrink-0">
+              <IslamicEventsBar
+                language={user.language}
+                onOpenEvents={() => {
+                  setMoreSubTab('events');
+                  setMoreOpen(true);
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1434,6 +1579,52 @@ export default function App() {
 
       {/* Floating Circular Disk Player for Ruqyah and Asmaa Allah Al-Husna */}
       <FloatingDiskPlayer />
+
+      {/* Home Exit Confirmation Dialog */}
+      {exitConfirmOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn" dir="rtl">
+          <div className="moazen-widget w-full max-w-sm rounded-3xl p-5 border-2 border-[#C5A059]/60 shadow-2xl space-y-4">
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black text-[#104B40] font-cairo">
+                الخروج من تطبيق مسلم بلس
+              </h3>
+              <p className="text-xs text-[#4B5B58] font-semibold">
+                هل تريد الخروج من تطبيق مسلم بلس؟
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setExitConfirmOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold cursor-pointer transition-colors"
+              >
+                البقاء في التطبيق
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExitConfirmOpen(false);
+                  try {
+                    const winBridge = window as unknown as {
+                      AndroidPrayerBridge?: { finishApp?: () => void };
+                    };
+                    if (typeof winBridge.AndroidPrayerBridge?.finishApp === 'function') {
+                      winBridge.AndroidPrayerBridge.finishApp();
+                    } else {
+                      window.history.back();
+                    }
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
+              >
+                نعم، خروج
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

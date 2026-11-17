@@ -92,23 +92,23 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#fcfbf7] flex flex-col overflow-hidden select-none animate-fadeIn" dir="rtl">
-      <div className="w-full h-full max-w-md mx-auto flex flex-col overflow-hidden bg-[#fcfbf7] relative">
-        {/* Clean White Header */}
-        <div className="bg-white text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b border-gray-100 shrink-0">
+    <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none animate-fadeIn" dir="rtl">
+      <div className="w-full h-full max-w-md mx-auto flex flex-col overflow-hidden relative">
+        {/* Unified Muslim Plus Cream-Ivory Header */}
+        <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b border-[#D6C18D] shrink-0">
           <div className="flex items-center gap-2.5">
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-[#F7F6F2] hover:bg-gray-200 flex items-center justify-center text-[#172A28] transition-colors cursor-pointer"
+              className="w-10 h-10 rounded-full bg-[#F6EEDC] hover:bg-[#EDE2C8] border border-[#D6C18D] flex items-center justify-center text-[#104B40] transition-colors cursor-pointer"
               aria-label="رجوع"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
             <div>
-              <h2 className="text-base sm:text-lg font-bold font-cairo text-[#172A28]">
+              <h2 className="text-base sm:text-lg font-bold font-cairo text-[#104B40]">
                 تحديد اتجاه القبلة
               </h2>
-              <p className="text-[11px] text-gray-500 font-sans">
+              <p className="text-[11px] text-[#4B5B58] font-sans">
                 {city.name} ({city.country}) • حساب فلكي دقيق 100% دون إنترنت
               </p>
             </div>
@@ -118,13 +118,13 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
           <div
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
               isOnline
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                ? 'bg-[#F6EEDC] text-[#104B40] border-[#D6C18D]'
                 : 'bg-amber-50 text-amber-900 border-amber-200'
             }`}
           >
             {isOnline ? (
               <>
-                <Wifi className="w-3 h-3 text-emerald-600" />
+                <Wifi className="w-3 h-3 text-emerald-700" />
                 <span>متصل</span>
               </>
             ) : (
@@ -137,15 +137,15 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
         </div>
 
         {/* View Mode Tabs: Compass vs Interactive Map */}
-        <div className="px-4 pt-2.5 pb-1 bg-white border-b border-gray-100 shrink-0">
-          <div className="moazen-widget grid grid-cols-2 gap-2 p-1 rounded-xl border border-gray-200">
+        <div className="px-4 pt-2.5 pb-1 shrink-0">
+          <div className="moazen-widget grid grid-cols-2 gap-2 p-1 rounded-xl border border-[#D6C18D]">
             <button
               type="button"
               onClick={() => setActiveTab('compass')}
               className={`py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'compass'
                   ? 'bg-[#104B40] text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-[#4B5B58] hover:text-[#104B40]'
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
@@ -158,7 +158,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               className={`py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                 activeTab === 'map'
                   ? 'bg-[#104B40] text-white shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-[#4B5B58] hover:text-[#104B40]'
               }`}
             >
               <Map className="w-3.5 h-3.5" />
@@ -272,8 +272,8 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
 
                 {/* Manual test slider if no sensor available */}
                 {!hasCompassSensor && (
-                  <div className="mt-2.5 w-64 bg-gray-100 p-2 rounded-xl text-center">
-                    <span className="text-[10px] text-gray-500 block mb-1">
+                  <div className="mt-2.5 w-64 moazen-widget border border-[#D6C18D] p-2 rounded-xl text-center">
+                    <span className="text-[10px] text-[#4B5B58] font-bold block mb-1">
                       تدوير تجريبي للبوصلة:
                     </span>
                     <input
@@ -282,7 +282,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                       max="359"
                       value={manualHeading}
                       onChange={(e) => setManualHeading(Number(e.target.value))}
-                      className="w-full accent-emerald-700"
+                      className="w-full accent-[#104B40]"
                     />
                   </div>
                 )}

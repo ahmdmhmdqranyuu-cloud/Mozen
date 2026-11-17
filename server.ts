@@ -3,7 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 
 dotenv.config();
 
@@ -686,6 +686,9 @@ async function runSheikhEvaluation(input: SheikhEvalInput, res: Response): Promi
       ],
       config: {
         systemInstruction,
+        thinkingConfig: {
+          thinkingLevel: analysisSpeed === 'accurate' ? ThinkingLevel.MEDIUM : ThinkingLevel.LOW,
+        },
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

@@ -93,6 +93,77 @@ export function getHijriMonthName(date: Date = new Date()): string {
   }
 }
 
+export interface SalawatDailyWindow {
+  start: Date;
+  end: Date;
+  startTimeStr: string;
+  endTimeStr: string;
+  isAutoAfterFajrIqama: boolean;
+}
+
+/**
+ * Computes the effective daily active window for Salawat:
+ * - When autoAfterFajrIqama is enabled and city is known:
+ *   starts at (Fajr Azan + Fajr Iqama minutes + 1 minute) and runs until 23:59:59.999 (midnight 00:00).
+ * - Otherwise uses manual startTime -> endTime (defaulting endTime to midnight if 00:00/23:59).
+ */
+export function computeSalawatWindowForDate(
+  baseDate: Date,
+  config: SalawatSettings,
+  city: CityLocation | null,
+  profile: UserProfile | null
+): SalawatDailyWindow {
+  const autoEnabled = config.autoAfterFajrIqama !== false;
+  if (autoEnabled && city) {
+    const prayers = calculatePrayerTimes(
+      city,
+      baseDate,
+      profile?.calculationMethod || 'egypt',
+      profile?.asrJuristicMethod || 'standard',
+      profile?.manualPrayerAdjustments || {},
+      profile?.dstMode,
+      profile?.highLatitudeRule || 'angle_based'
+    );
+    const fajr = prayers.find((p) => p.key === 'fajr');
+    if (fajr) {
+      const fajrIqamaMin = profile?.iqamaIntervals?.fajr ?? 15;
+      const start = new Date(fajr.timestamp.getTime() + (fajrIqamaMin + 1) * 60 * 1000);
+      const end = new Date(baseDate);
+      end.setHours(23, 59, 59, 999);
+      const startH = start.getHours().toString().padStart(2, '0');
+      const startM = start.getMinutes().toString().padStart(2, '0');
+      return {
+        start,
+        end,
+        startTimeStr: `${startH}:${startM}`,
+        endTimeStr: '23:59',
+        isAutoAfterFajrIqama: true,
+      };
+    }
+  }
+
+  const [startH, startM] = (config.startTime || '06:00').split(':').map(Number);
+  const start = new Date(baseDate);
+  start.setHours(Number.isFinite(startH) ? startH : 6, Number.isFinite(startM) ? startM : 0, 0, 0);
+
+  const rawEnd = config.endTime || '23:59';
+  const [endH, endM] = rawEnd.split(':').map(Number);
+  const end = new Date(baseDate);
+  if (rawEnd === '00:00') {
+    end.setHours(23, 59, 59, 999);
+  } else {
+    end.setHours(Number.isFinite(endH) ? endH : 23, Number.isFinite(endM) ? endM : 59, 59, 999);
+  }
+
+  return {
+    start,
+    end,
+    startTimeStr: config.startTime || '06:00',
+    endTimeStr: rawEnd,
+    isAutoAfterFajrIqama: false,
+  };
+}
+
 export interface RescheduleLogEntry {
   timestamp: string;
   reason: string;
@@ -188,7 +259,12 @@ class ReminderScheduler {
     this.notifyListeners();
   }
 
-  public updateSection<K extends keyof Omit<ComprehensiveRemindersSettings, 'hasCompletedFirstTimeSetup'>>(
+  public updateSection<
+    K extends Exclude<
+      keyof ComprehensiveRemindersSettings,
+      'hasCompletedFirstTimeSetup' | 'azkarVolumePercent'
+    >
+  >(
     section: K,
     data: Partial<ComprehensiveRemindersSettings[K]>
   ) {
@@ -219,22 +295,49 @@ class ReminderScheduler {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        const isV2 = parsed.defaultsVersion === 2;
+        const rawMorning = parsed.morningAzkar || {};
+        const rawEvening = parsed.eveningAzkar || {};
+        const rawSalawat = parsed.salawat || {};
+
+        const upgradedMorningStart =
+          !isV2 && rawMorning.startTime === '06:30'
+            ? '08:00'
+            : rawMorning.startTime || DEFAULT_REMINDERS_SETTINGS.morningAzkar.startTime;
+        const upgradedEveningStart =
+          !isV2 && rawEvening.startTime === '17:00'
+            ? '21:00'
+            : rawEvening.startTime || DEFAULT_REMINDERS_SETTINGS.eveningAzkar.startTime;
+        const upgradedSalawatEnd =
+          !isV2 && rawSalawat.endTime === '22:00'
+            ? '23:59'
+            : rawSalawat.endTime || DEFAULT_REMINDERS_SETTINGS.salawat.endTime;
+
         this.settings = {
           ...DEFAULT_REMINDERS_SETTINGS,
           ...parsed,
+          defaultsVersion: 2,
+          azkarVolumePercent: parsed.azkarVolumePercent ?? 100,
           morningAzkar: {
             ...DEFAULT_REMINDERS_SETTINGS.morningAzkar,
-            ...parsed.morningAzkar,
+            ...rawMorning,
+            startTime: upgradedMorningStart,
+            volumePercent: rawMorning.volumePercent ?? parsed.azkarVolumePercent ?? 100,
             autoPlaySound: true,
           },
           eveningAzkar: {
             ...DEFAULT_REMINDERS_SETTINGS.eveningAzkar,
-            ...parsed.eveningAzkar,
+            ...rawEvening,
+            startTime: upgradedEveningStart,
+            volumePercent: rawEvening.volumePercent ?? parsed.azkarVolumePercent ?? 100,
             autoPlaySound: true,
           },
           salawat: {
             ...DEFAULT_REMINDERS_SETTINGS.salawat,
-            ...parsed.salawat,
+            ...rawSalawat,
+            autoAfterFajrIqama: isV2 ? (rawSalawat.autoAfterFajrIqama ?? true) : true,
+            endTime: upgradedSalawatEnd,
+            volumePercent: rawSalawat.volumePercent ?? 85,
             autoPlaySound: true,
           },
           musaharati: { ...DEFAULT_REMINDERS_SETTINGS.musaharati, ...parsed.musaharati },
@@ -264,7 +367,6 @@ class ReminderScheduler {
             ...(parsed.ruqyah || {}),
           },
         };
-
       }
     } catch (e) {
       console.warn('Failed to load reminders settings:', e);
@@ -275,7 +377,10 @@ class ReminderScheduler {
   private saveSettings() {
     if (typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ ...this.settings, defaultsVersion: 2 })
+      );
     } catch (e) {
       console.warn('Failed to save reminders settings:', e);
     }
@@ -489,18 +594,33 @@ class ReminderScheduler {
   ): ScheduledSlot[] {
     const results: ScheduledSlot[] = [];
     const daysToCheck = [0, 1, 2, 3, 4, 5, 6]; // Full 7 days continuously
+    const prof = this.resolveUserProfile();
 
     daysToCheck.forEach((dayOffset) => {
       const baseDate = new Date(referenceDate);
       baseDate.setDate(baseDate.getDate() + dayOffset);
 
-      const [startH, startM] = config.startTime.split(':').map(Number);
-      const startDate = new Date(baseDate);
-      startDate.setHours(startH || 0, startM || 0, 0, 0);
+      let startDate: Date;
+      let endDate: Date;
 
-      const [endH, endM] = config.endTime.split(':').map(Number);
-      const endDate = new Date(baseDate);
-      endDate.setHours(endH || 23, endM || 59, 59, 999);
+      if (section === 'salawat') {
+        const win = computeSalawatWindowForDate(
+          baseDate,
+          config as SalawatSettings,
+          this.currentCity,
+          prof
+        );
+        startDate = win.start;
+        endDate = win.end;
+      } else {
+        const [startH, startM] = config.startTime.split(':').map(Number);
+        startDate = new Date(baseDate);
+        startDate.setHours(Number.isFinite(startH) ? startH : 0, Number.isFinite(startM) ? startM : 0, 0, 0);
+
+        const [endH, endM] = config.endTime.split(':').map(Number);
+        endDate = new Date(baseDate);
+        endDate.setHours(Number.isFinite(endH) ? endH : 23, Number.isFinite(endM) ? endM : 59, 59, 999);
+      }
 
       let title = '';
       let body = '';
@@ -627,7 +747,8 @@ class ReminderScheduler {
         prof?.calculationMethod || 'egypt',
         prof?.asrJuristicMethod || 'standard',
         prof?.manualPrayerAdjustments || {},
-        prof?.dstMode
+        prof?.dstMode,
+        prof?.highLatitudeRule || 'angle_based'
       );
       const maghribPrayer = prayers.find((p) => p.key === 'maghrib');
       if (!maghribPrayer) return;
@@ -666,7 +787,8 @@ class ReminderScheduler {
         prof?.calculationMethod || 'egypt',
         prof?.asrJuristicMethod || 'standard',
         prof?.manualPrayerAdjustments || {},
-        prof?.dstMode
+        prof?.dstMode,
+        prof?.highLatitudeRule || 'angle_based'
       );
 
       prayers.forEach((p) => {
@@ -712,7 +834,8 @@ class ReminderScheduler {
         prof?.calculationMethod || 'egypt',
         prof?.asrJuristicMethod || 'standard',
         prof?.manualPrayerAdjustments || {},
-        prof?.dstMode
+        prof?.dstMode,
+        prof?.highLatitudeRule || 'angle_based'
       );
 
       if (this.settings.qiyam?.firstThirdEnabled) {
@@ -747,18 +870,12 @@ class ReminderScheduler {
   private checkAndTriggerDueReminders() {
     const now = new Date();
     const upcoming = this.calculateUpcomingSlots(now);
+    const resolvedProf = this.resolveUserProfile();
 
     // Smart Per-Prayer Pre-Alert & Live Countdown Broadcast
     if (this.currentCity) {
       try {
-        let savedProfile: UserProfile | null = null;
-        try {
-          const profRaw = localStorage.getItem('azan_user_profile');
-          if (profRaw) savedProfile = JSON.parse(profRaw);
-        } catch {
-          // ignore
-        }
-
+        const savedProfile = resolvedProf;
         const storedConfigs = loadStoredPrayerConfigs();
         const prayers = calculatePrayerTimes(
           this.currentCity,
@@ -766,7 +883,8 @@ class ReminderScheduler {
           savedProfile?.calculationMethod,
           savedProfile?.asrJuristicMethod || 'standard',
           savedProfile?.manualPrayerAdjustments || {},
-          savedProfile?.dstMode
+          savedProfile?.dstMode,
+          savedProfile?.highLatitudeRule || 'angle_based'
         );
 
         prayers.forEach((p) => {
@@ -850,14 +968,15 @@ class ReminderScheduler {
           return;
         }
 
-        // Strict verification: ensure Salawat triggers only inside configured startTime - endTime
+        // Strict verification: ensure Salawat triggers only inside dynamic Post-Fajr-Iqama -> Midnight (or manual) window
         if (slot.section === 'salawat') {
-          const [sH, sM] = this.settings.salawat.startTime.split(':').map(Number);
-          const [eH, eM] = this.settings.salawat.endTime.split(':').map(Number);
-          const currentMins = now.getHours() * 60 + now.getMinutes();
-          const startMins = (sH || 0) * 60 + (sM || 0);
-          const endMins = (eH || 23) * 60 + (eM || 59);
-          if (currentMins < startMins || currentMins > endMins) {
+          const win = computeSalawatWindowForDate(
+            now,
+            this.settings.salawat,
+            this.currentCity,
+            resolvedProf
+          );
+          if (now.getTime() < win.start.getTime() || now.getTime() > win.end.getTime()) {
             return;
           }
 
@@ -888,7 +1007,7 @@ class ReminderScheduler {
   public triggerSlot(slot: ScheduledSlot) {
     console.log(`[ReminderScheduler] Triggering reminder for ${slot.section}:`, slot.title);
 
-    // 1. Play embedded audio
+    // 1. Play embedded audio with its independent configured volume
     this.playAudioForSection(slot.section, slot.audioTrackId);
 
     // 2. Dispatch system web notification
@@ -911,15 +1030,30 @@ class ReminderScheduler {
   }
 
   public playAudioForSection(section: string, audioTrackId: string) {
+    const azkarVol =
+      this.settings.azkarVolumePercent ??
+      this.settings.morningAzkar.volumePercent ??
+      this.settings.eveningAzkar.volumePercent ??
+      100;
+    const salawatVol = this.settings.salawat.volumePercent ?? 85;
+
     switch (section) {
       case 'salawat':
-        soundService.playSalawat(audioTrackId);
+        soundService.playSalawat(audioTrackId, undefined, salawatVol);
         break;
       case 'morningAzkar':
-        soundService.playAzkarSabah(audioTrackId);
+        soundService.playAzkarSabah(
+          audioTrackId,
+          undefined,
+          this.settings.morningAzkar.volumePercent ?? azkarVol
+        );
         break;
       case 'eveningAzkar':
-        soundService.playAzkarMassa(audioTrackId);
+        soundService.playAzkarMassa(
+          audioTrackId,
+          undefined,
+          this.settings.eveningAzkar.volumePercent ?? azkarVol
+        );
         break;
       case 'musaharati':
         soundService.playMusaharati(audioTrackId);
@@ -1047,7 +1181,8 @@ class ReminderScheduler {
               userCalcMethod,
               userAsrMethod,
               resolvedProf?.manualPrayerAdjustments || {},
-              resolvedProf?.dstMode
+              resolvedProf?.dstMode,
+              resolvedProf?.highLatitudeRule || 'angle_based'
             );
             prayers.forEach((p) => {
               if (p.key === 'sunrise') return;
@@ -1083,6 +1218,7 @@ class ReminderScheduler {
                     lockScreenEnabled: false,
                     wakeScreenEnabled: false,
                     repeatIntervalMs: 0,
+                    volumePercent: pCfg?.volumePercent ?? 100,
                   });
                 }
               }
@@ -1105,6 +1241,7 @@ class ReminderScheduler {
                 lockScreenEnabled: false,
                 wakeScreenEnabled: false,
                 repeatIntervalMs: 0,
+                volumePercent: pCfg?.volumePercent ?? 100,
               });
             });
           });
@@ -1116,12 +1253,21 @@ class ReminderScheduler {
         // Also permanently sync base config with Android so BootReceiver can recalculate autonomously
         if (typeof targetBridge.syncNativePrayerConfig === 'function') {
           const adj = resolvedProf?.manualPrayerAdjustments || {};
+          const todayWin = computeSalawatWindowForDate(
+            new Date(),
+            this.settings.salawat,
+            this.currentCity,
+            resolvedProf
+          );
+          const azkarVol = this.settings.azkarVolumePercent ?? 100;
+          const salawatVol = this.settings.salawat.volumePercent ?? 85;
           const configPayload = {
             city_latitude: this.currentCity?.latitude || 21.4225,
             city_longitude: this.currentCity?.longitude || 39.8262,
             city_name: this.currentCity?.name || 'مكة المكرمة',
             calc_method: userCalcMethod,
             asr_method: userAsrMethod,
+            high_latitude_rule: resolvedProf?.highLatitudeRule || 'angle_based',
             azan_voice: savedAzanVoice,
             fajr_voice: savedFajrVoice,
             azanSoundEnabled,
@@ -1134,16 +1280,20 @@ class ReminderScheduler {
             offset_isha: adj.isha ?? 0,
             pre_prayer_alert_enabled: this.settings.prePrayerAlert?.enabled !== false,
             salawat_enabled: this.settings.salawat.enabled,
-            salawat_time: this.settings.salawat.startTime || '08:00',
+            salawat_auto_after_fajr_iqama: this.settings.salawat.autoAfterFajrIqama !== false,
+            salawat_time: todayWin.startTimeStr || this.settings.salawat.startTime || '06:00',
+            salawat_end_time: todayWin.endTimeStr || this.settings.salawat.endTime || '23:59',
             salawat_repeat_type: this.settings.salawat.repeatType || 'repeat',
             salawat_repeat_interval: this.settings.salawat.repeatInterval || 15,
             salawat_repeat_unit: this.settings.salawat.repeatUnit || 'minutes',
             salawat_audio: this.settings.salawat.audioFile || 'salawat_1',
+            salawat_volume_percent: salawatVol,
+            azkar_volume_percent: azkarVol,
             morning_azkar_enabled: this.settings.morningAzkar.enabled,
-            morning_azkar_time: this.settings.morningAzkar.startTime || '06:30',
+            morning_azkar_time: this.settings.morningAzkar.startTime || '08:00',
             morning_azkar_audio: this.settings.morningAzkar.audioFile || 'azkar_sabah',
             evening_azkar_enabled: this.settings.eveningAzkar.enabled,
-            evening_azkar_time: this.settings.eveningAzkar.startTime || '17:00',
+            evening_azkar_time: this.settings.eveningAzkar.startTime || '21:00',
             evening_azkar_audio: this.settings.eveningAzkar.audioFile || 'azkar_massa',
             musaharati_enabled: this.settings.musaharati.enabled,
             musaharati_time: this.settings.musaharati.time || '03:30',

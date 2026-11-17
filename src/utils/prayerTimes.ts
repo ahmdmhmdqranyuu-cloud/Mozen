@@ -1,9 +1,32 @@
-import { CityLocation, DstMode, PrayerKey, PrayerTime, RamadanDayImsakiya } from '../types';
+import { CityLocation, DstMode, HighLatitudeRule, PrayerKey, PrayerTime, RamadanDayImsakiya } from '../types';
 import { WORLD_CITIES } from '../data/worldCitiesData';
 
 export const CITIES_LIST: CityLocation[] = WORLD_CITIES;
 
 const DST_STORAGE_KEY = 'moazen_dst_mode_v1';
+
+export const HIGH_LATITUDE_RULES: { id: HighLatitudeRule; name: string; description: string }[] = [
+  {
+    id: 'angle_based',
+    name: 'القاعدة الزاوية (Angle Based - الموصى بها)',
+    description: 'تقدير الفجر والعشاء بنسبة الزاوية ÷ 60 من طول الليل عند خطوط العرض العليا',
+  },
+  {
+    id: 'one_seventh',
+    name: 'سبُع الليل (One-Seventh of Night)',
+    description: 'حساب الفجر قبل الشروق بسبع الليل والعشاء بعد المغرب بسبع الليل',
+  },
+  {
+    id: 'middle_of_night',
+    name: 'منتصف الليل (Middle of Night)',
+    description: 'تقسيم الليل إلى نصفين متساويين في المناطق القطبية',
+  },
+  {
+    id: 'safe_latitude',
+    name: 'الحد الآمن ±48° (Safe Latitude Fallback)',
+    description: 'اعتماد خط عرض آمن (±48.5°) عند انعدام الشفق أو شمس منتصف الليل',
+  },
+];
 
 export function getSavedDstMode(): DstMode {
   try {
@@ -27,17 +50,31 @@ export function setSavedDstMode(mode: DstMode): void {
 }
 
 /**
- * Computes the UTC offset in hours for a given date and IANA timeZone
+ * Estimates UTC timezone offset from longitude when an explicit IANA timezone is absent (e.g. manual coordinates).
  */
-function getTimeZoneOffsetHours(date: Date, timeZone?: string): number {
-  if (timeZone) {
+export function estimateTimezoneOffsetFromLongitude(longitude: number): number {
+  if (!Number.isFinite(longitude)) return 0;
+  const clamped = Math.max(-180, Math.min(180, longitude));
+  const hours = Math.round(clamped / 15);
+  return Math.max(-12, Math.min(14, hours));
+}
+
+/**
+ * Computes the UTC offset in hours for a given date and IANA timeZone (with optional coordinate fallback)
+ */
+function getTimeZoneOffsetHours(date: Date, timeZone?: string, fallbackLongitude?: number): number {
+  if (timeZone && timeZone.trim().length > 0) {
     try {
       const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
       const tzDate = new Date(date.toLocaleString('en-US', { timeZone }));
-      return (tzDate.getTime() - utcDate.getTime()) / 3600000;
+      const diffHours = (tzDate.getTime() - utcDate.getTime()) / 3600000;
+      if (Number.isFinite(diffHours)) return diffHours;
     } catch {
-      // Fallback to device timezone offset
+      // Fallback below
     }
+  }
+  if (typeof fallbackLongitude === 'number' && Number.isFinite(fallbackLongitude)) {
+    return estimateTimezoneOffsetFromLongitude(fallbackLongitude);
   }
   return -date.getTimezoneOffset() / 60;
 }
@@ -48,7 +85,8 @@ function getTimeZoneOffsetHours(date: Date, timeZone?: string): number {
  */
 export function detectDaylightSavingStatus(
   date: Date = new Date(),
-  timeZone?: string
+  timeZone?: string,
+  fallbackLongitude?: number
 ): {
   isSystemSummerTime: boolean;
   standardWinterOffsetHours: number;
@@ -57,15 +95,19 @@ export function detectDaylightSavingStatus(
   activeMode: DstMode;
   timeZoneName: string;
 } {
-  const resolvedTz =
-    timeZone ||
-    (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '') ||
-    'Africa/Cairo';
+  const hasExplicitTz = Boolean(timeZone && timeZone.trim().length > 0);
+  const resolvedTz = hasExplicitTz
+    ? timeZone!.trim()
+    : typeof fallbackLongitude === 'number' && Number.isFinite(fallbackLongitude)
+    ? `UTC${estimateTimezoneOffsetFromLongitude(fallbackLongitude) >= 0 ? '+' : ''}${estimateTimezoneOffsetFromLongitude(fallbackLongitude)}`
+    : (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '') ||
+      'Africa/Cairo';
+
   const jan = new Date(date.getFullYear(), 0, 15, 12, 0, 0);
   const jul = new Date(date.getFullYear(), 6, 15, 12, 0, 0);
-  const janOffset = getTimeZoneOffsetHours(jan, resolvedTz);
-  const julOffset = getTimeZoneOffsetHours(jul, resolvedTz);
-  const currentOffset = getTimeZoneOffsetHours(date, resolvedTz);
+  const janOffset = getTimeZoneOffsetHours(jan, hasExplicitTz ? resolvedTz : undefined, fallbackLongitude);
+  const julOffset = getTimeZoneOffsetHours(jul, hasExplicitTz ? resolvedTz : undefined, fallbackLongitude);
+  const currentOffset = getTimeZoneOffsetHours(date, hasExplicitTz ? resolvedTz : undefined, fallbackLongitude);
 
   // Standard winter time is the smaller offset (e.g. UTC+2 in Cairo winter vs UTC+3 in Cairo summer)
   const standardWinterOffsetHours = Math.min(janOffset, julOffset);
@@ -113,6 +155,7 @@ export interface PrayerCalculationLogEntry {
   longitude: number;
   methodId: string;
   asrMethod: 'standard' | 'hanafi';
+  highLatitudeRule: HighLatitudeRule;
   dstMode: DstMode;
   adjustments: Partial<Record<PrayerKey, number>>;
   chronologyValid: boolean;
@@ -133,7 +176,7 @@ export function clearPrayerCalculationLogs(): void {
 }
 
 function recordPrayerCalculationLog(entry: PrayerCalculationLogEntry): void {
-  const dedupKey = `${entry.timestamp.slice(0, 10)}|${entry.cityName}|${entry.latitude.toFixed(3)},${entry.longitude.toFixed(3)}|${entry.methodId}|${entry.asrMethod}|${entry.dstMode}|${JSON.stringify(entry.adjustments)}`;
+  const dedupKey = `${entry.timestamp.slice(0, 10)}|${entry.cityName}|${entry.latitude.toFixed(3)},${entry.longitude.toFixed(3)}|${entry.methodId}|${entry.asrMethod}|${entry.highLatitudeRule}|${entry.dstMode}|${JSON.stringify(entry.adjustments)}`;
   if (dedupKey === lastCalcLogDedupKey && entry.warnings.length === 0) {
     return;
   }
@@ -190,7 +233,9 @@ export function sanitizePrayerAdjustments(
 export function validatePrayerChronology(prayers: PrayerTime[]): boolean {
   const byKey = new Map<PrayerKey, number>();
   for (const p of prayers) {
-    byKey.set(p.key, p.timestamp.getTime());
+    const ts = p.timestamp.getTime();
+    if (!Number.isFinite(ts)) return false;
+    byKey.set(p.key, ts);
   }
   const fajr = byKey.get('fajr') ?? 0;
   const sunrise = byKey.get('sunrise') ?? 0;
@@ -210,7 +255,54 @@ export function validatePrayerChronology(prayers: PrayerTime[]): boolean {
 }
 
 /**
- * Astronomical prayer calculation with method, juristic school, manual adjustments, and DST mode
+ * Jean Meeus Julian Day & Solar Ephemeris calculation (matches Android PrayerTimeCalculator.java)
+ */
+function computeSolarEphemeris(year: number, month1to12: number, day: number): {
+  declinationDeg: number;
+  eqOfTimeMin: number;
+} {
+  let y = year;
+  let m = month1to12;
+  if (m <= 2) {
+    y -= 1;
+    m += 12;
+  }
+  const A = Math.floor(y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  const jd = Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + B - 1524.5;
+
+  const D = jd - 2451545.0;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const normDeg = (deg: number) => {
+    const r = deg % 360;
+    return r < 0 ? r + 360 : r;
+  };
+
+  const g = normDeg(357.529 + 0.98560028 * D);
+  const q = normDeg(280.459 + 0.98564736 * D);
+  const L = normDeg(q + 1.915 * Math.sin(toRad(g)) + 0.02 * Math.sin(toRad(2 * g)));
+  const e = 23.439 - 0.00000036 * D;
+
+  const raRad = Math.atan2(Math.cos(toRad(e)) * Math.sin(toRad(L)), Math.cos(toRad(L)));
+  const raDeg = normDeg(toDeg(raRad));
+  const raHours = raDeg / 15;
+
+  const declinationDeg = toDeg(Math.asin(Math.sin(toRad(e)) * Math.sin(toRad(L))));
+
+  let eqOfTimeHours = q / 15 - raHours;
+  if (eqOfTimeHours > 12) eqOfTimeHours -= 24;
+  if (eqOfTimeHours < -12) eqOfTimeHours += 24;
+
+  return {
+    declinationDeg,
+    eqOfTimeMin: eqOfTimeHours * 60,
+  };
+}
+
+/**
+ * Astronomical prayer calculation with Jean Meeus solar ephemeris, method, juristic school,
+ * manual adjustments, DST mode, and selectable high-latitude rule for global coverage (-90°..+90°).
  */
 export function calculatePrayerTimes(
   city: CityLocation,
@@ -218,17 +310,13 @@ export function calculatePrayerTimes(
   methodId: string = 'egypt',
   asrMethod: 'standard' | 'hanafi' = 'standard',
   adjustments: Partial<Record<PrayerKey, number>> = {},
-  dstModeOverride?: DstMode
+  dstModeOverride?: DstMode,
+  highLatitudeRule: HighLatitudeRule = 'angle_based'
 ): PrayerTime[] {
   const method = CALCULATION_METHODS.find((m) => m.id === methodId) || CALCULATION_METHODS[0];
+  const { latitude: rawLat, longitude: lng, warnings } = validateCityCoordinates(city);
 
-  const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
-  const B = (360 / 365) * (dayOfYear - 81) * (Math.PI / 180);
-  const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
-  const declination = 23.45 * Math.sin(((360 / 365) * (dayOfYear - 81) * Math.PI) / 180);
-
-  const { latitude: lat, longitude: lng, warnings } = validateCityCoordinates(city);
-  const dstStatus = detectDaylightSavingStatus(date, city?.timezone);
+  const dstStatus = detectDaylightSavingStatus(date, city?.timezone, lng);
   const effectiveDstMode = dstModeOverride || dstStatus.activeMode;
 
   let tzOffsetHours = dstStatus.currentSystemOffsetHours;
@@ -237,73 +325,136 @@ export function calculatePrayerTimes(
   } else if (effectiveDstMode === 'winter') {
     tzOffsetHours = dstStatus.standardWinterOffsetHours;
   }
-  
-  // Solar noon
-  const solarNoonMin = 720 - 4 * lng - EoT + tzOffsetHours * 60;
+
+  const { declinationDeg, eqOfTimeMin } = computeSolarEphemeris(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate()
+  );
+
+  // If safe_latitude rule is active or latitude is at polar pole, compute effective lat
+  const useSafeLat =
+    highLatitudeRule === 'safe_latitude' && Math.abs(rawLat) > 48.5;
+  const effectiveLat = useSafeLat
+    ? rawLat >= 0
+      ? 48.5
+      : -48.5
+    : Math.max(-89.9, Math.min(89.9, rawLat));
+  if (Math.abs(rawLat) > 48.5) {
+    warnings.push(`High latitude detected (${rawLat.toFixed(2)}°); applying rule: ${highLatitudeRule}`);
+  }
 
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const toDeg = (rad: number) => (rad * 180) / Math.PI;
 
-  const latRad = toRad(lat);
-  const decRad = toRad(declination);
+  const latRad = toRad(effectiveLat);
+  const decRad = toRad(declinationDeg);
 
-  const hourAngle = (angle: number): { deg: number; clampedLow: boolean } => {
-    const cosHA = (Math.sin(toRad(-angle)) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
-    if (cosHA > 1) return { deg: 0, clampedLow: false };
-    if (cosHA < -1) return { deg: 180, clampedLow: true };
-    return { deg: toDeg(Math.acos(cosHA)), clampedLow: false };
+  // Solar noon
+  const solarNoonMin = 720 - 4 * lng - eqOfTimeMin + tzOffsetHours * 60;
+
+  const hourAngle = (angleDeg: number): { deg: number; clampedLow: boolean; clampedHigh: boolean } => {
+    const denom = Math.cos(latRad) * Math.cos(decRad);
+    if (Math.abs(denom) < 1e-9) {
+      return { deg: 90, clampedLow: true, clampedHigh: false };
+    }
+    const cosHA = (Math.sin(toRad(-angleDeg)) - Math.sin(latRad) * Math.sin(decRad)) / denom;
+    if (cosHA > 1) return { deg: 0, clampedLow: false, clampedHigh: true };
+    if (cosHA < -1) return { deg: 180, clampedLow: true, clampedHigh: false };
+    return { deg: toDeg(Math.acos(cosHA)), clampedLow: false, clampedHigh: false };
   };
 
-  // Sunrise / Sunset
-  const sunHA = hourAngle(0.833).deg;
-  const sunriseMin = solarNoonMin - (sunHA / 15) * 60;
-  const sunsetMin = solarNoonMin + (sunHA / 15) * 60;
-  const nightDurationMin = Math.max(0, sunriseMin + 1440 - sunsetMin);
+  // Sunrise / Sunset — handle polar midnight sun / polar night safely without collapsing chronology
+  const sunHA = hourAngle(0.833);
+  let sunriseMin: number;
+  let sunsetMin: number;
+  if (sunHA.clampedLow || sunHA.clampedHigh) {
+    // Fallback sunrise/sunset via safe 48.5° latitude estimate so day/night partitions remain non-zero & chronological
+    const fallbackLatRad = toRad(rawLat >= 0 ? 48.5 : -48.5);
+    const fbDenom = Math.cos(fallbackLatRad) * Math.cos(decRad);
+    const fbCos = Math.max(-0.99, Math.min(0.99, (Math.sin(toRad(-0.833)) - Math.sin(fallbackLatRad) * Math.sin(decRad)) / fbDenom));
+    const fbDeg = toDeg(Math.acos(fbCos));
+    sunriseMin = solarNoonMin - (fbDeg / 15) * 60;
+    sunsetMin = solarNoonMin + (fbDeg / 15) * 60;
+  } else {
+    sunriseMin = solarNoonMin - (sunHA.deg / 15) * 60;
+    sunsetMin = solarNoonMin + (sunHA.deg / 15) * 60;
+  }
+  const nightDurationMin = Math.max(120, sunriseMin + 1440 - sunsetMin);
 
-  // Duha (when sun rises ~4.5 degrees above horizon, clamped [sunrise+15, dhuhr-10])
+  // Dhuhr: solar noon + 2 min
+  const dhuhrMin = solarNoonMin + 2;
+
+  // Duha (4.5° above horizon, strictly bounded between sunrise+15m and dhuhr-10m)
   const duhaRawHA = hourAngle(-4.5).deg;
   const duhaRawMin = solarNoonMin - (duhaRawHA / 15) * 60;
+  const duhaClampedMin = Math.max(sunriseMin + 15, Math.min(dhuhrMin - 10, duhaRawMin));
 
-  // Fajr (with standard Angle-Based high-latitude fallback when continuous twilight occurs)
+  // Helper to compute portion for high-latitude rules
+  const computeNightPortion = (angleDeg: number, rule: HighLatitudeRule): number => {
+    switch (rule) {
+      case 'middle_of_night':
+        return nightDurationMin * 0.5;
+      case 'one_seventh':
+        return nightDurationMin / 7.0;
+      case 'angle_based':
+      case 'safe_latitude':
+      default:
+        return (angleDeg / 60.0) * nightDurationMin;
+    }
+  };
+
+  // Fajr
   const fajrRes = hourAngle(method.fajrAngle);
   let fajrMin = solarNoonMin - (fajrRes.deg / 15) * 60;
-  if (fajrRes.clampedLow && nightDurationMin > 0) {
-    fajrMin = sunriseMin - (method.fajrAngle / 60) * nightDurationMin;
-  }
-
-  // Isha (with standard Angle-Based high-latitude fallback when continuous twilight occurs)
-  let ishaMin: number;
-  if (method.ishaInterval > 0) {
-    ishaMin = sunsetMin + method.ishaInterval;
-  } else {
-    const ishaRes = hourAngle(method.ishaAngle);
-    if (ishaRes.clampedLow && nightDurationMin > 0) {
-      ishaMin = sunsetMin + (method.ishaAngle / 60) * nightDurationMin;
-    } else {
-      ishaMin = solarNoonMin + (ishaRes.deg / 15) * 60;
+  if (fajrRes.clampedLow || fajrRes.clampedHigh || sunriseMin - fajrMin > computeNightPortion(method.fajrAngle, 'angle_based') + 240) {
+    if (fajrRes.clampedLow || fajrRes.clampedHigh) {
+      fajrMin = sunriseMin - computeNightPortion(method.fajrAngle, highLatitudeRule);
     }
+  }
+  if (fajrMin >= sunriseMin - 10) {
+    fajrMin = sunriseMin - computeNightPortion(method.fajrAngle, highLatitudeRule);
   }
 
   // Asr: shadow multiplier (1 for standard, 2 for hanafi)
   const shadowMultiplier = asrMethod === 'hanafi' ? 2 : 1;
   const asrAlt = toDeg(Math.atan(1 / (shadowMultiplier + Math.tan(Math.abs(latRad - decRad)))));
-  const cosAsrHA = (Math.sin(toRad(asrAlt)) - Math.sin(latRad) * Math.sin(decRad)) / (Math.cos(latRad) * Math.cos(decRad));
-  const asrHA = toDeg(Math.acos(Math.max(-1, Math.min(1, cosAsrHA))));
-  const asrMin = solarNoonMin + (asrHA / 15) * 60;
+  const asrDenom = Math.cos(latRad) * Math.cos(decRad);
+  const rawCosAsrHA = Math.abs(asrDenom) < 1e-9
+    ? 0.5
+    : (Math.sin(toRad(asrAlt)) - Math.sin(latRad) * Math.sin(decRad)) / asrDenom;
+  const asrHA = toDeg(Math.acos(Math.max(-0.999, Math.min(0.999, rawCosAsrHA))));
+  let asrMin = solarNoonMin + (asrHA / 15) * 60;
+  if (asrMin <= dhuhrMin + 15) asrMin = dhuhrMin + 30;
+  if (asrMin >= sunsetMin - 10) asrMin = Math.max(dhuhrMin + 20, sunsetMin - 20);
 
-  // Dhuhr: solar noon + 2 min
-  const dhuhrMin = solarNoonMin + 2;
+  // Isha
+  let ishaMin: number;
+  if (method.ishaInterval > 0) {
+    ishaMin = sunsetMin + method.ishaInterval;
+  } else {
+    const ishaRes = hourAngle(method.ishaAngle);
+    if (ishaRes.clampedLow || ishaRes.clampedHigh) {
+      ishaMin = sunsetMin + computeNightPortion(method.ishaAngle, highLatitudeRule);
+    } else {
+      ishaMin = solarNoonMin + (ishaRes.deg / 15) * 60;
+    }
+  }
+  if (ishaMin <= sunsetMin + 10) {
+    ishaMin = sunsetMin + computeNightPortion(method.ishaAngle || 17, highLatitudeRule);
+  }
 
-  const duhaClampedMin = Math.max(sunriseMin + 15, Math.min(dhuhrMin - 10, duhaRawMin));
-
-  // Apply sanitized manual adjustments (clamped -60..+60)
+  // Apply sanitized manual adjustments (clamped -60..+60) and guarantee valid chronology
   const adj = sanitizePrayerAdjustments(adjustments);
-  const fajrFinalMin = fajrMin + (adj.fajr || 0);
   const sunriseFinalMin = sunriseMin + (adj.sunrise || 0);
-  const duhaFinalMin = duhaClampedMin + (adj.duha || 0);
-  const dhuhrFinalMin = dhuhrMin + (adj.dhuhr || 0);
-  const asrFinalMin = asrMin + (adj.asr || 0);
-  const maghribFinalMin = sunsetMin + (adj.maghrib || 0);
+  const fajrFinalMin = Math.min(sunriseFinalMin - 1, fajrMin + (adj.fajr || 0));
+  const dhuhrFinalMin = Math.max(sunriseFinalMin + 20, dhuhrMin + (adj.dhuhr || 0));
+  const duhaFinalMin = Math.max(
+    sunriseFinalMin + 1,
+    Math.min(dhuhrFinalMin - 1, duhaClampedMin + (adj.duha || 0))
+  );
+  const asrFinalMin = Math.max(dhuhrFinalMin + 1, asrMin + (adj.asr || 0));
+  const maghribFinalMin = Math.max(asrFinalMin + 1, sunsetMin + (adj.maghrib || 0));
   const ishaFinalMin = Math.max(maghribFinalMin + 1, ishaMin + (adj.isha || 0));
 
   const formatTime = (minutes: number, is12hr = false): string => {
@@ -320,9 +471,8 @@ export function calculatePrayerTimes(
   };
 
   const createDateFromMinutes = (minutes: number): Date => {
-    const d = new Date(date);
-    d.setHours(0, Math.round(minutes), 0, 0);
-    return d;
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    return new Date(d.getTime() + Math.round(minutes) * 60000);
   };
 
   const now = new Date();
@@ -358,10 +508,11 @@ export function calculatePrayerTimes(
   recordPrayerCalculationLog({
     timestamp: new Date().toISOString(),
     cityName: city?.name || 'مكة المكرمة',
-    latitude: lat,
+    latitude: rawLat,
     longitude: lng,
     methodId: method.id,
     asrMethod,
+    highLatitudeRule,
     dstMode: effectiveDstMode,
     adjustments: adj,
     chronologyValid,
@@ -380,7 +531,8 @@ export function calculateRamadanCalendar(
   asrMethod: 'standard' | 'hanafi' = 'standard',
   adjustments: Partial<Record<PrayerKey, number>> = {},
   ramadanStartDate: Date = new Date(2026, 1, 18), // Approx mid-Feb 2026 for Ramadan 1447
-  dstModeOverride?: DstMode
+  dstModeOverride?: DstMode,
+  highLatitudeRule: HighLatitudeRule = 'angle_based'
 ): RamadanDayImsakiya[] {
   const arabicDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const arabicMonths = [
@@ -398,7 +550,15 @@ export function calculateRamadanCalendar(
     const dayName = arabicDays[d.getDay()];
     const gregorianStr = `${dayName} ${d.getDate()} ${arabicMonths[d.getMonth()]}`;
 
-    const prayerTimes = calculatePrayerTimes(city, d, methodId, asrMethod, adjustments, dstModeOverride);
+    const prayerTimes = calculatePrayerTimes(
+      city,
+      d,
+      methodId,
+      asrMethod,
+      adjustments,
+      dstModeOverride,
+      highLatitudeRule
+    );
     const fajrPrayer = prayerTimes.find((p) => p.key === 'fajr')!;
     const sunrisePrayer = prayerTimes.find((p) => p.key === 'sunrise')!;
     const dhuhrPrayer = prayerTimes.find((p) => p.key === 'dhuhr')!;
@@ -673,14 +833,31 @@ export function calculateNightThirds(
   methodId: string = 'egypt',
   asrMethod: 'standard' | 'hanafi' = 'standard',
   adjustments: Partial<Record<PrayerKey, number>> = {},
-  dstModeOverride?: DstMode
+  dstModeOverride?: DstMode,
+  highLatitudeRule: HighLatitudeRule = 'angle_based'
 ): NightThirds {
-  const todayPrayers = calculatePrayerTimes(city, date, methodId, asrMethod, adjustments, dstModeOverride);
+  const todayPrayers = calculatePrayerTimes(
+    city,
+    date,
+    methodId,
+    asrMethod,
+    adjustments,
+    dstModeOverride,
+    highLatitudeRule
+  );
   const maghrib = todayPrayers.find((p) => p.key === 'maghrib') || todayPrayers[5] || todayPrayers[4];
 
   const tomorrow = new Date(date);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowPrayers = calculatePrayerTimes(city, tomorrow, methodId, asrMethod, adjustments, dstModeOverride);
+  const tomorrowPrayers = calculatePrayerTimes(
+    city,
+    tomorrow,
+    methodId,
+    asrMethod,
+    adjustments,
+    dstModeOverride,
+    highLatitudeRule
+  );
   const nextFajr = tomorrowPrayers.find((p) => p.key === 'fajr') || tomorrowPrayers[0];
 
   const nightDurationMs = nextFajr.timestamp.getTime() - maghrib.timestamp.getTime();

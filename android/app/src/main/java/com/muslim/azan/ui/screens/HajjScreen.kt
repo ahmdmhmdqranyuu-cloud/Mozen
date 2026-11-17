@@ -1,5 +1,6 @@
 package com.muslim.azan.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +38,14 @@ data class RitualStep(
 @Composable
 fun HajjScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) } // 0 = Umrah, 1 = Hajj
+
+    BackHandler {
+        if (selectedTab != 0) {
+            selectedTab = 0
+        } else {
+            onBack()
+        }
+    }
 
     val umrahSteps = remember {
         listOf(

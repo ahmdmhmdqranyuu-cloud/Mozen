@@ -70,6 +70,7 @@ public class BootReceiver extends BroadcastReceiver {
             String cityTimezoneId = prefs.getString("city_timezone_id", "Asia/Riyadh");
             String calcMethod = prefs.getString("calc_method", "umm_al_qura");
             String asrMethod = prefs.getString("asr_method", "standard");
+            String highLatRule = prefs.getString("high_latitude_rule", "angle_based");
             String azanVoice = prefs.getString("azan_voice", "makkah");
             String fajrVoice = prefs.getString("fajr_voice", "abdulbasit_fajr");
             boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
@@ -82,19 +83,23 @@ public class BootReceiver extends BroadcastReceiver {
             int ishaOff = prefs.getInt("offset_isha", 0);
 
             boolean salawatEnabled = prefs.getBoolean("salawat_enabled", true);
-            String salawatTime = prefs.getString("salawat_time", "08:00");
+            boolean salawatAutoAfterFajrIqama = prefs.getBoolean("salawat_auto_after_fajr_iqama", true);
+            String salawatTime = prefs.getString("salawat_time", "06:00");
+            String salawatEndTime = prefs.getString("salawat_end_time", "23:59");
             String salawatRepeatType = prefs.getString("salawat_repeat_type", "repeat");
             int salawatInterval = prefs.getInt("salawat_repeat_interval", 15);
             String salawatUnit = prefs.getString("salawat_repeat_unit", "minutes");
             String salawatAudio = prefs.getString("salawat_audio", "salawat_1");
+            int salawatVolumePercent = Math.max(0, Math.min(100, prefs.getInt("salawat_volume_percent", 85)));
 
             boolean morningAzkarEnabled = prefs.getBoolean("morning_azkar_enabled", true);
-            String morningAzkarTime = prefs.getString("morning_azkar_time", "06:30");
+            String morningAzkarTime = prefs.getString("morning_azkar_time", "08:00");
             String morningAzkarAudio = prefs.getString("morning_azkar_audio", "azkar_sabah");
 
             boolean eveningAzkarEnabled = prefs.getBoolean("evening_azkar_enabled", true);
-            String eveningAzkarTime = prefs.getString("evening_azkar_time", "17:00");
+            String eveningAzkarTime = prefs.getString("evening_azkar_time", "21:00");
             String eveningAzkarAudio = prefs.getString("evening_azkar_audio", "azkar_massa");
+            int azkarVolumePercent = Math.max(0, Math.min(100, prefs.getInt("azkar_volume_percent", 100)));
 
             boolean musaharatiEnabled = prefs.getBoolean("musaharati_enabled", false);
             String musaharatiTime = prefs.getString("musaharati_time", "03:30");
@@ -173,18 +178,19 @@ public class BootReceiver extends BroadcastReceiver {
 
                 double tzOffsetHours = PrayerTimeCalculator.resolveTimezoneOffsetHours(
                         cityTimezoneId,
-                        cityDayCal.getTimeInMillis()
+                        cityDayCal.getTimeInMillis(),
+                        lng
                 );
 
                 PrayerTimeCalculator.DailyPrayerTimes times = PrayerTimeCalculator.calculateDailyPrayers(
-                        cityDayCal, lat, lng, tzOffsetHours, calcMethod, asrMethod
+                        cityDayCal, lat, lng, tzOffsetHours, calcMethod, asrMethod, highLatRule
                 ).withOffsets(
                         offsets[0], offsets[1], offsets[2], offsets[3], offsets[4], offsets[5], offsets[6]
                 );
                 if (dayOffset == 0) {
                     Log.d(TAG, "Day0 inputs -> city=" + cityName + ", lat=" + lat + ", lng=" + lng
                             + ", tz=" + tzOffsetHours + ", method=" + calcMethod + ", asr=" + asrMethod
-                            + ", validOrder=" + times.isChronologicallyValid());
+                            + ", highLat=" + highLatRule + ", validOrder=" + times.isChronologicallyValid());
                 }
 
                 int[] prayerMinutes = {
@@ -271,7 +277,7 @@ public class BootReceiver extends BroadcastReceiver {
                 }
 
                 if (morningAzkarEnabled) {
-                    int morningMins = parseHHmm(morningAzkarTime, 6, 30);
+                    int morningMins = parseHHmm(morningAzkarTime, 8, 0);
                     long morningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, morningMins);
                     if (morningEpochMs > nowMs) {
                         JSONObject mObj = new JSONObject();
@@ -280,13 +286,14 @@ public class BootReceiver extends BroadcastReceiver {
                         mObj.put("body", "أصبحنا وأصبح الملك لله والحمد لله.. حان وقت أذكار الصباح لحفظك ويومك المبارك.");
                         mObj.put("triggerEpochMs", morningEpochMs);
                         mObj.put("audioTrackId", morningAzkarAudio);
+                        mObj.put("volumePercent", azkarVolumePercent);
                         mObj.put("autoPlay", true);
                         priorityArray.put(mObj);
                     }
                 }
 
                 if (eveningAzkarEnabled) {
-                    int eveningMins = parseHHmm(eveningAzkarTime, 17, 0);
+                    int eveningMins = parseHHmm(eveningAzkarTime, 21, 0);
                     long eveningEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, eveningMins);
                     if (eveningEpochMs > nowMs) {
                         JSONObject eObj = new JSONObject();
@@ -295,6 +302,7 @@ public class BootReceiver extends BroadcastReceiver {
                         eObj.put("body", "أمسينا وأمسى الملك لله والحمد لله.. حان وقت أذكار المساء لطمأنينة القلب وحفظ الأهل.");
                         eObj.put("triggerEpochMs", eveningEpochMs);
                         eObj.put("audioTrackId", eveningAzkarAudio);
+                        eObj.put("volumePercent", azkarVolumePercent);
                         eObj.put("autoPlay", true);
                         priorityArray.put(eObj);
                     }
@@ -317,8 +325,15 @@ public class BootReceiver extends BroadcastReceiver {
 
                 // 2. Schedule periodic Salawat only for today and tomorrow (max 60 slots)
                 if (salawatEnabled && dayOffset < 2 && salawatArray.length() < 60) {
-                    int salawatStartMins = parseHHmm(salawatTime, 8, 0);
-                    long salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, salawatStartMins);
+                    long salawatStartEpochMs;
+                    if (salawatAutoAfterFajrIqama && !"once".equalsIgnoreCase(salawatRepeatType)) {
+                        long fajrEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, times.fajrMinutes);
+                        int fajrIqamaDelayMins = 15;
+                        salawatStartEpochMs = fajrEpochMs + (fajrIqamaDelayMins + 1) * 60_000L;
+                    } else {
+                        int salawatStartMins = parseHHmm(salawatTime, 6, 0);
+                        salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, salawatStartMins);
+                    }
 
                     if ("once".equalsIgnoreCase(salawatRepeatType)) {
                         if (salawatStartEpochMs > nowMs) {
@@ -328,6 +343,7 @@ public class BootReceiver extends BroadcastReceiver {
                             sObj.put("body", "«إن الله وملائكته يصلون على النبي يا أيها الذين آمنوا صلوا عليه وسلموا تسليما».");
                             sObj.put("triggerEpochMs", salawatStartEpochMs);
                             sObj.put("audioTrackId", salawatAudio);
+                            sObj.put("volumePercent", salawatVolumePercent);
                             sObj.put("autoPlay", true);
                             salawatArray.put(sObj);
                         }
@@ -335,7 +351,14 @@ public class BootReceiver extends BroadcastReceiver {
                         long stepMs = salawatInterval * ("hours".equalsIgnoreCase(salawatUnit) ? 3600000L : 60000L);
                         if (stepMs < 60000L) stepMs = 60000L;
 
-                        long salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, 22 * 60);
+                        long salawatEndEpochMs;
+                        if (salawatAutoAfterFajrIqama || "00:00".equals(salawatEndTime) || "23:59".equals(salawatEndTime)) {
+                            salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, 23 * 60 + 59) + 59_999L;
+                        } else {
+                            int endMins = parseHHmm(salawatEndTime, 23, 59);
+                            salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, endMins);
+                        }
+
                         long currentSlotMs = salawatStartEpochMs;
 
                         while (currentSlotMs <= salawatEndEpochMs && salawatArray.length() < 60) {
@@ -346,6 +369,7 @@ public class BootReceiver extends BroadcastReceiver {
                                 sObj.put("body", "«إن الله وملائكته يصلون على النبي يا أيها الذين آمنوا صلوا عليه وسلموا تسليما».");
                                 sObj.put("triggerEpochMs", currentSlotMs);
                                 sObj.put("audioTrackId", salawatAudio);
+                                sObj.put("volumePercent", salawatVolumePercent);
                                 sObj.put("autoPlay", true);
                                 salawatArray.put(sObj);
                             }

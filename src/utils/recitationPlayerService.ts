@@ -14,6 +14,7 @@ import {
 } from '../data/recitersData';
 import { recitationOfflineManager } from './recitationOfflineManager';
 import { userStatsTracker } from './userStatsTracker';
+import { audioPriorityCoordinator } from './audioPriorityCoordinator';
 
 export interface RecitationPlayerState {
   currentSurah: SurahAudioItem | null;
@@ -35,6 +36,7 @@ class RecitationPlayerService {
   private candidateIndex: number = 0;
   private listeners: Set<Listener> = new Set();
   private lastTrackedPlaybackTime: number = 0;
+  private activeToken: string | null = null;
 
   private state: RecitationPlayerState = {
     currentSurah: null,
@@ -47,6 +49,26 @@ class RecitationPlayerService {
     isExpanded: false,
     errorMessage: null,
   };
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('AUDIO_PLAYBACK_START', (e: Event) => {
+        const custom = e as CustomEvent<{ source?: string }>;
+        if (custom.detail?.source === 'soundService' || custom.detail?.source === 'disk') {
+          if (this.audio && !this.audio.paused) {
+            this.audio.pause();
+            this.updateState({ isPlaying: false });
+          }
+        }
+      });
+    }
+    audioPriorityCoordinator.onPreempt((_prio, source) => {
+      if (source !== 'recitation' && this.audio && !this.audio.paused) {
+        this.audio.pause();
+        this.updateState({ isPlaying: false });
+      }
+    });
+  }
 
   public getState(): RecitationPlayerState {
     return { ...this.state };
@@ -111,7 +133,22 @@ class RecitationPlayerService {
       return;
     }
 
+    const token = `recitation_${surah.number}_${Date.now()}`;
+    const outcome = audioPriorityCoordinator.requestStart(token, 'recitation', 'recitation', {
+      forceUserAction: true,
+    });
+    if (outcome !== 'started') {
+      return;
+    }
+
     this.cleanupCurrentAudio();
+    this.activeToken = token;
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'recitation' } })
+      );
+    }
 
     this.updateState({
       currentSurah: surah,
@@ -202,6 +239,9 @@ class RecitationPlayerService {
     audio.onended = () => {
       if (this.audio !== audio) return;
       this.updateState({ isPlaying: false, currentTime: 0 });
+      const tok = this.activeToken;
+      this.activeToken = null;
+      if (tok) audioPriorityCoordinator.notifyFinished(tok);
       this.playNextSurah();
     };
 
@@ -212,6 +252,9 @@ class RecitationPlayerService {
       if (this.candidateIndex < this.candidateUrls.length) {
         this.loadAndPlayCurrentCandidate();
       } else {
+        const tok = this.activeToken;
+        this.activeToken = null;
+        if (tok) audioPriorityCoordinator.notifyFinished(tok);
         this.updateState({
           isLoading: false,
           isPlaying: false,
@@ -254,7 +297,23 @@ class RecitationPlayerService {
     if (this.state.isPlaying && !this.audio.paused) {
       this.audio.pause();
       this.updateState({ isPlaying: false });
+      const tok = this.activeToken;
+      this.activeToken = null;
+      if (tok) audioPriorityCoordinator.notifyFinished(tok);
     } else {
+      const token = `recitation_resume_${Date.now()}`;
+      const outcome = audioPriorityCoordinator.requestStart(token, 'recitation', 'recitation', {
+        forceUserAction: true,
+      });
+      if (outcome !== 'started') {
+        return;
+      }
+      this.activeToken = token;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'recitation' } })
+        );
+      }
       this.audio
         .play()
         .then(() => this.updateState({ isPlaying: true, errorMessage: null }))
@@ -305,6 +364,9 @@ class RecitationPlayerService {
 
   public stopAndClose() {
     this.cleanupCurrentAudio();
+    const tok = this.activeToken;
+    this.activeToken = null;
+    if (tok) audioPriorityCoordinator.notifyFinished(tok);
     this.updateState({
       currentSurah: null,
       isPlaying: false,

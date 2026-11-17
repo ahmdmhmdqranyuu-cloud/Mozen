@@ -47,7 +47,7 @@ export interface CityLocation {
   district?: string;
   neighborhood?: string;
   street?: string;
-  source?: 'offline' | 'gps' | 'saved_gps' | 'osm';
+  source?: 'offline' | 'gps' | 'saved_gps' | 'osm' | 'manual';
   accuracyMeters?: number;
   detectedAt?: string;
   isSavedLocation?: boolean;
@@ -192,6 +192,7 @@ export interface RamadanFastingDayRecord {
 }
 
 export type DstMode = 'auto' | 'summer' | 'winter';
+export type HighLatitudeRule = 'angle_based' | 'one_seventh' | 'middle_of_night' | 'safe_latitude';
 
 export interface UserProfile {
   name: string;
@@ -200,6 +201,7 @@ export interface UserProfile {
   dstMode?: DstMode;
   city: CityLocation;
   calculationMethod: string;
+  highLatitudeRule?: HighLatitudeRule;
   asrJuristicMethod?: 'standard' | 'hanafi';
   asrMethod?: 'standard' | 'hanafi';
   manualPrayerAdjustments?: Partial<Record<PrayerKey, number>>;

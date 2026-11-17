@@ -72,13 +72,29 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
     } catch {}
   }, [azkarItems]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleBack = (e: Event) => {
+      e.preventDefault();
+      soundService.stopAudio();
+      setPlayingAudioTrack(null);
+      if (isIndexOpen) {
+        setIsIndexOpen(false);
+      } else if (viewMode === 'detail') {
+        setViewMode('index');
+      } else {
+        onClose();
+      }
+    };
+    window.addEventListener('moazenBackRequested', handleBack);
+    return () => window.removeEventListener('moazenBackRequested', handleBack);
+  }, [isOpen, isIndexOpen, viewMode, onClose]);
+
   if (!isOpen) return null;
 
   const currentPhrase = TASBIH_PHRASES[selectedPhraseIndex];
 
-  const handleToggleAzkarAudio = () => {
-    const file =
-      azkarCategory === 'masaa' ? '/audio/azkar_massa.mp3' : '/audio/azkar_sabah.mp3';
+  const handlePlayPreviewTrack = (file: string) => {
     if (playingAudioTrack === file) {
       soundService.stopAudio();
       setPlayingAudioTrack(null);
@@ -86,6 +102,12 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
       setPlayingAudioTrack(file);
       soundService.playTrack(file, file, 'azkar', () => setPlayingAudioTrack(null));
     }
+  };
+
+  const handleToggleAzkarAudio = () => {
+    const file =
+      azkarCategory === 'masaa' ? '/audio/azkar_massa.mp3' : '/audio/azkar_sabah.mp3';
+    handlePlayPreviewTrack(file);
   };
 
   const handleIncrementAzkar = (id: string, maxCount: number) => {
@@ -162,7 +184,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
 
   const handleCopyDhikr = (item: AzkarItem) => {
     const catLabel = categoryTabs.find((c) => c.id === item.category)?.label || 'الأذكار';
-    const text = `📿 ${catLabel}\n\n${item.text}\n\n${item.fadl ? `✨ الفضل: ${item.fadl}\n` : ''}📚 المصدر: ${item.source || 'حصن المسلم'}\n— تطبيق المؤذن`;
+    const text = `📿 ${catLabel}\n\n${item.text}\n\n${item.fadl ? `✨ الفضل: ${item.fadl}\n` : ''}📚 المصدر: ${item.source || 'حصن المسلم'}\n— تطبيق مسلم بلس`;
     navigator.clipboard?.writeText(text);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -189,9 +211,9 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#F7F6F2] flex flex-col overflow-x-hidden select-none animate-fadeIn" dir="rtl">
-      {/* Clean White Header (No Green) */}
-      <div className="bg-white text-[#172A28] px-4 pt-5 pb-3.5 shadow-sm border-b border-gray-100 shrink-0">
+    <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-x-hidden select-none animate-fadeIn" dir="rtl">
+      {/* Creamy-Ivory Header */}
+      <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3.5 shadow-sm border-b border-[#C5A059]/35 shrink-0">
         <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto w-full">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
@@ -204,7 +226,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                   onClose();
                 }
               }}
-              className="w-10 h-10 rounded-full bg-[#F7F6F2] hover:bg-gray-200 flex items-center justify-center text-[#172A28] transition-colors shrink-0 cursor-pointer"
+              className="w-10 h-10 rounded-full bg-[#EFE8CE]/80 hover:bg-[#EFE8CE] flex items-center justify-center text-[#104B40] transition-colors shrink-0 cursor-pointer border border-[#C5A059]/35"
               aria-label="رجوع"
             >
               <ArrowRight className="w-5 h-5" />
@@ -330,11 +352,11 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
       {viewMode === 'index' ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2.5 pb-24 max-w-2xl mx-auto w-full">
           {/* Quick Top Card */}
-          <div className="moazen-widget rounded-2xl p-3.5 border border-gray-100 shadow-xs flex items-center justify-between">
+          <div className="moazen-widget rounded-2xl p-3.5 border border-[#C5A059]/35 shadow-xs flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-black text-[#172A28] font-cairo">فهرس أبواب الأذكار والسبحة</h3>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                اختر أي باب من الفهرس الرأسي لفتح صفحته المستقلة بكامل الأذكار والعداد التفاعلي
+              <h3 className="text-sm font-black text-[#104B40] font-cairo">فهرس أبواب الأذكار والسبحة</h3>
+              <p className="text-[11px] text-[#4B5B58] mt-0.5">
+                اختر أي باب من الفهرس الرأسي أو استمع لمعاينة أذكار الصباح والمساء مباشرة
               </p>
             </div>
             <button
@@ -349,6 +371,66 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
             </button>
           </div>
 
+          {/* Audio Preview Box: Morning & Evening Azkar */}
+          <div className="moazen-widget rounded-2xl p-3 border border-[#C5A059]/45 shadow-xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-[#104B40] flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4 text-[#9A7732]" />
+                <span>معاينة التلاوة الصوتية لأذكار الصباح والمساء</span>
+              </span>
+              {playingAudioTrack && (
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full animate-pulse">
+                  يعمل الآن
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handlePlayPreviewTrack('/audio/azkar_sabah.mp3')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                  playingAudioTrack === '/audio/azkar_sabah.mp3'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'moazen-widget-sub text-[#104B40] border-[#C5A059]/40 hover:border-[#104B40]'
+                }`}
+              >
+                {playingAudioTrack === '/audio/azkar_sabah.mp3' ? (
+                  <>
+                    <VolumeX className="w-4 h-4" />
+                    <span>إيقاف الصباح</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4 text-[#9A7732]" />
+                    <span>سماع أذكار الصباح</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePlayPreviewTrack('/audio/azkar_massa.mp3')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                  playingAudioTrack === '/audio/azkar_massa.mp3'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'moazen-widget-sub text-[#104B40] border-[#C5A059]/40 hover:border-[#104B40]'
+                }`}
+              >
+                {playingAudioTrack === '/audio/azkar_massa.mp3' ? (
+                  <>
+                    <VolumeX className="w-4 h-4" />
+                    <span>إيقاف المساء</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4 text-[#9A7732]" />
+                    <span>سماع أذكار المساء</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           {categoryTabs.map((cat, idx) => {
             const catItems = azkarItems.filter((i) => i.category === cat.id);
             const completedCount = catItems.filter((i) => i.currentCount >= i.count).length;
@@ -361,8 +443,8 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
                   setAzkarCategory(cat.id);
                   setViewMode('detail');
                 }}
-                className={`w-full text-right bg-white hover:bg-[#FAF9F5] p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer shadow-xs group ${
-                  isAllDone ? 'border-emerald-400' : 'border-gray-100 hover:border-[#C5A059]/60'
+                className={`moazen-widget w-full text-right p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer shadow-xs group ${
+                  isAllDone ? 'border-emerald-500' : 'border-[#C5A059]/35 hover:border-[#C5A059]'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -499,8 +581,8 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
             return (
               <div
                 key={item.id}
-                className={`p-5 rounded-2xl bg-white border transition-all shadow-xs ${
-                  isComplete ? 'border-emerald-400' : 'border-gray-100'
+                className={`moazen-widget p-5 rounded-2xl border transition-all shadow-xs ${
+                  isComplete ? 'border-emerald-500' : 'border-[#C5A059]/35'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">

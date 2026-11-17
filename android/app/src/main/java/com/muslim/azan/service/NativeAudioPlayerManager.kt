@@ -3,10 +3,14 @@ package com.muslim.azan.service
 import android.content.Context
 import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.muslim.azan.AzkarAudioService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +20,31 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
     private const val TAG = "NativeAudioPlayer"
 
     private var mediaPlayer: MediaPlayer? = null
+    private var audioManager: AudioManager? = null
+    private var focusRequest: AudioFocusRequest? = null
     private val handler = Handler(Looper.getMainLooper())
+
+    private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                mediaPlayer?.let { player ->
+                    try {
+                        if (player.isPlaying) {
+                            player.pause()
+                            _isPlaying.value = false
+                            handler.removeCallbacks(progressRunnable)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                mediaPlayer?.setVolume(0.25f, 0.25f)
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                mediaPlayer?.setVolume(1.0f, 1.0f)
+            }
+        }
+    }
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -53,8 +81,50 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         }
     }
 
+    private fun requestFocus(context: Context) {
+        val am = (context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager) ?: return
+        audioManager = am
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(focusChangeListener)
+                .build()
+            focusRequest = req
+            am.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(focusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        }
+    }
+
+    private fun abandonFocus() {
+        val am = audioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            focusRequest?.let { am.abandonAudioFocusRequest(it) }
+            focusRequest = null
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(focusChangeListener)
+        }
+    }
+
+    private fun isPriorityAzanBlocked(): Boolean {
+        return AzkarAudioService.isPlayingNow &&
+            AzkarAudioService.getSectionPriority(AzkarAudioService.currentSection) >= 4
+    }
+
     fun playAssetAudio(context: Context, assetPath: String, title: String, subtitle: String) {
+        if (isPriorityAzanBlocked()) {
+            Log.d(TAG, "Azan/Iqama active; deferring media playback: $title")
+            return
+        }
         stop()
+        requestFocus(context)
         try {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -106,6 +176,9 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 _currentDurationMs.value = player.duration.toLong()
 
                 handler.post(progressRunnable)
+            } else {
+                player.release()
+                abandonFocus()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error playing asset audio: $assetPath", e)
@@ -114,7 +187,12 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
     }
 
     fun playUrlAudio(context: Context, url: String, title: String, subtitle: String) {
+        if (isPriorityAzanBlocked()) {
+            Log.d(TAG, "Azan/Iqama active; deferring streamed playback: $title")
+            return
+        }
         stop()
+        requestFocus(context)
         try {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -129,6 +207,10 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             }
 
             player.setOnPreparedListener { mp ->
+                if (isPriorityAzanBlocked()) {
+                    stop()
+                    return@setOnPreparedListener
+                }
                 mp.start()
                 mediaPlayer = mp
                 _currentTitle.value = title
@@ -154,6 +236,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 _isPlaying.value = false
                 handler.removeCallbacks(progressRunnable)
             } else {
+                if (isPriorityAzanBlocked()) return
                 player.start()
                 _isPlaying.value = true
                 handler.post(progressRunnable)
@@ -181,6 +264,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             } catch (ignored: Exception) {}
         }
         mediaPlayer = null
+        abandonFocus()
         _isPlaying.value = false
         _currentProgress.value = 0f
         _currentPositionMs.value = 0L

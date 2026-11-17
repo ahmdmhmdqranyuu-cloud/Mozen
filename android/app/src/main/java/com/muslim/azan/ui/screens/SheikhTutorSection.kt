@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -157,6 +158,19 @@ fun SheikhTutorSection(
     var showPagePicker by remember { mutableStateOf(false) }
     var pageInputStr by remember { mutableStateOf(selectedPageNum.toString()) }
     var showReciterPicker by remember { mutableStateOf(false) }
+
+    BackHandler {
+        when {
+            selectedWordDetail != null -> selectedWordDetail = null
+            showReciterPicker -> showReciterPicker = false
+            showPagePicker -> showPagePicker = false
+            showAyahPicker -> showAyahPicker = false
+            showSurahPicker -> showSurahPicker = false
+            showSessionControls -> showSessionControls = false
+            activeTab != 0 -> activeTab = 0
+            else -> onBack()
+        }
+    }
 
     // Session metrics
     val sessionStartMs = remember { System.currentTimeMillis() }

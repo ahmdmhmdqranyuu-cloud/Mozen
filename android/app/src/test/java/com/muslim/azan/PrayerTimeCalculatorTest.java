@@ -70,4 +70,49 @@ public class PrayerTimeCalculatorTest {
         assertEquals(600, PrayerTimeCalculator.calculateRemainingIqamaSeconds(15, 300));
         assertEquals(0, PrayerTimeCalculator.calculateRemainingIqamaSeconds(15, 950));
     }
+
+    @Test
+    public void highLatitudeRules_produceValidChronologyInPolarAndSubPolarZones() {
+        String[] rules = {"angle_based", "one_seventh", "middle_of_night", "safe_latitude"};
+        // Oslo (59.9139 N, 10.7522 E) in midsummer (day 172)
+        for (String rule : rules) {
+            PrayerTimeCalculator.DailyPrayerTimes oslo = PrayerTimeCalculator.calculateDailyPrayers(
+                    59.9139, 10.7522, 2.0, 172, "mwl", "standard", rule
+            );
+            assertTrue("Oslo must be chronologically valid for rule " + rule, oslo.isChronologicallyValid());
+        }
+
+        // Tromso (69.6492 N, 18.9553 E) polar summer (day 172) & polar winter (day 355)
+        for (String rule : rules) {
+            PrayerTimeCalculator.DailyPrayerTimes tromsoSummer = PrayerTimeCalculator.calculateDailyPrayers(
+                    69.6492, 18.9553, 2.0, 172, "mwl", "standard", rule
+            );
+            PrayerTimeCalculator.DailyPrayerTimes tromsoWinter = PrayerTimeCalculator.calculateDailyPrayers(
+                    69.6492, 18.9553, 1.0, 355, "mwl", "standard", rule
+            );
+            assertTrue("Tromso summer valid for " + rule, tromsoSummer.isChronologicallyValid());
+            assertTrue("Tromso winter valid for " + rule, tromsoWinter.isChronologicallyValid());
+        }
+
+        // Southern hemisphere Ushuaia (-54.8019 S, -68.3030 W)
+        PrayerTimeCalculator.DailyPrayerTimes ushuaia = PrayerTimeCalculator.calculateDailyPrayers(
+                -54.8019, -68.3030, -3.0, 355, "mwl", "standard", "angle_based"
+        );
+        assertTrue("Ushuaia southern solstice valid", ushuaia.isChronologicallyValid());
+    }
+
+    @Test
+    public void longitudeTimezoneFallback_andCoordinateSanitization_areBounded() {
+        assertEquals(3.0, PrayerTimeCalculator.estimateTimezoneOffsetFromLongitude(39.8262), 0.01);
+        assertEquals(-5.0, PrayerTimeCalculator.estimateTimezoneOffsetFromLongitude(-74.006), 0.01);
+        assertEquals(9.0, PrayerTimeCalculator.estimateTimezoneOffsetFromLongitude(139.6917), 0.01);
+
+        double resolvedCairo = PrayerTimeCalculator.resolveTimezoneOffsetHours("", 1_700_000_000_000L, 31.2357);
+        assertEquals(2.0, resolvedCairo, 0.01);
+
+        assertEquals(90.0, PrayerTimeCalculator.sanitizeLatitude(125.0), 0.001);
+        assertEquals(-90.0, PrayerTimeCalculator.sanitizeLatitude(-110.0), 0.001);
+        assertEquals(180.0, PrayerTimeCalculator.sanitizeLongitude(240.0), 0.001);
+        assertEquals(-180.0, PrayerTimeCalculator.sanitizeLongitude(-220.0), 0.001);
+    }
 }

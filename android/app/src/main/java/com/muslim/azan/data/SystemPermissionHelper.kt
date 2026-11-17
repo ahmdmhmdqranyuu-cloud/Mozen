@@ -275,6 +275,11 @@ object SystemPermissionHelper {
         }
 
         val location = fetchHighAccuracyLocation(context)
+            ?.takeIf { loc ->
+                !loc.latitude.isNaN() && !loc.longitude.isNaN() &&
+                    loc.latitude in -90.0..90.0 && loc.longitude in -180.0..180.0 &&
+                    !(kotlin.math.abs(loc.latitude) < 1e-4 && kotlin.math.abs(loc.longitude) < 1e-4)
+            }
             ?: return Result.failure(IllegalStateException("تعذر التقاط إشارة GPS حاليًا، يمكنك إعادة المحاولة أو استخدام آخر موقع محفوظ"))
 
         val geocode = withTimeoutOrNull(3_500L) {

@@ -52,7 +52,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
     await shareIslamicText({
       title: `سؤال وجواب في ${q.categoryLabel}`,
       body: `❓ السؤال: ${q.question}\n\n✅ الإجابة الصحيحة: ${q.options[q.correctIndex]}\n\n💡 الفائدة العلمية: ${q.explanation}`,
-      source: 'موسوعة المسابقات الإسلامية - تطبيق المؤذن',
+      source: 'موسوعة المسابقات الإسلامية - تطبيق مسلم بلس',
     });
   };
 
@@ -61,7 +61,7 @@ export const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose }) => {
       categoryBadge: `مسابقة وموسوعة • ${q.categoryLabel}`,
       title: q.question,
       mainText: `الإجابة الصحيحة: ${q.options[q.correctIndex]}\n\n${q.explanation}`,
-      referenceText: 'موسوعة المسابقات الإسلامية - تطبيق المؤذن',
+      referenceText: 'موسوعة المسابقات الإسلامية - تطبيق مسلم بلس',
     });
   };
 

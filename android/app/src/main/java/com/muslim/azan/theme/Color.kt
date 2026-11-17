@@ -1,35 +1,54 @@
 package com.muslim.azan.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-val EmeraldDeep = Color(0xFF09241C)
-val EmeraldSurface = Color(0xFF13382D)
-val EmeraldSurfaceLight = Color(0xFF1D4D3E)
-val EmeraldPrimary = Color(0xFF10B981)
-val EmeraldPrimaryDark = Color(0xFF059669)
+// Legacy aliases remapped softly so any unedited screen harmonizes with the new palette
+val EmeraldDeep = Color(0xFFDCE5CC)
+val EmeraldSurface = Color(0xE8F7F4E8)
+val EmeraldSurfaceLight = Color(0xEEFBF9EF)
+val EmeraldPrimary = Color(0xFF104B40)
+val EmeraldPrimaryDark = Color(0xFF0D5C3E)
 
-val GoldAccent = Color(0xFFF59E0B)
-val GoldDark = Color(0xFFD97706)
-val GoldLight = Color(0xFFFDE68A)
+val GoldAccent = Color(0xFFC5A059)
+val GoldDark = Color(0xFF9A7732)
+val GoldLight = Color(0xFFF3E5B5)
 
-val TextPrimary = Color(0xFFECFDF5)
-val TextSecondary = Color(0xFF9CA3AF)
-val TextTertiary = Color(0xFF6EE7B7)
+val TextPrimary = Color(0xFF104B40)
+val TextSecondary = Color(0xFF4B5B58)
+val TextTertiary = Color(0xFF1E6B52)
 
-val CardBackground = Color(0xFF13382D)
-val CardBorder = Color(0xFF1F5141)
+val CardBackground = Color(0xFFF6EEDC)
+val CardBorder = Color(0xFFD6C18D)
 
-val ErrorRed = Color(0xFFEF4444)
-val SuccessGreen = Color(0xFF10B981)
+val ErrorRed = Color(0xFFDC2626)
+val SuccessGreen = Color(0xFF0D7A52)
 
-// Unified Home Quran Banner Card Palette (#EBF5F1 -> #F4F8F6 + high-contrast dark emerald ink)
-val MoazenCardStart = Color(0xFFEBF5F1)
-val MoazenCardEnd = Color(0xFFF4F8F6)
-val MoazenSubCardBg = Color(0xB8FFFFFF)
-val MoazenCardBorder = Color(0x1F022C22)
+// Unified Muslim Plus Olive-Ivory Canvas Gradient (Home & Settings)
+val MuslimPlusCanvasTop = Color(0xFFC7D7B1)
+val MuslimPlusCanvasMid = Color(0xFFE0E8CE)
+val MuslimPlusCanvasBottom = Color(0xFFF2EFE1)
+
+val MuslimPlusCanvasBrush: Brush
+    get() = Brush.verticalGradient(
+        colors = listOf(
+            MuslimPlusCanvasTop,
+            MuslimPlusCanvasMid,
+            MuslimPlusCanvasBottom
+        )
+    )
+
+// Unified Translucent Creamy-Ivory Glassmorphic Widget Palette
+val MoazenCardStart = Color(0xFFF6EEDC)
+val MoazenCardEnd = Color(0xFFEDE2C8)
+val MoazenSubCardBg = Color(0xFFF4EAD4)
+val MoazenCardBorder = Color(0xFFD6C18D)
 val MoazenInkPrimary = Color(0xFF172A28)
 val MoazenInkEmerald = Color(0xFF104B40)
 val MoazenInkMuted = Color(0xFF4B5B58)
 val MoazenGold = Color(0xFFC5A059)
 val MoazenGoldDark = Color(0xFF9A7732)
+val MuslimPlusBadgeGreen = Color(0x336AA06E)
+val MuslimPlusPillEmerald = Color(0xFF0D5C3E)
+
 

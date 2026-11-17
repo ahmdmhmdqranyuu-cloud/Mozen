@@ -329,7 +329,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
 
   const handleCopyStory = (prophet: ProphetStory) => {
     const extraInfo = PROPHET_EXTRA_DETAILS[prophet.id];
-    const fullText = `قصة ${prophet.name} (${prophet.title})\n\n${prophet.summary}\n\n${prophet.detailedStory}\n\n${extraInfo?.expandedNarrative || ''}\n\nالدروس والعبر:\n• ${prophet.lessons.join('\n• ')}\n\nالشاهد القرآني: ﴿${prophet.quranVerse}﴾ [${prophet.quranSurah}]\n\nمن تطبيق المؤذن الإسلامي`;
+    const fullText = `قصة ${prophet.name} (${prophet.title})\n\n${prophet.summary}\n\n${prophet.detailedStory}\n\n${extraInfo?.expandedNarrative || ''}\n\nالدروس والعبر:\n• ${prophet.lessons.join('\n• ')}\n\nالشاهد القرآني: ﴿${prophet.quranVerse}﴾ [${prophet.quranSurah}]\n\nمن تطبيق مسلم بلس`;
     navigator.clipboard?.writeText(fullText);
     setCopiedId(prophet.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -349,12 +349,12 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
       title: prophet.name,
       mainText: `${prophet.summary}\n\n✨ من العبر المستفادة: ${prophet.lessons[0] || ''}`,
       referenceText: `﴿${prophet.quranVerse}﴾ [${prophet.quranSurah}]`,
-      footer: 'موسوعة قصص الأنبياء والمرسلين — تطبيق المؤذن',
+      footer: 'موسوعة قصص الأنبياء والمرسلين — تطبيق مسلم بلس',
     });
   };
 
   const handleCopyRighteous = (person: RighteousStory) => {
-    const fullText = `قصة ${person.name} (${person.title})\nالعصر: ${person.era}\n\n${person.summary}\n\n${person.fullStory}\n\nالدروس والعبر:\n• ${person.virtuesAndLessons.join('\n• ')}\n\nمن أقواله ومآثره: ${person.famousQuote}\nالمصدر: ${person.source}\n\nمن تطبيق المؤذن الإسلامي`;
+    const fullText = `قصة ${person.name} (${person.title})\nالعصر: ${person.era}\n\n${person.summary}\n\n${person.fullStory}\n\nالدروس والعبر:\n• ${person.virtuesAndLessons.join('\n• ')}\n\nمن أقواله ومآثره: ${person.famousQuote}\nالمصدر: ${person.source}\n\nمن تطبيق مسلم بلس`;
     navigator.clipboard?.writeText(fullText);
     setCopiedId(person.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -374,7 +374,7 @@ export const ProphetsModal: React.FC<ProphetsModalProps> = ({
       title: `${person.name} (${person.title})`,
       mainText: `${person.summary}\n\n✨ من العبر المستفادة: ${person.virtuesAndLessons[0] || ''}`,
       referenceText: person.source,
-      footer: 'موسوعة قصص الأنبياء والصالحين — تطبيق المؤذن',
+      footer: 'موسوعة قصص الأنبياء والصالحين — تطبيق مسلم بلس',
     });
   };
 

@@ -67,6 +67,10 @@ class NativeLocationAndCompassManager(private val context: Context) : SensorEven
             var bestLocation: Location? = null
             for (provider in providers) {
                 val l = lm.getLastKnownLocation(provider) ?: continue
+                val isValidCoords = !l.latitude.isNaN() && !l.longitude.isNaN() &&
+                    l.latitude in -90.0..90.0 && l.longitude in -180.0..180.0 &&
+                    !(abs(l.latitude) < 1e-4 && abs(l.longitude) < 1e-4)
+                if (!isValidCoords) continue
                 if (bestLocation == null || l.accuracy < bestLocation.accuracy) {
                     bestLocation = l
                 }

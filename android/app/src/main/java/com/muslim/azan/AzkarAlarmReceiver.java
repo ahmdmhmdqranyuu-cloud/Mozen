@@ -65,6 +65,13 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
 
         SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
 
+        if (!isTestAlarm
+                && !AzkarAudioService.canPreemptCurrentPlayback(section)
+                && !AzkarAudioService.shouldQueueWhenBlocked(section)) {
+            Log.d(TAG, "Skipping duplicate/lower trigger (" + section + ") while active: " + AzkarAudioService.currentSection);
+            return;
+        }
+
         // Cooldown deduplication (skip for explicit user background tests so repeated tests always fire)
         if (!isTestAlarm) {
             String dedupKey;
@@ -188,8 +195,8 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
 
             int notifId = 3000 + Math.abs((section != null ? section : "fallback").hashCode() % 100);
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, FALLBACK_CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                    .setContentTitle(title != null && !title.isEmpty() ? title : "تطبيق المؤذن")
+                    .setSmallIcon(R.drawable.ic_notification_muslim_plus)
+                    .setContentTitle(title != null && !title.isEmpty() ? title : "مسلم بلس")
                     .setContentText(body != null && !body.isEmpty() ? body : "حان موعد الصلاة والأذكار")
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)

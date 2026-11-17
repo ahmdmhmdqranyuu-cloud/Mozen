@@ -1,6 +1,7 @@
 package com.muslim.azan.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +29,7 @@ import com.muslim.azan.ui.components.MoazenWidgetCard
 fun DuasScreen(
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     val initialDuas = listOf(
         DuaItem("d1", "دعاء الفرج وكشف الكرب", "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ.", "القرآن الكريم - سورة الأنبياء", "الكرب والهم"),
@@ -101,7 +103,7 @@ fun DuasScreen(
 
                                 IconButton(
                                     onClick = {
-                                        val shareText = "«${dua.arabicText}»\n- ${dua.source}\nتطبيق المؤذن"
+                                        val shareText = "«${dua.arabicText}»\n- ${dua.source}\nتطبيق مسلم بلس"
                                         val intent = Intent(Intent.ACTION_SEND).apply {
                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                             type = "text/plain"

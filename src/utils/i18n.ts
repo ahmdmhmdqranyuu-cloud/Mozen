@@ -409,6 +409,10 @@ export interface TranslationDictionary {
   settingsAlarmTitle: string;
   settingsAlarmDesc: string;
   permLockScreenBenefitText: string;
+  settingsChangeLangTitle: string;
+  allSettingsLabel: string;
+  backToAllSettingsLabel: string;
+  saveChangesInSectionLabel: (sectionTitle: string) => string;
 }
 
 const EXTRA_STRINGS_AR = {
@@ -578,6 +582,10 @@ const EXTRA_STRINGS_AR = {
   settingsAlarmTitle: "المنبهات الدقيقة وجدولة التنبيهات",
   settingsAlarmDesc: "لتشغيل صوت الأذان في نفس ثانية دخول الوقت بدقة بالغة",
   permLockScreenBenefitText: 'إضاءة الشاشة عند دخول وقت الصلاة وعرض واجهة الأذان مباشرة لتعطيل الصوت أو معرفة موعد الإقامة بسهولة.',
+  settingsChangeLangTitle: 'تغيير اللغة',
+  allSettingsLabel: 'كافة الإعدادات',
+  backToAllSettingsLabel: 'الرجوع لكافة ودجات الإعدادات',
+  saveChangesInSectionLabel: (sectionTitle: string) => `حفظ التعديلات في قسم ${sectionTitle}`,
 };
 
 const EXTRA_STRINGS_EN = {
@@ -747,13 +755,17 @@ const EXTRA_STRINGS_EN = {
   settingsAlarmTitle: "Exact Alarms & Timers",
   settingsAlarmDesc: "Fires Azan audio exactly on time down to the second",
   permLockScreenBenefitText: 'Wakes the screen when prayer starts to show the Azan call and provide an easy one-tap mute or dismiss button.',
+  settingsChangeLangTitle: 'Change Language',
+  allSettingsLabel: 'All Settings',
+  backToAllSettingsLabel: 'Back to All Settings',
+  saveChangesInSectionLabel: (sectionTitle: string) => `Save Changes in ${sectionTitle}`,
 };
 
 export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
   ar: {
     ...EXTRA_STRINGS_AR,
-    appName: 'مؤذن الإسلامي',
-    appTagline: 'مؤذن الإسلامي • رفيقك في طريق الإيمان',
+    appName: 'مسلم بلس',
+    appTagline: 'مؤذنك الإسلامي .. رفيقك في طريق الإيمان',
     ayahHeader: '{وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ}',
     ayahSource: 'سورة هود : 88',
     fajr: 'الفجر',

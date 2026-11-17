@@ -49,10 +49,13 @@ export const ASMAA_ALLAH_TRACK: DiskAudioTrack = {
 
 const ASMAA_FALLBACK_URL = '/assets/aistudio/Hisham_Abbas_-_Asmaa_Allah_Al_Hosna__Lyrics_______________-__________________________48k__73f3bd99.mp3';
 
+import { audioPriorityCoordinator } from './audioPriorityCoordinator';
+
 class DiskAudioPlayerService {
   private audio: HTMLAudioElement | null = null;
   private listeners: Set<Listener> = new Set();
   private hasTriedFallback: boolean = false;
+  private activeToken: string | null = null;
 
   private state: DiskPlayerState = {
     track: null,
@@ -68,12 +71,16 @@ class DiskAudioPlayerService {
     if (typeof window !== 'undefined') {
       window.addEventListener('AUDIO_PLAYBACK_START', (e: Event) => {
         const custom = e as CustomEvent<{ source?: string }>;
-        if (custom.detail?.source === 'soundService') {
-          // Pause disk player when Azan or another sound begins
+        if (custom.detail?.source === 'soundService' || custom.detail?.source === 'recitation') {
           this.pause();
         }
       });
     }
+    audioPriorityCoordinator.onPreempt((_prio, source) => {
+      if (source !== 'disk') {
+        this.pause();
+      }
+    });
   }
 
   public getState(): DiskPlayerState {
@@ -123,13 +130,22 @@ class DiskAudioPlayerService {
   }
 
   public playTrack(track: DiskAudioTrack, isFallbackAttempt = false): void {
+    const token = `disk_${track.id}_${Date.now()}`;
+    const outcome = audioPriorityCoordinator.requestStart(token, 'disk', 'disk', {
+      forceUserAction: true,
+    });
+    if (outcome !== 'started') {
+      return;
+    }
+
     if (!isFallbackAttempt) {
       this.hasTriedFallback = false;
     }
 
     this.cleanup();
+    this.activeToken = token;
 
-    // Broadcast that disk player is starting to pause any other audio
+    // Broadcast that disk player is starting to pause any other lower-priority audio
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('AUDIO_PLAYBACK_START', { detail: { source: 'disk' } })
@@ -189,6 +205,9 @@ class DiskAudioPlayerService {
       audio.onended = () => {
         if (this.audio === audio) {
           this.updateState({ isPlaying: false, currentTime: 0 });
+          const tok = this.activeToken;
+          this.activeToken = null;
+          if (tok) audioPriorityCoordinator.notifyFinished(tok);
         }
       };
 
@@ -202,6 +221,9 @@ class DiskAudioPlayerService {
         }
         if (this.audio === audio) {
           this.updateState({ isLoading: false, isPlaying: false });
+          const tok = this.activeToken;
+          this.activeToken = null;
+          if (tok) audioPriorityCoordinator.notifyFinished(tok);
         }
       };
 
@@ -211,12 +233,18 @@ class DiskAudioPlayerService {
           console.warn('Autoplay blocked or playback interrupted:', err);
           if (this.audio === audio) {
             this.updateState({ isLoading: false, isPlaying: false });
+            const tok = this.activeToken;
+            this.activeToken = null;
+            if (tok) audioPriorityCoordinator.notifyFinished(tok);
           }
         });
       }
     } catch (err) {
       console.warn('Failed to start audio element:', err);
       this.updateState({ isLoading: false, isPlaying: false });
+      const tok = this.activeToken;
+      this.activeToken = null;
+      if (tok) audioPriorityCoordinator.notifyFinished(tok);
     }
   }
 
@@ -228,6 +256,15 @@ class DiskAudioPlayerService {
   }
 
   public resume(): void {
+    const token = `disk_resume_${Date.now()}`;
+    const outcome = audioPriorityCoordinator.requestStart(token, 'disk', 'disk', {
+      forceUserAction: true,
+    });
+    if (outcome !== 'started') {
+      return;
+    }
+    this.activeToken = token;
+
     if (this.audio && this.audio.paused) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -242,6 +279,15 @@ class DiskAudioPlayerService {
   }
 
   public restart(): void {
+    const token = `disk_restart_${Date.now()}`;
+    const outcome = audioPriorityCoordinator.requestStart(token, 'disk', 'disk', {
+      forceUserAction: true,
+    });
+    if (outcome !== 'started') {
+      return;
+    }
+    this.activeToken = token;
+
     if (this.audio) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -293,6 +339,9 @@ class DiskAudioPlayerService {
 
   public stop(): void {
     this.cleanup();
+    const tok = this.activeToken;
+    this.activeToken = null;
+    if (tok) audioPriorityCoordinator.notifyFinished(tok);
     this.updateState({
       track: null,
       isPlaying: false,
