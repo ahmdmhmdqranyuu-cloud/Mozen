@@ -115,7 +115,7 @@ public class AlarmScheduler {
         String fallbackOrFailureNote = "";
 
         try {
-            if (canExact) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
                 try {
                     AlarmManager.AlarmClockInfo clockInfo =
                             new AlarmManager.AlarmClockInfo(triggerEpochMs, showPendingIntent);
@@ -127,7 +127,9 @@ public class AlarmScheduler {
                 }
             }
 
-            if (usedMode == AlarmScheduleTracker.ScheduleMode.FAILED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
+            if (usedMode == AlarmScheduleTracker.ScheduleMode.FAILED
+                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    && (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms())) {
                 try {
                     alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pendingIntent);
                     usedMode = AlarmScheduleTracker.ScheduleMode.EXACT_WHILE_IDLE;
@@ -257,6 +259,9 @@ public class AlarmScheduler {
 
                         @Override
                         public void scheduleAlarmClock(JSONObject item, int requestCode, long triggerEpochMs) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                                throw new SecurityException("Exact alarm permission is not granted");
+                            }
                             PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
                             AlarmManager.AlarmClockInfo clockInfo =
                                     new AlarmManager.AlarmClockInfo(triggerEpochMs, showPendingIntent);

@@ -259,9 +259,10 @@ object RingerRestoreCoordinator {
             restoreIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) am.canScheduleExactAlarms() else true
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canExact) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms())
+            ) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, restoreAtMs, pi)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, restoreAtMs, pi)

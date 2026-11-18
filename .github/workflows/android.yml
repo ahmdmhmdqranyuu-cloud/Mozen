@@ -9,7 +9,7 @@ on:
 
 jobs:
   verify:
-    name: Verify Android Unit Tests & Debug APK Build
+    name: Verify Android & Wear OS Unit Tests, Lint & Debug APKs
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +60,7 @@ jobs:
         run: |
           chmod +x gradlew android/gradlew
 
-      - name: Run Android Unit Tests, Lint & Build Debug APK (with Gradle HTTP 429 Retry)
+      - name: Run Unit Tests, Strict Lint & Build Debug APKs (:app + :wear with HTTP 429 Retry)
         working-directory: android
         run: |
           MAX_ATTEMPTS=4
@@ -69,7 +69,7 @@ jobs:
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
             echo "=== Gradle attempt $ATTEMPT/$MAX_ATTEMPTS ==="
-            if ./gradlew testDebugUnitTest lint assembleDebug --stacktrace \
+            if ./gradlew :app:testDebugUnitTest :wear:testDebugUnitTest lint :app:assembleDebug :wear:assembleDebug --stacktrace \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
@@ -88,24 +88,35 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Debug APK Alignment & Signature
+      - name: Verify Debug APKs Alignment & Signature
         run: |
-          set -o pipefail
-          DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
-          if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
-            echo "Error: Debug APK was not generated."
-            exit 1
-          fi
-          ls -lh "$DEBUG_APK"
-          BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$DEBUG_APK")
-          printf '%s\n' "$BADGING" | head -n 5
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$DEBUG_APK" | tail -n 10
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$DEBUG_APK"
+          APP_DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
+          WEAR_DEBUG_APK=$(find android/wear/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
+          for APK in "$APP_DEBUG_APK" "$WEAR_DEBUG_APK"; do
+            if [ -z "$APK" ] || [ ! -s "$APK" ]; then
+              echo "Error: Debug APK was not generated."
+              exit 1
+            fi
+            ls -lh "$APK"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$APK" >/tmp/badging-ci.log || {
+              cat /tmp/badging-ci.log
+              exit 1
+            }
+            head -n 5 /tmp/badging-ci.log
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$APK" >/tmp/zipalign-ci.log || {
+              tail -n 25 /tmp/zipalign-ci.log
+              exit 1
+            }
+            tail -n 5 /tmp/zipalign-ci.log
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          done
 
-      - name: Upload CI Debug APK
+      - name: Upload CI Debug APKs
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: AlMoazen-CI-Debug-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: AlMoazen-CI-Debug-APKs
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/wear/build/outputs/apk/debug/*.apk
           if-no-files-found: error

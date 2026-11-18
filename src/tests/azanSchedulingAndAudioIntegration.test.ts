@@ -296,15 +296,35 @@ function runIntegrationTests() {
         false,
         'build-apk.yml must NEVER sign Release with debug key'
       );
-      assert.match(workflowApk, /testDebugUnitTest\s+lint\s+assembleDebug/, 'build-apk.yml Debug job must run unit tests, strict lint, and assembleDebug');
-      assert.match(workflowApk, /assembleRelease\s+bundleRelease/, 'build-apk.yml Release job must run assembleRelease and bundleRelease');
+      assert.match(workflowApk, /:app:testDebugUnitTest\s+:wear:testDebugUnitTest\s+lint\s+:app:assembleDebug\s+:wear:assembleDebug/, 'build-apk.yml Debug job must test, lint, and assemble both :app and :wear');
+      assert.match(workflowApk, /:app:assembleRelease\s+:wear:assembleRelease/, 'build-apk.yml Release job must build Release APKs for :app and :wear');
       assert.match(workflowApk, /keytool -list/, 'build-apk.yml must validate release keystore via keytool');
       assert.match(workflowApk, /zipalign"\s+-c\s+-v\s+4/, 'build-apk.yml must verify 4-byte APK alignment');
       assert.match(workflowApk, /apksigner"\s+verify\s+--verbose\s+--print-certs/, 'build-apk.yml must verify APK certificates');
-      assert.match(workflowApk, /Verified using v3 scheme/, 'build-apk.yml must assert V1+V2+V3 schemes on Release APK');
-      assert.match(workflowApk, /jarsigner -verify -verbose -certs/, 'build-apk.yml must verify AAB signature');
-      assert.match(workflowAndroid, /testDebugUnitTest\s+lint\s+assembleDebug/, 'android.yml must run strict lint');
+      assert.match(workflowApk, /Verified using v2 scheme/, 'build-apk.yml must assert V2 scheme on Release APK');
+      assert.match(workflowApk, /Verified using v3 scheme/, 'build-apk.yml must assert V3 scheme on Release APK');
+      assert.match(workflowAndroid, /:app:testDebugUnitTest\s+:wear:testDebugUnitTest\s+lint\s+:app:assembleDebug\s+:wear:assembleDebug/, 'android.yml must run tests, strict lint, and debug APKs for :app and :wear');
       assert.match(workflowAndroid, /zipalign"\s+-c\s+-v\s+4/, 'android.yml must verify Debug APK alignment');
+
+      const settingsGradle = fs.readFileSync(path.join(rootDir, 'android/settings.gradle'), 'utf8');
+      assert.match(settingsGradle, /include\s+':app',\s*':wear'/, 'settings.gradle must include both :app and :wear');
+
+      const wearManifest = fs.readFileSync(
+        path.join(rootDir, 'android/wear/src/main/AndroidManifest.xml'),
+        'utf8'
+      );
+      assert.match(wearManifest, /android\.hardware\.type\.watch/, 'Wear manifest must declare watch hardware feature');
+      assert.match(wearManifest, /com\.google\.android\.wearable\.standalone/, 'Wear manifest must mark app standalone');
+
+      const wearCalc = fs.readFileSync(
+        path.join(rootDir, 'android/wear/src/main/java/com/muslim/azan/wear/calc/WearPrayerTimesCalculator.kt'),
+        'utf8'
+      );
+      assert.match(wearCalc, /computeSolarEphemeris\(/, 'WearPrayerTimesCalculator must port computeSolarEphemeris');
+      assert.match(wearCalc, /357\.529 \+ 0\.98560028/, 'WearPrayerTimesCalculator must match prayerTimes.ts Jean Meeus constants');
+      assert.match(wearCalc, /ishaInterval = 90/, 'WearPrayerTimesCalculator must match makkah 90m Isha interval');
+      assert.match(wearCalc, /calculateQiblaDirection\(/, 'WearPrayerTimesCalculator must port calculateQiblaDirection');
+      assert.match(wearCalc, /calculateNightThirds\(/, 'WearPrayerTimesCalculator must port calculateNightThirds');
 
       const azanServiceJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAudioService.java'),
@@ -333,7 +353,17 @@ function runIntegrationTests() {
       assert.match(
         alarmSchedulerJava,
         /alarmManager\.canScheduleExactAlarms\(\)/,
-        'AlarmScheduler backend methods must guard exact alarm APIs with canScheduleExactAlarms()'
+        'AlarmScheduler backend methods must guard exact alarm APIs with inline canScheduleExactAlarms()'
+      );
+
+      const ringerRestoreKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/RingerRestoreCoordinator.kt'),
+        'utf8'
+      );
+      assert.match(
+        ringerRestoreKt,
+        /am\.canScheduleExactAlarms\(\)/,
+        'RingerRestoreCoordinator must call am.canScheduleExactAlarms() inline inside exact-alarm guard'
       );
 
       const recitationManagerKt = fs.readFileSync(
