@@ -16,7 +16,8 @@
     volatile <fields>;
 }
 
-# Keep data models serialized with Gson & org.json
+# Keep data models & JSON / Gson serialization under R8 fullMode
+-keep class com.muslim.azan.model.** { *; }
 -keepclassmembers class com.muslim.azan.model.** { *; }
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
@@ -25,15 +26,7 @@
 -keep class * extends com.google.gson.reflect.TypeToken
 -keep class org.json.** { *; }
 
-# Google Play Services Location
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.android.gms.**
-
-# AndroidX, WorkManager, Media & Compose rules
--keep class androidx.compose.** { *; }
--keep class androidx.lifecycle.** { *; }
--keep class androidx.media.** { *; }
--keep class androidx.work.** { *; }
+# WorkManager Worker constructors (consumer rules from AndroidX handle internals safely)
 -keep public class * extends androidx.work.Worker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
@@ -45,6 +38,16 @@
 }
 -keepnames class androidx.work.impl.background.systemalarm.**
 -keepnames class androidx.work.impl.background.systemjob.**
+
+# Google Play Services Location & optional compile-only annotations under R8 fullMode
+-dontwarn com.google.android.gms.**
 -dontwarn androidx.compose.**
--dontwarn sun.misc.Unsafe
+-dontwarn androidx.work.**
+-dontwarn org.codehaus.mojo.animal_sniffer.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+-dontwarn java.lang.ClassValue
+-dontwarn java.lang.instrument.**
+-dontwarn sun.misc.**
 -dontwarn java.lang.invoke.StringConcatFactory

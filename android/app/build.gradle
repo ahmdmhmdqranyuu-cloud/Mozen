@@ -51,7 +51,17 @@ android {
     def releaseKeystorePassword = System.getenv("KEYSTORE_PASSWORD")
     def releaseKeyAlias = System.getenv("KEY_ALIAS")
     def releaseKeyPassword = System.getenv("KEY_PASSWORD")
-    def releaseKeystoreFile = (releaseKeystorePath != null && !releaseKeystorePath.trim().isEmpty()) ? file(releaseKeystorePath.trim()) : null
+    def releaseKeystoreFile = null
+    if (releaseKeystorePath != null && !releaseKeystorePath.trim().isEmpty()) {
+        def rawKs = new File(releaseKeystorePath.trim())
+        if (rawKs.isAbsolute()) {
+            releaseKeystoreFile = rawKs
+        } else if (file(releaseKeystorePath.trim()).exists()) {
+            releaseKeystoreFile = file(releaseKeystorePath.trim())
+        } else {
+            releaseKeystoreFile = rootProject.file(releaseKeystorePath.trim())
+        }
+    }
     def hasValidReleaseSigning = releaseKeystoreFile != null &&
             releaseKeystoreFile.exists() &&
             releaseKeystoreFile.isFile() &&

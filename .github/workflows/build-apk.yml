@@ -119,7 +119,11 @@ jobs:
           fi
           ls -lh "$DEBUG_APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$DEBUG_APK" | head -n 5
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$DEBUG_APK" | tail -n 10
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$DEBUG_APK" >/tmp/zipalign-debug.log || {
+            tail -n 25 /tmp/zipalign-debug.log
+            exit 1
+          }
+          tail -n 5 /tmp/zipalign-debug.log
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$DEBUG_APK"
           {
             echo "### Debug Build Verification"
@@ -195,25 +199,34 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
-            echo "::error::Official Release signing requires KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD secrets. Debug fallback signing is strictly disabled."
+          MISSING=()
+          if [ -z "${SECRET_KEYSTORE_FILE:-}" ] && [ -z "${SECRET_KEYSTORE_BASE64:-}" ]; then
+            MISSING+=("KEYSTORE_FILE or KEYSTORE_BASE64")
+          fi
+          [ -z "${KEYSTORE_PASSWORD:-}" ] && MISSING+=("KEYSTORE_PASSWORD")
+          [ -z "${KEY_ALIAS:-}" ] && MISSING+=("KEY_ALIAS")
+          [ -z "${KEY_PASSWORD:-}" ] && MISSING+=("KEY_PASSWORD")
+
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            {
+              echo "### تعذر بناء Release APK/AAB الرسمي"
+              echo "لم يتم توفير أسرار التوقيع الرسمي المطلوبة في GitHub Secrets: \`${MISSING[*]}\`."
+              echo "- التوقيع بمفتاح Debug معطّل نهائيًا لحزم Release."
+              echo "- يمكنك تنزيل نسخة \`MuslimPlus-Debug-APK\` من الوظيفة السابقة أو إضافة الأسرار الأربعة لإنتاج Release موقّع رسميًا."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Missing official Release signing secret(s): ${MISSING[*]}. Debug fallback signing is strictly disabled."
             exit 1
           fi
 
           mkdir -p "$HOME/.android"
           KEYSTORE_OUT="$HOME/.android/release.keystore"
 
-          if [ -n "${SECRET_KEYSTORE_FILE:-}" ]; then
-            if [ -f "$SECRET_KEYSTORE_FILE" ]; then
-              cp "$SECRET_KEYSTORE_FILE" "$KEYSTORE_OUT"
-            else
-              printf '%s' "$SECRET_KEYSTORE_FILE" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_OUT"
-            fi
-          elif [ -n "${SECRET_KEYSTORE_BASE64:-}" ]; then
-            printf '%s' "$SECRET_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_OUT"
+          if [ -n "${SECRET_KEYSTORE_FILE:-}" ] && [ -f "$SECRET_KEYSTORE_FILE" ]; then
+            cp "$SECRET_KEYSTORE_FILE" "$KEYSTORE_OUT"
           else
-            echo "::error::Official Release signing requires secrets.KEYSTORE_FILE (or secrets.KEYSTORE_BASE64). No keystore was provided."
-            exit 1
+            export RAW_KS_PAYLOAD="${SECRET_KEYSTORE_FILE:-${SECRET_KEYSTORE_BASE64:-}}"
+            export KEYSTORE_OUT
+            python3 -c 'import base64, os, re; raw = os.environ["RAW_KS_PAYLOAD"].strip(); raw = raw.split(";base64,", 1)[1] if raw.startswith("data:") and ";base64," in raw else raw; cleaned = re.sub(r"\s+", "", raw); cleaned += "=" * ((-len(cleaned)) % 4); open(os.environ["KEYSTORE_OUT"], "wb").write(base64.urlsafe_b64decode(cleaned) if ("-" in cleaned or "_" in cleaned) else base64.b64decode(cleaned, validate=False))'
           fi
 
           if [ ! -s "$KEYSTORE_OUT" ]; then
@@ -221,10 +234,11 @@ jobs:
             exit 1
           fi
 
-          KEYTOOL_INFO=$(keytool -list -v -keystore "$KEYSTORE_OUT" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1) || {
+          if ! KEYTOOL_INFO=$(keytool -list -v -keystore "$KEYSTORE_OUT" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1); then
             echo "::error::keytool failed to validate keystore credentials/alias."
+            printf '%s\n' "$KEYTOOL_INFO" | head -n 20
             exit 1
-          }
+          fi
 
           if printf '%s' "$KEYTOOL_INFO" | grep -qi "CN=Android Debug"; then
             echo "::error::Android Debug keystore is forbidden for Release builds."
@@ -279,14 +293,28 @@ jobs:
           fi
 
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$RELEASE_APK" | head -n 5
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$RELEASE_APK" | tail -n 10
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$RELEASE_APK" >/tmp/zipalign-release.log || {
+            echo "::error::Release APK zipalign verification failed."
+            tail -n 25 /tmp/zipalign-release.log
+            exit 1
+          }
+          tail -n 5 /tmp/zipalign-release.log
 
           APKSIGNER_OUT=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$RELEASE_APK")
           printf '%s\n' "$APKSIGNER_OUT"
 
-          echo "$APKSIGNER_OUT" | grep -q "Verified using v1 scheme (JAR signing): true"
-          echo "$APKSIGNER_OUT" | grep -q "Verified using v2 scheme (APK Signature Scheme v2): true"
-          echo "$APKSIGNER_OUT" | grep -q "Verified using v3 scheme (APK Signature Scheme v3): true"
+          printf '%s\n' "$APKSIGNER_OUT" | grep -q "Verified using v1 scheme (JAR signing): true" || {
+            echo "::error::Release APK is missing V1 signing scheme."
+            exit 1
+          }
+          printf '%s\n' "$APKSIGNER_OUT" | grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" || {
+            echo "::error::Release APK is missing V2 signing scheme."
+            exit 1
+          }
+          printf '%s\n' "$APKSIGNER_OUT" | grep -q "Verified using v3 scheme (APK Signature Scheme v3): true" || {
+            echo "::error::Release APK is missing V3 signing scheme."
+            exit 1
+          }
           if printf '%s' "$APKSIGNER_OUT" | grep -qi "CN=Android Debug"; then
             echo "::error::Release APK must NEVER be signed with Android Debug certificate."
             exit 1
@@ -294,7 +322,10 @@ jobs:
 
           JARSIGNER_OUT=$(jarsigner -verify -verbose -certs "$RELEASE_AAB")
           printf '%s\n' "$JARSIGNER_OUT" | tail -n 15
-          echo "$JARSIGNER_OUT" | grep -q "jar verified."
+          printf '%s\n' "$JARSIGNER_OUT" | grep -q "jar verified." || {
+            echo "::error::Release AAB signature verification failed."
+            exit 1
+          }
           if printf '%s' "$JARSIGNER_OUT" | grep -qi "CN=Android Debug"; then
             echo "::error::Release AAB must NEVER be signed with Android Debug certificate."
             exit 1

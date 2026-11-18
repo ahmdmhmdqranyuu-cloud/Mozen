@@ -274,6 +274,19 @@ function runIntegrationTests() {
       assert.match(appGradle, /abortOnError\s+true/, 'build.gradle must enforce abortOnError true in lint');
       assert.match(appGradle, /gradle\.taskGraph\.whenReady/, 'build.gradle must reject Release builds lacking official keystore');
 
+      const proguardRules = fs.readFileSync(path.join(rootDir, 'android/app/proguard-rules.pro'), 'utf8');
+      assert.equal(
+        proguardRules.includes('-keep class androidx.work.**'),
+        false,
+        'proguard-rules.pro must not force-keep internal androidx.work classes under R8 fullMode'
+      );
+      assert.equal(
+        proguardRules.includes('-keep class androidx.compose.**'),
+        false,
+        'proguard-rules.pro must not force-keep internal androidx.compose classes under R8 fullMode'
+      );
+      assert.match(proguardRules, /-dontwarn org\.codehaus\.mojo\.animal_sniffer\.\*\*/, 'proguard-rules.pro must guard optional annotations under R8 fullMode');
+
       assert.match(workflowApk, /build-and-test-debug:/, 'build-apk.yml must separate Debug job');
       assert.match(workflowApk, /build-and-verify-release:/, 'build-apk.yml must separate Release job');
       assert.match(workflowApk, /secrets\.KEYSTORE_FILE/, 'build-apk.yml must support KEYSTORE_FILE secret');

@@ -90,6 +90,7 @@ jobs:
 
       - name: Verify Debug APK Alignment & Signature
         run: |
+          set -o pipefail
           DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
           if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
             echo "Error: Debug APK was not generated."
