@@ -3,6 +3,36 @@ plugins {
     id 'org.jetbrains.kotlin.android' version '1.9.25' apply false
 }
 
+// Gradle Daemon, Parallel & HTTP 429 Retry Configuration (coupled with android/gradle.properties)
+// org.gradle.daemon=true & org.gradle.parallel=true are active in android/gradle.properties
+if (System.getProperty("org.gradle.daemon") == null) {
+    System.setProperty("org.gradle.daemon", "true")
+}
+if (System.getProperty("org.gradle.parallel") == null) {
+    System.setProperty("org.gradle.parallel", "true")
+}
+if (System.getProperty("org.gradle.internal.repository.max.retries") == null) {
+    System.setProperty("org.gradle.internal.repository.max.retries", "6")
+}
+if (System.getProperty("org.gradle.internal.repository.initial.backoff") == null) {
+    System.setProperty("org.gradle.internal.repository.initial.backoff", "2000")
+}
+if (System.getProperty("org.gradle.internal.http.connectionTimeout") == null) {
+    System.setProperty("org.gradle.internal.http.connectionTimeout", "120000")
+}
+if (System.getProperty("org.gradle.internal.http.socketTimeout") == null) {
+    System.setProperty("org.gradle.internal.http.socketTimeout", "120000")
+}
+
+allprojects {
+    configurations.configureEach {
+        resolutionStrategy {
+            cacheDynamicVersionsFor 24, 'hours'
+            cacheChangingModulesFor 12, 'hours'
+        }
+    }
+}
+
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }

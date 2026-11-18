@@ -31,7 +31,8 @@ object RingerRestoreCoordinator {
         NO_ACTIVE_SESSION,
         RESTORE_TO_PREVIOUS,
         STILL_WITHIN_WINDOW,
-        USER_OVERRIDDEN_CLEAR
+        USER_OVERRIDDEN_CLEAR,
+        PERMISSION_REVOKED_RETAINED
     }
 
     data class SilentSessionSnapshot(
@@ -43,16 +44,19 @@ object RingerRestoreCoordinator {
 
     /**
      * Pure testable decision function for ringer restoration.
-     * Guarantees we never overwrite a user's manual change out of silent mode, and cleanly restores
-     * once the prayer window expires if the app-applied silent mode is still active.
+     * Guarantees we never overwrite a user's manual change out of silent mode, preserves the
+     * snapshot when DND policy permission is revoked, and cleanly restores once the prayer window
+     * expires if the app-applied silent mode is still active.
      */
     @JvmStatic
+    @JvmOverloads
     fun evaluateRestoreDecision(
         savedPrevMode: Int,
         appliedMode: Int,
         currentDeviceMode: Int,
         restoreAtMs: Long,
-        nowMs: Long
+        nowMs: Long,
+        hasDndPermission: Boolean = true
     ): RestoreDecision {
         if (savedPrevMode < 0 || appliedMode < 0 || restoreAtMs <= 0L) {
             return RestoreDecision.NO_ACTIVE_SESSION
@@ -61,11 +65,14 @@ object RingerRestoreCoordinator {
             // User manually changed phone ringer mode (e.g. switched back to Normal or Vibrate).
             return RestoreDecision.USER_OVERRIDDEN_CLEAR
         }
-        return if (nowMs >= restoreAtMs) {
-            RestoreDecision.RESTORE_TO_PREVIOUS
-        } else {
-            RestoreDecision.STILL_WITHIN_WINDOW
+        if (nowMs >= restoreAtMs) {
+            return if (hasDndPermission) {
+                RestoreDecision.RESTORE_TO_PREVIOUS
+            } else {
+                RestoreDecision.PERMISSION_REVOKED_RETAINED
+            }
         }
+        return RestoreDecision.STILL_WITHIN_WINDOW
     }
 
     @JvmStatic
@@ -78,6 +85,7 @@ object RingerRestoreCoordinator {
     }
 
     @JvmStatic
+    @JvmOverloads
     fun beginSilentDuringPrayer(
         context: Context,
         durationMinutes: Int = 15,
@@ -130,6 +138,7 @@ object RingerRestoreCoordinator {
     }
 
     @JvmStatic
+    @JvmOverloads
     fun handleRestoreTrigger(context: Context, nowMs: Long = System.currentTimeMillis()): RestoreDecision {
         return reconcileOrRescheduleOnWake(context, nowMs, allowEarlyForce = false)
     }
@@ -137,6 +146,7 @@ object RingerRestoreCoordinator {
     /**
      * Called on BootReceiver, MainActivity.onResume, or ACTION_RESTORE_RINGER alarm firing.
      * - If past deadline and phone is still Silent (and user hasn't manually changed it), restores ringerMode.
+     * - If DND permission was revoked, retains the snapshot until permission is re-granted or user manually overrides ringer mode.
      * - If phone is no longer Silent, clears persisted session without overriding user's manual change.
      * - If still within silent window (e.g. device rebooted mid-prayer), reschedules the restore alarm!
      */
@@ -162,7 +172,15 @@ object RingerRestoreCoordinator {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return RestoreDecision.NO_ACTIVE_SESSION
             val currentMode = am.ringerMode
             val effectiveNow = if (allowEarlyForce) maxOf(nowMs, restoreAtMs) else nowMs
-            val decision = evaluateRestoreDecision(savedPrev, appliedMode, currentMode, restoreAtMs, effectiveNow)
+            val hasDndPermission = canModifyRingerMode(context)
+            val decision = evaluateRestoreDecision(
+                savedPrevMode = savedPrev,
+                appliedMode = appliedMode,
+                currentDeviceMode = currentMode,
+                restoreAtMs = restoreAtMs,
+                nowMs = effectiveNow,
+                hasDndPermission = hasDndPermission
+            )
 
             when (decision) {
                 RestoreDecision.USER_OVERRIDDEN_CLEAR -> {
@@ -170,13 +188,13 @@ object RingerRestoreCoordinator {
                     Log.d(TAG, "User manually changed ringer mode to $currentMode; clearing silent restore session cleanly")
                 }
                 RestoreDecision.RESTORE_TO_PREVIOUS -> {
-                    if (canModifyRingerMode(context)) {
-                        am.ringerMode = savedPrev
-                        Log.d(TAG, "Restored ringer mode to previous value ($savedPrev)")
-                    } else {
-                        Log.w(TAG, "Cannot restore ringer mode because DND policy permission was revoked")
-                    }
+                    am.ringerMode = savedPrev
+                    Log.d(TAG, "Restored ringer mode to previous value ($savedPrev)")
                     clearSession(context)
+                }
+                RestoreDecision.PERMISSION_REVOKED_RETAINED -> {
+                    // Retain snapshot intact so ringer mode can be restored automatically once DND permission is granted again.
+                    Log.w(TAG, "Cannot restore ringer mode yet because DND policy permission was revoked; retaining snapshot (prev=$savedPrev)")
                 }
                 RestoreDecision.STILL_WITHIN_WINDOW -> {
                     // Reschedule alarm cleanly (crucial after reboot or package replacement)

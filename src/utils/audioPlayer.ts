@@ -339,6 +339,17 @@ import {
   getCategoryPriority,
 } from './audioPriorityCoordinator';
 
+export enum AudioFocusChange {
+  AUDIOFOCUS_GAIN = 1,
+  AUDIOFOCUS_LOSS = -1,
+  AUDIOFOCUS_LOSS_TRANSIENT = -2,
+  AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK = -3,
+}
+
+export interface OnAudioFocusChangeListener {
+  onAudioFocusChange(focusChange: AudioFocusChange): void;
+}
+
 class SoundService {
   private currentAudio: HTMLAudioElement | null = null;
   private currentVoiceId: string | null = null;
@@ -347,6 +358,60 @@ class SoundService {
   private audioContext: AudioContext | null = null;
   private isSynthesizing = false;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private hasAudioFocus = false;
+  private activeFocusOwnerId: string | null = null;
+  private pausedByTransientFocus = false;
+  private nominalVolume = 1;
+  private audioFocusRequester: ((ownerId: string, category: string) => boolean) | null = null;
+  private externalFocusListener: OnAudioFocusChangeListener | null = null;
+
+  public readonly audioFocusChangeListener: OnAudioFocusChangeListener = {
+    onAudioFocusChange: (focusChange: AudioFocusChange) => {
+      try {
+        this.externalFocusListener?.onAudioFocusChange(focusChange);
+      } catch {
+        // ignore external listener failure
+      }
+
+      switch (focusChange) {
+        case AudioFocusChange.AUDIOFOCUS_LOSS:
+          // Permanent focus loss: stop active audio immediately to prevent any overlap
+          this.hasAudioFocus = false;
+          this.activeFocusOwnerId = null;
+          this.pausedByTransientFocus = false;
+          this.stopAudio(true);
+          break;
+        case AudioFocusChange.AUDIOFOCUS_LOSS_TRANSIENT:
+          if (this.currentAudio && !this.currentAudio.paused && !this.currentAudio.ended) {
+            this.pausedByTransientFocus = this.pauseAudio();
+          }
+          break;
+        case AudioFocusChange.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+          if (this.currentAudio) {
+            try {
+              this.currentAudio.volume = Math.min(0.25, this.nominalVolume);
+            } catch {
+              // ignore
+            }
+          }
+          break;
+        case AudioFocusChange.AUDIOFOCUS_GAIN:
+          this.hasAudioFocus = true;
+          if (this.currentAudio) {
+            try {
+              this.currentAudio.volume = this.nominalVolume;
+            } catch {
+              // ignore
+            }
+          }
+          if (this.pausedByTransientFocus) {
+            this.pausedByTransientFocus = false;
+            this.resumeAudio();
+          }
+          break;
+      }
+    },
+  };
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -354,7 +419,7 @@ class SoundService {
         const custom = e as CustomEvent<{ source?: string }>;
         if (custom.detail?.source === 'disk' || custom.detail?.source === 'recitation') {
           if (getCategoryPriority(this.currentCategory || '') < 5) {
-            this.stopAudio(false);
+            this.dispatchAudioFocusChange(AudioFocusChange.AUDIOFOCUS_LOSS);
           }
         }
       });
@@ -362,10 +427,93 @@ class SoundService {
     audioPriorityCoordinator.onPreempt((incomingPriority, source) => {
       if (source !== 'soundService' && this.currentAudio) {
         if (getCategoryPriority(this.currentCategory || '') < incomingPriority) {
-          this.stopAudio(false);
+          this.dispatchAudioFocusChange(AudioFocusChange.AUDIOFOCUS_LOSS);
         }
       }
     });
+  }
+
+  public setAudioFocusRequestHandler(
+    handler: ((ownerId: string, category: string) => boolean) | null
+  ): void {
+    this.audioFocusRequester = handler;
+  }
+
+  public requestAudioFocus(
+    ownerId: string,
+    category: string,
+    listener?: OnAudioFocusChangeListener
+  ): boolean {
+    let granted = true;
+    if (this.audioFocusRequester) {
+      granted = Boolean(this.audioFocusRequester(ownerId, category));
+    } else if (typeof window !== 'undefined') {
+      const bridge = (
+        window as unknown as {
+          AndroidBridge?: { requestAudioFocus?: (cat: string) => boolean };
+        }
+      ).AndroidBridge;
+      if (bridge && typeof bridge.requestAudioFocus === 'function') {
+        try {
+          granted = Boolean(bridge.requestAudioFocus(category));
+        } catch {
+          granted = false;
+        }
+      }
+    }
+
+    if (!granted) {
+      this.hasAudioFocus = false;
+      this.activeFocusOwnerId = null;
+      return false;
+    }
+
+    if (
+      this.activeFocusOwnerId &&
+      this.activeFocusOwnerId !== ownerId &&
+      this.currentAudio
+    ) {
+      this.stopAudio(false, true);
+    }
+
+    this.hasAudioFocus = true;
+    this.activeFocusOwnerId = ownerId;
+    this.pausedByTransientFocus = false;
+    if (listener) {
+      this.externalFocusListener = listener;
+    }
+    return true;
+  }
+
+  public abandonAudioFocus(ownerId?: string): void {
+    if (ownerId && this.activeFocusOwnerId && this.activeFocusOwnerId !== ownerId) {
+      return;
+    }
+    this.hasAudioFocus = false;
+    this.activeFocusOwnerId = null;
+    this.pausedByTransientFocus = false;
+    if (typeof window !== 'undefined') {
+      const bridge = (
+        window as unknown as {
+          AndroidBridge?: { abandonAudioFocus?: () => void };
+        }
+      ).AndroidBridge;
+      if (bridge && typeof bridge.abandonAudioFocus === 'function') {
+        try {
+          bridge.abandonAudioFocus();
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  public dispatchAudioFocusChange(focusChange: AudioFocusChange): void {
+    this.audioFocusChangeListener.onAudioFocusChange(focusChange);
+  }
+
+  public hasAudioFocusNow(): boolean {
+    return this.hasAudioFocus;
   }
 
   private getAudioContext(): AudioContext | null {
@@ -450,8 +598,14 @@ class SoundService {
    */
   public playOfflineSynthesizedAdhan(onEnd?: () => void) {
     this.stopAudio(false);
+    if (!this.requestAudioFocus('offline_synthesized_adhan', 'azan')) {
+      audioPriorityCoordinator.notifyFinished(this.activeTokenId || undefined);
+      if (onEnd) onEnd();
+      return;
+    }
     const ctx = this.getAudioContext();
     if (!ctx) {
+      this.abandonAudioFocus('offline_synthesized_adhan');
       audioPriorityCoordinator.notifyFinished(this.activeTokenId || undefined);
       if (onEnd) onEnd();
       return;
@@ -496,6 +650,7 @@ class SoundService {
       this.isSynthesizing = false;
       const doneToken = this.activeTokenId;
       this.activeTokenId = null;
+      this.abandonAudioFocus('offline_synthesized_adhan');
       audioPriorityCoordinator.notifyFinished(doneToken || undefined);
       if (onEnd) onEnd();
     }, offset * 1000);
@@ -574,8 +729,17 @@ class SoundService {
       return true;
     }
 
-    this.stopAudio(false);
+    if (!this.requestAudioFocus(token, 'azan')) {
+      audioPriorityCoordinator.notifyFinished(token);
+      const focusErr = new Error('Audio focus denied before Azan playback');
+      if (onError) onError(focusErr);
+      if (actualOnEnd) actualOnEnd();
+      return false;
+    }
+
+    this.stopAudio(false, true);
     this.activeTokenId = token;
+    this.nominalVolume = normalizedVol;
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
@@ -612,6 +776,7 @@ class SoundService {
           this.currentCategory = null;
           this.activeTokenId = null;
         }
+        this.abandonAudioFocus(token);
         audioPriorityCoordinator.notifyFinished(token);
       };
 
@@ -643,6 +808,7 @@ class SoundService {
       this.currentVoiceId = null;
       this.currentCategory = null;
       this.activeTokenId = null;
+      this.abandonAudioFocus(token);
       audioPriorityCoordinator.notifyFinished(token);
       if (actualOnEnd) actualOnEnd();
       if (onError) onError(err);
@@ -692,16 +858,26 @@ class SoundService {
       return null;
     }
     this.stopAudio(true);
+    const ayahOwnerId = `ayah_${ayahNumber}`;
+    if (!this.requestAudioFocus(ayahOwnerId, 'recitation')) {
+      if (onEnd) onEnd();
+      return null;
+    }
+    this.nominalVolume = 1;
 
     if (ayahText && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(ayahText);
       utterance.lang = 'ar-SA';
       utterance.rate = 0.85;
-      if (onEnd) {
-        utterance.onend = onEnd;
-        utterance.onerror = onEnd;
-      }
+      utterance.onend = () => {
+        this.abandonAudioFocus(ayahOwnerId);
+        if (onEnd) onEnd();
+      };
+      utterance.onerror = () => {
+        this.abandonAudioFocus(ayahOwnerId);
+        if (onEnd) onEnd();
+      };
       window.speechSynthesis.speak(utterance);
       return null;
     }
@@ -710,12 +886,17 @@ class SoundService {
     try {
       const audio = new Audio(url);
       this.currentAudio = audio;
-      if (onEnd) audio.onended = onEnd;
+      audio.onended = () => {
+        this.abandonAudioFocus(ayahOwnerId);
+        if (onEnd) onEnd();
+      };
       audio.play().catch(() => {
+        this.abandonAudioFocus(ayahOwnerId);
         if (onEnd) onEnd();
       });
       return audio;
     } catch {
+      this.abandonAudioFocus(ayahOwnerId);
       if (onEnd) onEnd();
       return null;
     }
@@ -734,6 +915,14 @@ class SoundService {
       return null;
     }
     this.stopAudio(true);
+    const surahOwnerId = `surah_${surahNumber}`;
+    if (!this.requestAudioFocus(surahOwnerId, 'recitation')) {
+      const focusErr = new Error('Audio focus denied before Surah recitation');
+      if (onError) onError(focusErr);
+      if (onEnd) onEnd();
+      return null;
+    }
+    this.nominalVolume = 1;
 
     const formattedSurah = String(surahNumber).padStart(3, '0');
     const serverMap: Record<string, string> = {
@@ -836,8 +1025,18 @@ class SoundService {
       return false;
     }
 
-    this.stopAudio(false);
+    if (!this.requestAudioFocus(token, category)) {
+      audioPriorityCoordinator.notifyFinished(token);
+      const focusErr = new Error(`Audio focus denied before playing ${category}`);
+      if (onError) onError(focusErr);
+      if (onEnd) onEnd();
+      return false;
+    }
+
+    const normalizedVol = Math.max(0, Math.min(1, volumePercent / 100));
+    this.stopAudio(false, true);
     this.activeTokenId = token;
+    this.nominalVolume = normalizedVol;
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
@@ -860,12 +1059,13 @@ class SoundService {
       this.currentVoiceId = null;
       this.currentCategory = null;
       this.activeTokenId = null;
+      this.abandonAudioFocus(token);
       audioPriorityCoordinator.notifyFinished(token);
     };
 
     try {
       const audio = new Audio(filePath);
-      audio.volume = Math.max(0, Math.min(1, volumePercent / 100));
+      audio.volume = normalizedVol;
       audio.loop = false;
       audio.preload = 'auto';
       this.currentAudio = audio;
@@ -1170,7 +1370,7 @@ class SoundService {
     });
   }
 
-  public stopAudio(notifyCoordinator: boolean = true) {
+  public stopAudio(notifyCoordinator: boolean = true, keepAudioFocus: boolean = false) {
     if (this.stopTimer) {
       clearTimeout(this.stopTimer);
       this.stopTimer = null;
@@ -1195,6 +1395,9 @@ class SoundService {
       window.speechSynthesis.cancel();
     }
     this.isSynthesizing = false;
+    if (!keepAudioFocus) {
+      this.abandonAudioFocus();
+    }
     if (notifyCoordinator && prevToken) {
       audioPriorityCoordinator.notifyFinished(prevToken);
     }

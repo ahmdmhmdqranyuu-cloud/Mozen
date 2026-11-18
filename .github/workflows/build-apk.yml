@@ -58,7 +58,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-android-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-android-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties') }}
           restore-keys: |
             gradle-android-${{ runner.os }}-
 
@@ -125,10 +125,33 @@ jobs:
             echo "CI_SIGN_RELEASE_WITH_DEBUG=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Run Unit Tests, Lint & Build Native Android APKs (Debug & Release R8)
+      - name: Run Unit Tests, Lint & Build Native Android APKs (Debug & Release R8 with HTTP 429 Retry)
         working-directory: android
         run: |
-          ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace
+          MAX_ATTEMPTS=4
+          BACKOFF_SEC=15
+          ATTEMPT=1
+          SUCCESS=false
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "=== Gradle build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            if ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --stacktrace \
+              -Dorg.gradle.internal.repository.max.retries=6 \
+              -Dorg.gradle.internal.repository.initial.backoff=2000; then
+              SUCCESS=true
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "::warning::Gradle build failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Waiting ${BACKOFF_SEC}s before retry in case of Maven HTTP 429 or transient network error..."
+              sleep "$BACKOFF_SEC"
+              BACKOFF_SEC=$((BACKOFF_SEC * 2))
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          ./gradlew --stop || true
+          if [ "$SUCCESS" != "true" ]; then
+            echo "Error: Gradle failed after $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
 
       - name: Verify Debug & Release APK Outputs
         run: |

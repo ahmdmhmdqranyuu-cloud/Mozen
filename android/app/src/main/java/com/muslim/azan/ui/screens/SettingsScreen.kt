@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -53,12 +53,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.muslim.azan.AlarmScheduleTracker
 import com.muslim.azan.AlarmScheduler
 import com.muslim.azan.AzkarAudioService
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.R
 import com.muslim.azan.data.CountrySummary
 import com.muslim.azan.data.GpsLocationResult
+import com.muslim.azan.data.LocationPrecision
 import com.muslim.azan.data.MediaFileManager
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
@@ -89,6 +91,8 @@ fun SettingsScreen(
     var isAudioTestingNow by remember { mutableStateOf(AzkarAudioService.isPlayingNow) }
     var activeAudioLabel by remember { mutableStateOf(AzkarAudioService.activeTrackLabel) }
     var audioTestWarning by remember { mutableStateOf(AzkarAudioService.lastAudioError) }
+    var scheduleOutcomeState by remember { mutableStateOf(AlarmScheduleTracker.loadOutcome(context)) }
+    var bgTestStatusState by remember { mutableStateOf(AlarmScheduleTracker.loadBackgroundTestStatus(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -97,6 +101,8 @@ fun SettingsScreen(
                 isAudioTestingNow = AzkarAudioService.isPlayingNow
                 activeAudioLabel = AzkarAudioService.activeTrackLabel
                 audioTestWarning = AzkarAudioService.lastAudioError
+                scheduleOutcomeState = AlarmScheduleTracker.loadOutcome(context)
+                bgTestStatusState = AlarmScheduleTracker.loadBackgroundTestStatus(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -108,14 +114,25 @@ fun SettingsScreen(
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
-                if (intent?.action == AzkarAudioService.ACTION_AUDIO_STATE_CHANGED) {
-                    isAudioTestingNow = intent.getBooleanExtra("playing", false)
-                    activeAudioLabel = intent.getStringExtra("label") ?: ""
-                    audioTestWarning = intent.getStringExtra("error")
+                when (intent?.action) {
+                    AzkarAudioService.ACTION_AUDIO_STATE_CHANGED -> {
+                        isAudioTestingNow = intent.getBooleanExtra("playing", false)
+                        activeAudioLabel = intent.getStringExtra("label") ?: ""
+                        audioTestWarning = intent.getStringExtra("error")
+                    }
+                    AlarmScheduleTracker.ACTION_BG_TEST_STATE_CHANGED -> {
+                        val json = intent.getStringExtra("statusJson")
+                        bgTestStatusState = AlarmScheduleTracker.BackgroundTestStatus.fromJson(json)
+                            ?: AlarmScheduleTracker.loadBackgroundTestStatus(context)
+                        scheduleOutcomeState = AlarmScheduleTracker.loadOutcome(context)
+                    }
                 }
             }
         }
-        val filter = IntentFilter(AzkarAudioService.ACTION_AUDIO_STATE_CHANGED)
+        val filter = IntentFilter().apply {
+            addAction(AzkarAudioService.ACTION_AUDIO_STATE_CHANGED)
+            addAction(AlarmScheduleTracker.ACTION_BG_TEST_STATE_CHANGED)
+        }
         ContextCompat.registerReceiver(
             context,
             receiver,
@@ -133,6 +150,8 @@ fun SettingsScreen(
     var currentLng by remember { mutableDoubleStateOf(prefs.longitude) }
     var activeLocationSource by remember { mutableStateOf(prefs.activeLocationSource) }
     var activeLocationHierarchy by remember { mutableStateOf(prefs.activeLocationHierarchy) }
+    var activeLocationPrecision by remember { mutableStateOf(prefs.activeLocationPrecision) }
+    var activeLocationAccuracyMeters by remember { mutableIntStateOf(prefs.activeLocationAccuracyMeters) }
 
     var citySearchQuery by remember { mutableStateOf("") }
     var selectedCountryFilter by remember { mutableStateOf<String?>(null) }
@@ -274,13 +293,17 @@ fun SettingsScreen(
         ).filter { it.isNotBlank() }.distinct().joinToString(" • ")
 
         val sourceTag = if (gps.isSavedFallback) "saved_gps" else "gps"
+        val precisionTag = if (gps.isPreciseLocation) LocationPrecision.PRECISE.code else LocationPrecision.APPROXIMATE.code
         prefs.setGpsLocation(
             nameAr = gps.cityName,
             lat = gps.latitude,
             lng = gps.longitude,
             timezoneId = gps.timezoneId,
             sourceTag = sourceTag,
-            hierarchyText = hierarchy
+            hierarchyText = hierarchy,
+            precisionTag = precisionTag,
+            accuracyMeters = gps.accuracyMeters,
+            updatedAtMs = gps.detectedAtMs
         )
         prefs.calculationMethod = gps.calcMethod
 
@@ -289,6 +312,8 @@ fun SettingsScreen(
         currentLng = gps.longitude
         activeLocationSource = sourceTag
         activeLocationHierarchy = hierarchy
+        activeLocationPrecision = precisionTag
+        activeLocationAccuracyMeters = gps.accuracyMeters
         pendingGpsResult = null
         gpsErrorText = null
         gpsDeviceDisabledError = false
@@ -778,13 +803,16 @@ fun SettingsScreen(
                                     shape = RoundedCornerShape(6.dp),
                                     color = MoazenInkEmerald.copy(alpha = 0.1f)
                                 ) {
+                                    val accBadge = if (activeLocationAccuracyMeters > 0) " • ±${activeLocationAccuracyMeters}م" else ""
+                                    val sourceBadge = when {
+                                        activeLocationSource == "gps" && activeLocationPrecision == LocationPrecision.PRECISE.code -> "GPS دقيق$accBadge"
+                                        activeLocationSource == "gps" -> "موقع تقريبي$accBadge"
+                                        activeLocationSource == "saved_gps" -> "موقع محفوظ$accBadge"
+                                        activeLocationSource == "online" -> "بحث عالمي"
+                                        else -> "اختيار يدوي"
+                                    }
                                     Text(
-                                        text = when (activeLocationSource) {
-                                            "gps" -> "GPS مباشر"
-                                            "saved_gps" -> "موقع محفوظ"
-                                            "online" -> "بحث عالمي"
-                                            else -> "اختيار يدوي"
-                                        },
+                                        text = sourceBadge,
                                         color = MoazenInkEmerald,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -1692,7 +1720,7 @@ fun SettingsScreen(
                             if (!permStatus.exactAlarmsGranted) {
                                 Toast.makeText(
                                     context,
-                                    "ملاحظة: فعّل إذن المنبهات الدقيقة ليصل الاختبار في الخلفية بدقة",
+                                    "تنبيه: إذن المنبهات الدقيقة غير مفعّل — سيُستخدم الوضع البديل إن أمكن",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -1702,15 +1730,21 @@ fun SettingsScreen(
                                 selectedCityName,
                                 5
                             )
+                            bgTestStatusState = AlarmScheduleTracker.loadBackgroundTestStatus(context)
+                            scheduleOutcomeState = AlarmScheduleTracker.loadOutcome(context)
                             if (scheduledAt > 0L) {
-                                backgroundTestScheduledNote = "تمت الجدولة! صغّر التطبيق أو اقفل الشاشة الآن — سيعمل الأذان والنافذة العائمة تلقائيًا بعد 5 ثوانٍ."
+                                val modeLabel = bgTestStatusState?.scheduleMode?.arabicLabel ?: "جدولة النظام"
+                                backgroundTestScheduledNote = "تمت جدولة الاختبار عبر ($modeLabel) — صغّر التطبيق أو اقفل الشاشة الآن؛ سيصل التنبيه بعد 5 ثوانٍ."
                                 Toast.makeText(
                                     context,
-                                    "صغّر التطبيق الآن.. سيعمل الأذان بعد 5 ثوانٍ من الخلفية",
+                                    "تمت الجدولة ($modeLabel).. صغّر التطبيق الآن",
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
-                                Toast.makeText(context, "تعذر جدولة الاختبار، تأكد من إذن المنبهات الدقيقة", Toast.LENGTH_LONG).show()
+                                val failReason = bgTestStatusState?.failureReason?.takeIf { it.isNotBlank() }
+                                    ?: "تعذر جدولة الاختبار في النظام"
+                                backgroundTestScheduledNote = "فشلت جدولة الاختبار: $failReason"
+                                Toast.makeText(context, failReason, Toast.LENGTH_LONG).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
@@ -1729,11 +1763,87 @@ fun SettingsScreen(
                     if (backgroundTestScheduledNote != null) {
                         Text(
                             text = backgroundTestScheduledNote ?: "",
-                            color = EmeraldPrimaryDark,
+                            color = if (bgTestStatusState?.state == "failed") ErrorRed else EmeraldPrimaryDark,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    // Real OS ScheduleOutcome & Background Test Status Diagnostics
+                    val diagOutcome = scheduleOutcomeState
+                    val diagTest = bgTestStatusState
+                    if (diagOutcome != null || diagTest != null) {
+                        MoazenSubWidgetBox(
+                            cornerRadius = 10.dp,
+                            borderColor = if (diagTest?.state == "failed" || (diagOutcome != null && diagOutcome.failedCount > 0 && diagOutcome.scheduledCount == 0)) {
+                                ErrorRed.copy(alpha = 0.6f)
+                            } else {
+                                MoazenGold.copy(alpha = 0.6f)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "تشخيص نظام الجدولة والاختبار الحقيقي:",
+                                    color = MoazenInkEmerald,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (diagOutcome != null) {
+                                    Text(
+                                        text = "جدول الصلوات: ${diagOutcome.scheduledCount}/${diagOutcome.totalCandidates} مؤكد • ${diagOutcome.primaryMode.arabicLabel}",
+                                        color = MoazenInkPrimary,
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        text = if (diagOutcome.exactPermissionGranted) "صلاحية المنبه الدقيق: مفعّلة ✓" else "صلاحية المنبه الدقيق: معطّلة (يُستخدم الوضع البديل)",
+                                        color = if (diagOutcome.exactPermissionGranted) EmeraldPrimaryDark else MoazenGoldDark,
+                                        fontSize = 10.5.sp
+                                    )
+                                    if (diagOutcome.lastFailureReason.isNotBlank()) {
+                                        Text(
+                                            text = "سبب التحويل / الخطأ: ${diagOutcome.lastFailureReason}",
+                                            color = ErrorRed,
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+                                if (diagTest != null && diagTest.state != "idle") {
+                                    val stateAr = when (diagTest.state) {
+                                        "scheduled" -> "مجدول بانتظار الإطلاق"
+                                        "receiver_fired" -> "تم استلام المنبه في الخلفية ✓"
+                                        "playing" -> "جاري التشغيل من الخلفية ✓"
+                                        "completed" -> "اكتمل الاختبار الحقيقي بنجاح ✓"
+                                        "failed" -> "فشل الاختبار الخلفي ✗"
+                                        else -> diagTest.state
+                                    }
+                                    Text(
+                                        text = "حالة آخر اختبار: $stateAr (${diagTest.scheduleMode.arabicLabel})",
+                                        color = if (diagTest.state == "failed") ErrorRed else EmeraldPrimaryDark,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (diagTest.playbackDetail.isNotBlank()) {
+                                        Text(
+                                            text = diagTest.playbackDetail,
+                                            color = MoazenInkMuted,
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                    if (diagTest.failureReason.isNotBlank()) {
+                                        Text(
+                                            text = "سبب الفشل: ${diagTest.failureReason}",
+                                            color = ErrorRed,
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Row(

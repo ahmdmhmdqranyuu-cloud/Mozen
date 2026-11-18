@@ -29,7 +29,7 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         if (intent == null) return;
 
         if (RingerRestoreCoordinator.ACTION_RESTORE_RINGER.equals(intent.getAction())) {
-            RingerRestoreCoordinator.handleRestoreTrigger(context);
+            RingerRestoreCoordinator.handleRestoreTrigger(context, System.currentTimeMillis());
             return;
         }
 

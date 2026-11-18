@@ -447,8 +447,8 @@ class ReminderScheduler {
     }
 
     const cancelledTimers = this.activeTimeouts.size;
-    this.activeTimeouts.forEach((timeout) => clearTimeout(timeout));
-    this.activeTimeouts.clear();
+    // Compute & arm replacement schedule first; if calculation throws, prior timers & state remain intact.
+    const upcomingSlots = this.rescheduleAll();
 
     let clearedFiredKeys = 0;
     const keysToDelete: string[] = [];
@@ -481,7 +481,6 @@ class ReminderScheduler {
       }
     }
 
-    const upcomingSlots = this.rescheduleAll();
     const resolved = this.resolveUserProfile();
 
     this.rescheduleLog.push({
@@ -505,19 +504,19 @@ class ReminderScheduler {
   }
 
   /**
-   * Reschedules all active timers cleanly, clearing old timers first
+   * Reschedules all active timers cleanly, only replacing existing timers after new slots succeed
    */
   public rescheduleAll(): ScheduledSlot[] {
-    // Clear all existing timeouts to prevent duplicate triggers
+    // 1. Compute replacement slots BEFORE tearing down valid active timers
+    const upcomingSlots = this.calculateUpcomingSlots();
+
+    // 2. Sync with native Android bridge if running in Android app
+    this.syncWithAndroidBridge(upcomingSlots);
+
+    // 3. Only now cancel old timers and arm replacement timers
     this.activeTimeouts.forEach((timeout) => clearTimeout(timeout));
     this.activeTimeouts.clear();
 
-    const upcomingSlots = this.calculateUpcomingSlots();
-
-    // Sync with native Android bridge if running in Android app
-    this.syncWithAndroidBridge(upcomingSlots);
-
-    // Setup next immediate timer for web runtime
     const now = new Date();
     upcomingSlots.forEach((slot) => {
       const diffMs = slot.triggerTime.getTime() - now.getTime();

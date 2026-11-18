@@ -145,9 +145,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         );
         switch (action) {
             case STOP_PERMANENT:
-                if (getSectionPriority(currentSection) < 5) {
-                    stopServiceCleanly();
-                }
+                stopServiceCleanly();
                 break;
             case PAUSE_TRANSIENT:
                 try {
@@ -802,7 +800,14 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             volumeWarning = "تنبيه: مستوى صوت المنبه في الهاتف مضبوط على صفر، ارفع صوت المنبه لسماع الأذان";
         }
 
-        requestAudioFocus();
+        if (!requestAudioFocus()) {
+            Log.w(TAG, "Audio focus denied; aborting playback to avoid overlapping audio");
+            String focusErr = "لم يتم منح التركيز الصوتي من النظام — تم إلغاء التشغيل لتجنب تداخل الأصوات";
+            publishAudioState(false, title, focusErr);
+            publishTestFailureIfNeeded(focusErr);
+            finishWithVisualFallback(title, body, section);
+            return;
+        }
 
         try {
             float scalarVol = volumePercent <= 0 ? 0.0f : Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
@@ -1126,9 +1131,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
-    private void requestAudioFocus() {
-        if (audioManager == null) return;
+    private boolean requestAudioFocus() {
+        if (audioManager == null) {
+            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        }
+        if (audioManager == null) return false;
         focusStateMachine.reset();
+        int focusResult;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAudioAttributes(
@@ -1137,13 +1146,20 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                                     .build()
                     )
+                    .setAcceptsDelayedFocusGain(false)
                     .setOnAudioFocusChangeListener(audioFocusChangeListener)
                     .build();
-            audioManager.requestAudioFocus(audioFocusRequest);
+            focusResult = audioManager.requestAudioFocus(audioFocusRequest);
         } else {
             @SuppressWarnings("deprecation")
-            int ignored = audioManager.requestAudioFocus(audioFocusChangeListener, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+            int legacyResult = audioManager.requestAudioFocus(
+                    audioFocusChangeListener,
+                    AudioManager.STREAM_ALARM,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            );
+            focusResult = legacyResult;
         }
+        return focusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
     }
 
     private void abandonAudioFocus() {

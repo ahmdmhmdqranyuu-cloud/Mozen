@@ -1,15 +1,22 @@
 package com.muslim.azan.ui.screens
 
+import android.Manifest
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,11 +32,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muslim.azan.BootReceiver
 import com.muslim.azan.R
+import com.muslim.azan.data.LocationPrecision
 import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.service.NativeLocationAndCompassManager
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.math.abs
 
 @Composable
@@ -39,9 +52,59 @@ fun QiblaScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var currentCityName by remember { mutableStateOf(prefs.cityName) }
+    var currentSource by remember { mutableStateOf(prefs.activeLocationSource) }
+    var currentPrecision by remember { mutableStateOf(prefs.activeLocationPrecision) }
+    var currentAccuracyMeters by remember { mutableIntStateOf(prefs.activeLocationAccuracyMeters) }
+    var isRefreshingGps by remember { mutableStateOf(false) }
+
     val compassManager = remember {
         NativeLocationAndCompassManager(context).apply {
             updateKaabaBearing(prefs.latitude, prefs.longitude)
+        }
+    }
+
+    fun performGpsRefresh() {
+        if (isRefreshingGps) return
+        isRefreshingGps = true
+        scope.launch {
+            val result = SystemPermissionHelper.detectAndSaveGpsLocation(context, prefs, autoSave = true)
+            isRefreshingGps = false
+            result.onSuccess { gps ->
+                currentCityName = gps.cityName
+                currentSource = "gps"
+                currentPrecision = if (gps.isPreciseLocation) LocationPrecision.PRECISE.code else LocationPrecision.APPROXIMATE.code
+                currentAccuracyMeters = gps.accuracyMeters
+                compassManager.updateKaabaBearing(gps.latitude, gps.longitude)
+                launch(Dispatchers.IO) {
+                    BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                }
+                Toast.makeText(context, "تم تحديث اتجاه القبلة لموقعك (${gps.cityName})", Toast.LENGTH_SHORT).show()
+            }.onFailure { err ->
+                Toast.makeText(
+                    context,
+                    err.message ?: "تعذر تحديث GPS — تم الإبقاء على ${currentCityName}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            performGpsRefresh()
+        } else {
+            Toast.makeText(
+                context,
+                "تم رفض إذن الموقع — تم الإبقاء على ${currentCityName} لحساب القبلة",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -109,12 +172,12 @@ fun QiblaScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Compass Visualizer (Unified Mint + Mosque Watermark Dial)
         Box(
             modifier = Modifier
-                .size(280.dp)
+                .size(270.dp)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(colors = listOf(MoazenCardStart, MoazenCardEnd)))
                 .border(2.dp, MoazenGold.copy(alpha = 0.55f), CircleShape),
@@ -184,16 +247,93 @@ fun QiblaScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        MoazenWidgetCard(cornerRadius = 14.dp) {
-            Text(
-                text = "المدينة الحالية: ${prefs.cityName}",
-                color = MoazenInkPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
-            )
+        val precisionBadgeText = when {
+            currentPrecision == LocationPrecision.PRECISE.code -> {
+                val acc = if (currentAccuracyMeters > 0) " (±${currentAccuracyMeters}م)" else ""
+                "موقع دقيق GPS$acc"
+            }
+            currentPrecision == LocationPrecision.APPROXIMATE.code -> "موقع تقريبي"
+            currentSource == "saved_gps" -> "موقع محفوظ"
+            else -> "موقع يدوي / من القائمة"
+        }
+
+        MoazenWidgetCard(cornerRadius = 14.dp, modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = currentCityName,
+                        color = MoazenInkPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MoazenInkEmerald.copy(alpha = 0.1f)
+                    ) {
+                        Text(
+                            text = precisionBadgeText,
+                            color = MoazenInkEmerald,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val st = SystemPermissionHelper.checkPermissions(context)
+                        if (st.locationGranted) {
+                            performGpsRefresh()
+                        } else {
+                            gpsPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    enabled = !isRefreshingGps,
+                    border = BorderStroke(1.dp, MoazenInkEmerald),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isRefreshingGps) {
+                        CircularProgressIndicator(
+                            color = MoazenInkEmerald,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = null,
+                            tint = MoazenInkEmerald,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isRefreshingGps) "جاري تحديث الموقع الدقيق..." else "تحديث موقعي عبر GPS",
+                        color = MoazenInkEmerald,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }

@@ -21,7 +21,16 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
+
+      - name: Cache Gradle & Android Wrapper
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-ci-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties') }}
+          restore-keys: |
+            gradle-ci-${{ runner.os }}-
 
       - name: Set up Android SDK 36 (Command-line Tools only, no legacy tools)
         run: |
@@ -51,10 +60,33 @@ jobs:
         run: |
           chmod +x gradlew android/gradlew
 
-      - name: Run Android Unit Tests, Lint & Build Debug APK
+      - name: Run Android Unit Tests, Lint & Build Debug APK (with Gradle HTTP 429 Retry)
         working-directory: android
         run: |
-          ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
+          MAX_ATTEMPTS=4
+          BACKOFF_SEC=15
+          ATTEMPT=1
+          SUCCESS=false
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "=== Gradle attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            if ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace \
+              -Dorg.gradle.internal.repository.max.retries=6 \
+              -Dorg.gradle.internal.repository.initial.backoff=2000; then
+              SUCCESS=true
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "::warning::Gradle build failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Waiting ${BACKOFF_SEC}s before retry in case of Maven HTTP 429 or transient network error..."
+              sleep "$BACKOFF_SEC"
+              BACKOFF_SEC=$((BACKOFF_SEC * 2))
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          ./gradlew --stop || true
+          if [ "$SUCCESS" != "true" ]; then
+            echo "Error: Gradle failed after $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
 
       - name: Verify Debug APK Output & Signature
         run: |

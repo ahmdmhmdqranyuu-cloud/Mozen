@@ -287,42 +287,42 @@ public class AlarmScheduler {
                     }
             );
 
-            // Cancel previous alarms no longer confirmed in the new schedule
-            if (oldJson != null) {
+            JSONArray oldArray = null;
+            if (oldJson != null && !oldJson.trim().isEmpty()) {
                 try {
-                    JSONArray oldArray = new JSONArray(oldJson);
-                    for (int i = 0; i < oldArray.length(); i++) {
-                        JSONObject oldObj = oldArray.getJSONObject(i);
-                        String oldSection = oldObj.optString("section", "");
-                        long oldTrigger = oldObj.optLong("triggerEpochMs", 0L);
-
-                        if (oldSection.isEmpty() || oldTrigger <= 0L) {
-                            continue;
-                        }
-
-                        String oldId = oldSection + "_" + oldTrigger;
-                        if (!result.confirmedAlarmIds.contains(oldId)) {
-                            cancelAlarm(context, alarmManager, oldSection, oldTrigger);
-                        }
-                    }
+                    oldArray = new JSONArray(oldJson);
                 } catch (Exception e) {
-                    Log.e(TAG, "Could not clean old schedule", e);
+                    Log.e(TAG, "Could not parse previous alarm schedule JSON", e);
                 }
             }
 
-            // CRITICAL: Persist ONLY alarms actually accepted by AlarmManager
+            AlarmScheduleTracker.ReconcileResult reconcileResult =
+                    AlarmScheduleTracker.reconcileScheduleReplacement(oldArray, result, now);
+
+            for (AlarmScheduleTracker.AlarmRef oldRef : reconcileResult.alarmsToCancel) {
+                cancelAlarm(context, alarmManager, oldRef.section, oldRef.triggerEpochMs);
+            }
+
+            if (reconcileResult.preservedOldCount > 0) {
+                Log.w(TAG, "Preserved " + reconcileResult.preservedOldCount
+                        + " valid prior alarms because new scheduling had failures (failedCount="
+                        + result.outcome.failedCount + ")");
+            }
+
+            // CRITICAL: Persist ONLY alarms confirmed by AlarmManager plus preserved still-active prior alarms
             prefs.edit()
-                    .putString(SCHEDULE_KEY, result.confirmedScheduledArray.toString())
+                    .putString(SCHEDULE_KEY, reconcileResult.persistedScheduleArray.toString())
                     .apply();
             AlarmScheduleTracker.saveOutcome(context, result.outcome);
 
             Log.d(TAG, "Schedule updated. Confirmed alarms=" + result.outcome.scheduledCount
+                    + ", preservedOld=" + reconcileResult.preservedOldCount
                     + ", failed=" + result.outcome.failedCount
                     + ", mode=" + result.outcome.getPrimaryMode().code);
 
             return result.outcome;
         } catch (Exception e) {
-            Log.e(TAG, "Failed to update alarm schedule", e);
+            Log.e(TAG, "Failed to update alarm schedule; preserving any prior alarms intact", e);
             AlarmScheduleTracker.ScheduleOutcome err = new AlarmScheduleTracker.ScheduleOutcome(
                     0, 0, 0, 0, 0, 1, false,
                     e.getMessage() != null ? e.getMessage() : "خطأ في تحديث جدول المنبهات",

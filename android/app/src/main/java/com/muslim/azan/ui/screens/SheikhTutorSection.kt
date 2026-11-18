@@ -1,10 +1,7 @@
 package com.muslim.azan.ui.screens
 
 import android.Manifest
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,11 +37,16 @@ import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.model.Ayah
+import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.service.NativeEvaluationResult
 import com.muslim.azan.service.NativeUploadState
 import com.muslim.azan.service.NativeWordResult
 import com.muslim.azan.service.PreparedWavClip
 import com.muslim.azan.service.QuranRecitationManager
+import com.muslim.azan.service.RecitationMetadata
+import com.muslim.azan.service.RecitationStorageManager
+import com.muslim.azan.service.RecitationUploadWorker
+import com.muslim.azan.service.StoredRecitationRecord
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenSubWidgetBox
 import com.muslim.azan.ui.components.MoazenWidgetCard
@@ -131,13 +133,14 @@ fun SheikhTutorSection(
     var statsRefreshKey by remember { mutableIntStateOf(0) }
     var isSpeakingWord by remember { mutableStateOf(false) }
 
-    var isPlayingAyah by remember { mutableStateOf(false) }
-    var isPausedAyah by remember { mutableStateOf(false) }
-    var activePlaybackIdx by remember { mutableIntStateOf(-1) }
+    val playerIsPlaying by NativeAudioPlayerManager.isPlaying.collectAsState()
+    val playerIsPaused by NativeAudioPlayerManager.isPaused.collectAsState()
+    val playerTrackTag by NativeAudioPlayerManager.currentTrackTag.collectAsState()
+    val isPlayingAyah = playerIsPlaying && playerTrackTag == "sheikh_ayah_recitation"
+    val isPausedAyah = playerIsPaused && playerTrackTag == "sheikh_ayah_recitation"
     var reciterSpeed by remember { mutableFloatStateOf(1.0f) }
     var hideAyahText by remember { mutableStateOf(false) }
     var isPlayingUserClip by remember { mutableStateOf(false) }
-    var ayahMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
     // Quiz Mode
     var quizType by remember { mutableStateOf("hide") }
@@ -148,6 +151,8 @@ fun SheikhTutorSection(
     val uploadState by QuranRecitationManager.uploadState.collectAsState()
     val micLevel by QuranRecitationManager.micLevel.collectAsState()
     val recordingSec by QuranRecitationManager.recordingSeconds.collectAsState()
+    val recordingLimitReached by QuranRecitationManager.recordingLimitReached.collectAsState()
+    var savedRecordings by remember { mutableStateOf(RecitationStorageManager.getRecordings(context)) }
     var evaluationResult by remember { mutableStateOf<NativeEvaluationResult?>(null) }
     var selectedWordDetail by remember { mutableStateOf<NativeWordResult?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -270,93 +275,43 @@ fun SheikhTutorSection(
     }
 
     fun stopAyahPlayback() {
-        runCatching {
-            ayahMediaPlayer?.stop()
-            ayahMediaPlayer?.release()
+        if (NativeAudioPlayerManager.currentTrackTag.value == "sheikh_ayah_recitation") {
+            NativeAudioPlayerManager.stop()
         }
-        ayahMediaPlayer = null
-        isPlayingAyah = false
-        isPausedAyah = false
-        activePlaybackIdx = -1
     }
 
-    fun playEveryAyahQueue(queue: List<Pair<Int, Int>>, index: Int = 0) {
-        if (index !in queue.indices || uploadState == NativeUploadState.RECORDING) {
+    fun playEveryAyahQueue(queue: List<Pair<Int, Int>>) {
+        if (queue.isEmpty() || uploadState == NativeUploadState.RECORDING) {
             stopAyahPlayback()
             return
         }
-        val (sNum, aNum) = queue[index]
         val reciter = SHEIKH_RECITERS[selectedReciterIdx]
-        val sPad = String.format(Locale.US, "%03d", sNum)
-        val aPad = String.format(Locale.US, "%03d", aNum)
-        val url = "https://everyayah.com/data/${reciter.folder}/$sPad$aPad.mp3"
-
-        runCatching {
-            ayahMediaPlayer?.stop()
-            ayahMediaPlayer?.release()
+        val urls = queue.map { (sNum, aNum) ->
+            val sPad = String.format(Locale.US, "%03d", sNum)
+            val aPad = String.format(Locale.US, "%03d", aNum)
+            "https://everyayah.com/data/${reciter.folder}/$sPad$aPad.mp3"
         }
-        ayahMediaPlayer = null
-
-        try {
-            activePlaybackIdx = index
-            val mp = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                setDataSource(url)
-                setOnPreparedListener { player ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        runCatching {
-                            player.playbackParams = player.playbackParams.setSpeed(reciterSpeed)
-                        }
-                    }
-                    player.start()
-                    isPlayingAyah = true
-                    isPausedAyah = false
-                }
-                setOnCompletionListener {
-                    if (index + 1 < queue.size) {
-                        playEveryAyahQueue(queue, index + 1)
-                    } else {
-                        isPlayingAyah = false
-                        activePlaybackIdx = -1
-                        currentRepeat++
-                        if (targetRepeats == 0 || currentRepeat < targetRepeats) {
-                            scope.launch {
-                                delay(750)
-                                if (uploadState != NativeUploadState.RECORDING) {
-                                    playEveryAyahQueue(queue, 0)
-                                }
-                            }
-                        }
-                    }
-                }
-                setOnErrorListener { _, _, _ ->
-                    isPlayingAyah = false
-                    activePlaybackIdx = -1
-                    errorMessage = "تعذر تشغيل تلاوة الآية، تحقق من الإنترنت"
-                    true
-                }
-                prepareAsync()
-            }
-            ayahMediaPlayer = mp
-        } catch (_: Exception) {
-            stopAyahPlayback()
-            errorMessage = "تعذر تشغيل صوت القارئ"
+        val title = if (unitType == "page") {
+            "تلقين صفحة $selectedPageNum"
+        } else {
+            "سورة ${activeSurahMeta.nameArabic} • الآية $selectedAyahNum"
         }
+        NativeAudioPlayerManager.playUrlQueue(
+            context = context,
+            urls = urls,
+            title = title,
+            subtitle = reciter.nameArabic,
+            speed = reciterSpeed,
+            targetRepeats = targetRepeats,
+            trackTag = "sheikh_ayah_recitation",
+            onError = { msg -> errorMessage = msg }
+        )
     }
 
     fun startOrResumePlayback(resume: Boolean = false, targetAyahOverride: Int? = null) {
         if (uploadState == NativeUploadState.RECORDING) return
-        if (resume && isPausedAyah && ayahMediaPlayer != null) {
-            runCatching {
-                ayahMediaPlayer?.start()
-                isPausedAyah = false
-                isPlayingAyah = true
-            }
+        if (resume && isPausedAyah) {
+            NativeAudioPlayerManager.resume()
             return
         }
         stopAyahPlayback()
@@ -365,18 +320,14 @@ fun SheikhTutorSection(
         } else {
             listOf(selectedSurahNum to (targetAyahOverride ?: selectedAyahNum))
         }
-        playEveryAyahQueue(queue, 0)
+        playEveryAyahQueue(queue)
     }
 
     fun pauseAyahPlayback() {
-        ayahMediaPlayer?.let { mp ->
-            if (mp.isPlaying) {
-                mp.pause()
-                isPlayingAyah = false
-                isPausedAyah = true
-            } else {
-                stopAyahPlayback()
-            }
+        if (isPlayingAyah) {
+            NativeAudioPlayerManager.pause()
+        } else {
+            stopAyahPlayback()
         }
     }
 
@@ -384,7 +335,6 @@ fun SheikhTutorSection(
         stopAyahPlayback()
         QuranRecitationManager.stopPreparedClipPlayback()
         QuranRecitationManager.resetStatus()
-        currentRepeat = 0
         evaluationResult = null
         selectedWordDetail = null
         isPlayingUserClip = false
@@ -509,7 +459,30 @@ fun SheikhTutorSection(
                 }
             }
         }.onFailure { err ->
-            errorMessage = err.message ?: "تعذر إرسال التلاوة للتحليل"
+            val msg = err.message ?: "تعذر إرسال التلاوة للتحليل"
+            val isNetworkFailure = !QuranRecitationManager.isNetworkConnected(context) ||
+                msg.contains("اتصال") || msg.contains("شبكة") || msg.contains("فشل الإرسال")
+            if (isNetworkFailure) {
+                val effectiveAyah = if (unitType == "page") (pageAyahs.firstOrNull()?.numberInSurah ?: 1) else ayahForClip
+                val meta = RecitationMetadata(
+                    expectedText = expected,
+                    surahName = pageSurahName,
+                    surahNumber = effectiveSurahNum,
+                    ayahNumber = effectiveAyah,
+                    dialect = dialect,
+                    mode = modeParam,
+                    trainingMode = (correctionMode == "training"),
+                    adjacentAyahsText = adjacent,
+                    analysisSpeed = analysisSpeed,
+                    unitType = unitType,
+                    pageNumber = selectedPageNum
+                )
+                QuranRecitationManager.saveAndEnqueueOfflineUpload(context, clipToSend, meta, msg)
+                savedRecordings = RecitationStorageManager.getRecordings(context)
+                errorMessage = "$msg • تم حفظ التلاوة محليًا وستُرسل تلقائيًا عند عودة الإنترنت."
+            } else {
+                errorMessage = msg
+            }
         }
     }
 
@@ -900,11 +873,7 @@ fun SheikhTutorSection(
                                                     .background(if (reciterSpeed == spd) MoazenGoldDark else Color.White)
                                                     .clickable {
                                                         reciterSpeed = spd
-                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && ayahMediaPlayer?.isPlaying == true) {
-                                                            runCatching {
-                                                                ayahMediaPlayer?.let { mp -> mp.playbackParams = mp.playbackParams.setSpeed(spd) }
-                                                            }
-                                                        }
+                                                        NativeAudioPlayerManager.setPlaybackSpeed(spd)
                                                     }
                                                     .padding(horizontal = 6.dp, vertical = 4.dp)
                                             ) {
@@ -1003,6 +972,22 @@ fun SheikhTutorSection(
                             Text("إعادة الإرسال", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            if (recordingLimitReached) {
+                MoazenWidgetCard(
+                    cornerRadius = 14.dp,
+                    borderColor = MoazenGold,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "⏱ تم بلوغ الحد الأقصى للتسجيل (${RecitationStorageManager.MAX_RECORDING_SECONDS} ثانية) لحماية الذاكرة — يمكنك الإرسال للتحليل الآن.",
+                        color = MoazenGoldDark,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
             }
 
@@ -1353,6 +1338,109 @@ fun SheikhTutorSection(
                         }
                     }
                 }
+
+                // OFFLINE QUEUE & SAVED RECORDINGS + PRIVACY NOTICE CARD
+                if (savedRecordings.isNotEmpty()) {
+                    MoazenWidgetCard(cornerRadius = 16.dp, modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "سجل التلاوات المحفوظة محليًا (${savedRecordings.size})",
+                                    color = MoazenInkEmerald,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                TextButton(
+                                    onClick = {
+                                        RecitationStorageManager.deleteAllRecordings(context)
+                                        savedRecordings = emptyList()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("حذف الكل", color = Color(0xFFB71C1C), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            savedRecordings.take(4).forEach { rec ->
+                                val statusAr = when (rec.status) {
+                                    RecitationStorageManager.STATUS_PENDING_UPLOAD -> "بانتظار الإنترنت"
+                                    RecitationStorageManager.STATUS_UPLOADING -> "جاري الرفع..."
+                                    RecitationStorageManager.STATUS_COMPLETED -> "تم التحليل ✓"
+                                    else -> "فشل الرفع"
+                                }
+                                MoazenSubWidgetBox(cornerRadius = 10.dp, modifier = Modifier.fillMaxWidth()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "سورة ${rec.surahName} • آية ${rec.ayahNumber}",
+                                                color = MoazenInkPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "$statusAr • ${(rec.sizeBytes / 1024).coerceAtLeast(1)} KB",
+                                                color = MoazenInkMuted,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            IconButton(
+                                                onClick = {
+                                                    val clip = RecitationStorageManager.readRecordingClip(context, rec)
+                                                    if (clip != null) {
+                                                        stopAyahPlayback()
+                                                        QuranRecitationManager.playPreparedClip(context, clip) {}
+                                                    }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.PlayArrow, contentDescription = "سماع", tint = MoazenInkEmerald, modifier = Modifier.size(18.dp))
+                                            }
+                                            if (rec.status == RecitationStorageManager.STATUS_PENDING_UPLOAD || rec.status == RecitationStorageManager.STATUS_FAILED) {
+                                                IconButton(
+                                                    onClick = {
+                                                        RecitationStorageManager.updateRecordingStatus(context, rec.id, RecitationStorageManager.STATUS_PENDING_UPLOAD, "")
+                                                        RecitationUploadWorker.enqueue(context)
+                                                        savedRecordings = RecitationStorageManager.getRecordings(context)
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Refresh, contentDescription = "إعادة الإرسال", tint = MoazenGoldDark, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    RecitationStorageManager.deleteRecording(context, rec.id)
+                                                    savedRecordings = RecitationStorageManager.getRecordings(context)
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.DeleteOutline, contentDescription = "حذف", tint = Color(0xFFB71C1C), modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "خصوصية الصوت: تُحفظ المقاطع محليًا مؤقتًا (بحد أقصى 90 ثانية للمقطع) وتُرسل فقط عند طلب التسميع والتحليل عبر خادم «شيخي»، ويمكنك حذفها في أي وقت.",
+                    color = GoldLight.copy(alpha = 0.85f),
+                    fontSize = 10.5.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             } else if (activeTab == 1) {
                 // TAB 1: MEMORIZATION TEST (SUPPORTS AYAH OR PAGE)
                 MoazenWidgetCard(cornerRadius = 18.dp, modifier = Modifier.fillMaxWidth()) {

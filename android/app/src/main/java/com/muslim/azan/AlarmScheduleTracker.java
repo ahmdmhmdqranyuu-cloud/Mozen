@@ -203,15 +203,56 @@ public final class AlarmScheduleTracker {
         void scheduleInexactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) throws Exception;
     }
 
+    public static final class AlarmRef {
+        public final String section;
+        public final long triggerEpochMs;
+
+        public AlarmRef(String section, long triggerEpochMs) {
+            this.section = section;
+            this.triggerEpochMs = triggerEpochMs;
+        }
+    }
+
     public static final class ExecutionResult {
         public final JSONArray confirmedScheduledArray;
         public final Set<String> confirmedAlarmIds;
+        public final Set<String> failedSections;
         public final ScheduleOutcome outcome;
 
-        public ExecutionResult(JSONArray confirmedScheduledArray, Set<String> confirmedAlarmIds, ScheduleOutcome outcome) {
+        public ExecutionResult(
+                JSONArray confirmedScheduledArray,
+                Set<String> confirmedAlarmIds,
+                ScheduleOutcome outcome
+        ) {
+            this(confirmedScheduledArray, confirmedAlarmIds, new HashSet<>(), outcome);
+        }
+
+        public ExecutionResult(
+                JSONArray confirmedScheduledArray,
+                Set<String> confirmedAlarmIds,
+                Set<String> failedSections,
+                ScheduleOutcome outcome
+        ) {
             this.confirmedScheduledArray = confirmedScheduledArray;
             this.confirmedAlarmIds = confirmedAlarmIds;
+            this.failedSections = failedSections != null ? failedSections : new HashSet<>();
             this.outcome = outcome;
+        }
+    }
+
+    public static final class ReconcileResult {
+        public final java.util.List<AlarmRef> alarmsToCancel;
+        public final JSONArray persistedScheduleArray;
+        public final int preservedOldCount;
+
+        public ReconcileResult(
+                java.util.List<AlarmRef> alarmsToCancel,
+                JSONArray persistedScheduleArray,
+                int preservedOldCount
+        ) {
+            this.alarmsToCancel = alarmsToCancel;
+            this.persistedScheduleArray = persistedScheduleArray;
+            this.preservedOldCount = preservedOldCount;
         }
     }
 
@@ -230,6 +271,7 @@ public final class AlarmScheduleTracker {
         JSONArray confirmed = new JSONArray();
         Set<String> seenIds = new HashSet<>();
         Set<String> confirmedIds = new HashSet<>();
+        Set<String> failedSections = new HashSet<>();
 
         int totalCandidates = 0;
         int scheduledCount = 0;
@@ -243,6 +285,7 @@ public final class AlarmScheduleTracker {
             return new ExecutionResult(
                     confirmed,
                     confirmedIds,
+                    failedSections,
                     new ScheduleOutcome(0, 0, 0, 0, 0, 0, canExact, "", nowMs)
             );
         }
@@ -296,6 +339,7 @@ public final class AlarmScheduleTracker {
             } catch (Exception ex) {
                 usedMode = ScheduleMode.FAILED;
                 failedCount++;
+                failedSections.add(section);
                 lastFailureReason = safeMsg(ex);
             }
 
@@ -339,7 +383,74 @@ public final class AlarmScheduleTracker {
                 lastFailureReason,
                 nowMs
         );
-        return new ExecutionResult(confirmed, confirmedIds, outcome);
+        return new ExecutionResult(confirmed, confirmedIds, failedSections, outcome);
+    }
+
+    /**
+     * Reconciles old scheduled alarms against a newly executed batch.
+     * Guarantees valid future old alarms are NEVER cancelled when new scheduling fails:
+     * - If the new batch produced 0 confirmed alarms while recording failures, ALL valid future old
+     *   alarms are preserved untouched (both in AlarmManager and in persisted JSON).
+     * - If individual sections failed while others succeeded, valid future old alarms belonging to any
+     *   failed section are also preserved untouched.
+     */
+    public static ReconcileResult reconcileScheduleReplacement(
+            JSONArray oldArray,
+            ExecutionResult newResult,
+            long nowMs
+    ) {
+        java.util.List<AlarmRef> toCancel = new java.util.ArrayList<>();
+        JSONArray merged = new JSONArray();
+        Set<String> seenMergedIds = new HashSet<>();
+        int preservedCount = 0;
+
+        if (newResult != null && newResult.confirmedScheduledArray != null) {
+            for (int i = 0; i < newResult.confirmedScheduledArray.length(); i++) {
+                JSONObject obj = newResult.confirmedScheduledArray.optJSONObject(i);
+                if (obj == null) continue;
+                String sec = obj.optString("section", "");
+                long trig = obj.optLong("triggerEpochMs", 0L);
+                if (!sec.isEmpty() && trig > 0L) {
+                    seenMergedIds.add(sec + "_" + trig);
+                }
+                merged.put(obj);
+            }
+        }
+
+        boolean totalBatchFailure = newResult == null
+                || (newResult.outcome.scheduledCount == 0 && newResult.outcome.failedCount > 0);
+        Set<String> failedSections = newResult != null ? newResult.failedSections : new HashSet<>();
+
+        if (oldArray != null) {
+            for (int i = 0; i < oldArray.length(); i++) {
+                JSONObject oldObj = oldArray.optJSONObject(i);
+                if (oldObj == null) continue;
+                String oldSection = oldObj.optString("section", "");
+                long oldTrigger = oldObj.optLong("triggerEpochMs", 0L);
+                if (oldSection.isEmpty() || oldTrigger <= 0L) continue;
+
+                String oldId = oldSection + "_" + oldTrigger;
+                boolean alreadyConfirmed = newResult != null && newResult.confirmedAlarmIds.contains(oldId);
+                if (alreadyConfirmed) {
+                    continue;
+                }
+
+                boolean isValidFutureOldAlarm = oldTrigger > nowMs;
+                boolean shouldPreserve = isValidFutureOldAlarm
+                        && (totalBatchFailure || failedSections.contains(oldSection));
+
+                if (shouldPreserve) {
+                    if (seenMergedIds.add(oldId)) {
+                        merged.put(oldObj);
+                        preservedCount++;
+                    }
+                } else {
+                    toCancel.add(new AlarmRef(oldSection, oldTrigger));
+                }
+            }
+        }
+
+        return new ReconcileResult(toCancel, merged, preservedCount);
     }
 
     public static void saveOutcome(Context context, ScheduleOutcome outcome) {

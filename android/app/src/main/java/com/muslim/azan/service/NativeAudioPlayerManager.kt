@@ -149,7 +149,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             @Suppress("DEPRECATION")
             am.requestAudioFocus(focusChangeListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
         }
-        return res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED || res == AudioManager.AUDIOFOCUS_REQUEST_DELAYED
+        return res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
     private fun abandonFocus() {
@@ -182,7 +182,10 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         }
         stop()
         activeContext = context.applicationContext
-        requestFocus(context, speechContent = false)
+        if (!requestFocus(context, speechContent = false)) {
+            Log.w(TAG, "Audio focus denied; skipping asset playback: $title")
+            return
+        }
         try {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -263,7 +266,12 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         activeContext = context.applicationContext
         onFileOrQueueComplete = onComplete
         onQueueError = onError
-        requestFocus(context, speechContent = true)
+        if (!requestFocus(context, speechContent = true)) {
+            val errCallback = onQueueError
+            stop()
+            errCallback?.invoke("تعذر الحصول على التركيز الصوتي لتشغيل الملف")
+            return
+        }
         try {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -341,7 +349,12 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         onFileOrQueueComplete = onComplete
         onQueueError = onError
 
-        requestFocus(context, speechContent = true)
+        if (!requestFocus(context, speechContent = true)) {
+            val errCb = onQueueError
+            stop()
+            errCb?.invoke("تعذر الحصول على التركيز الصوتي لتشغيل التلاوة")
+            return
+        }
         _currentTrackTag.value = trackTag
         _currentTitle.value = title
         _currentSubtitle.value = "$subtitle (جاري التحميل...)"
@@ -427,7 +440,11 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         mediaPlayer?.let { player ->
             runCatching {
                 if (!player.isPlaying) {
-                    activeContext?.let { requestFocus(it, speechContent = true) }
+                    val granted = activeContext?.let { requestFocus(it, speechContent = true) } ?: true
+                    if (!granted) {
+                        Log.w(TAG, "Audio focus denied on resume")
+                        return
+                    }
                     player.start()
                     _isPlaying.value = true
                     _isPaused.value = false
