@@ -65,7 +65,9 @@ public class BootReceiver extends BroadcastReceiver {
                 String lngStr = prefs.getString("city_longitude", "39.8262");
                 lat = PrayerTimeCalculator.sanitizeLatitude(Double.parseDouble(latStr));
                 lng = PrayerTimeCalculator.sanitizeLongitude(Double.parseDouble(lngStr));
-            } catch (Exception ignored) {}
+            } catch (Exception parseEx) {
+                Log.w(TAG, "Invalid stored coordinates, falling back to Makkah defaults", parseEx);
+            }
 
             String cityName = prefs.getString("city_name", "مكة المكرمة");
             String cityTimezoneId = prefs.getString("city_timezone_id", "Asia/Riyadh");
@@ -155,7 +157,9 @@ public class BootReceiver extends BroadcastReceiver {
                         alertModeArr[i] = cfg.optString("alertMode", alertModeArr[i]);
                         iqamaVoiceArr[i] = cfg.optString("iqamaVoice", iqamaVoiceArr[i]);
                         duaAfterArr[i] = cfg.optBoolean("duaAfterPrayerEnabled", duaAfterArr[i]);
-                    } catch (Exception ignored) {}
+                    } catch (Exception cfgEx) {
+                        Log.w(TAG, "Failed parsing prayer_config_" + k + ", using defaults", cfgEx);
+                    }
                 }
             }
 
@@ -326,15 +330,18 @@ public class BootReceiver extends BroadcastReceiver {
 
                 // 2. Schedule periodic Salawat only for today and tomorrow (max 60 slots)
                 if (salawatEnabled && dayOffset < 2 && salawatArray.length() < 60) {
-                    long salawatStartEpochMs;
-                    if (salawatAutoAfterFajrIqama && !"once".equalsIgnoreCase(salawatRepeatType)) {
-                        long fajrEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, times.fajrMinutes);
-                        int fajrIqamaDelayMins = 15;
-                        salawatStartEpochMs = fajrEpochMs + (fajrIqamaDelayMins + 1) * 60_000L;
-                    } else {
-                        int salawatStartMins = parseHHmm(salawatTime, 6, 0);
-                        salawatStartEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, salawatStartMins);
-                    }
+                    long[] salawatWindow = computeSalawatWindowForDay(
+                            cityDayCal,
+                            deviceDayCal,
+                            times.fajrMinutes,
+                            15,
+                            salawatAutoAfterFajrIqama,
+                            salawatTime,
+                            salawatEndTime,
+                            salawatRepeatType
+                    );
+                    long salawatStartEpochMs = salawatWindow[0];
+                    long salawatEndEpochMs = salawatWindow[1];
 
                     if ("once".equalsIgnoreCase(salawatRepeatType)) {
                         if (salawatStartEpochMs > nowMs) {
@@ -351,14 +358,6 @@ public class BootReceiver extends BroadcastReceiver {
                     } else {
                         long stepMs = salawatInterval * ("hours".equalsIgnoreCase(salawatUnit) ? 3600000L : 60000L);
                         if (stepMs < 60000L) stepMs = 60000L;
-
-                        long salawatEndEpochMs;
-                        if (salawatAutoAfterFajrIqama || "00:00".equals(salawatEndTime) || "23:59".equals(salawatEndTime)) {
-                            salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, 23 * 60 + 59) + 59_999L;
-                        } else {
-                            int endMins = parseHHmm(salawatEndTime, 23, 59);
-                            salawatEndEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, endMins);
-                        }
 
                         long currentSlotMs = salawatStartEpochMs;
 
@@ -396,10 +395,51 @@ public class BootReceiver extends BroadcastReceiver {
 
             prefs.edit()
                     .putLong("last_recalculated_epoch_ms", nowMs)
+                    .remove("last_recalc_error")
                     .apply();
 
         } catch (Exception e) {
             Log.e(TAG, "Failed autonomous recalculation of schedule", e);
+            try {
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("last_recalc_error", e.getMessage() != null ? e.getMessage() : "unknown")
+                        .apply();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Pure JVM-testable helper ensuring Salawat window start and end use the same timezone calendar
+     * (cityDayCal when auto-starting after Fajr Iqama; deviceDayCal when manually configured).
+     */
+    public static long[] computeSalawatWindowForDay(
+            Calendar cityDayCal,
+            Calendar deviceDayCal,
+            int fajrMinutes,
+            int iqamaDelayMins,
+            boolean autoAfterFajrIqama,
+            String salawatTime,
+            String salawatEndTime,
+            String repeatType
+    ) {
+        boolean isOnce = "once".equalsIgnoreCase(repeatType);
+        if (autoAfterFajrIqama && !isOnce) {
+            long fajrEpochMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, fajrMinutes);
+            long startMs = fajrEpochMs + (Math.max(0, iqamaDelayMins) + 1) * 60_000L;
+            long endMs = PrayerTimeCalculator.calculatePrayerEpochMs(cityDayCal, 23 * 60 + 59) + 59_999L;
+            return new long[]{startMs, Math.max(startMs, endMs)};
+        } else {
+            int startMins = parseHHmm(salawatTime, 6, 0);
+            long startMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, startMins);
+            long endMs;
+            if ("00:00".equals(salawatEndTime) || "23:59".equals(salawatEndTime)) {
+                endMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, 23 * 60 + 59) + 59_999L;
+            } else {
+                int endMins = parseHHmm(salawatEndTime, 23, 59);
+                endMs = PrayerTimeCalculator.calculatePrayerEpochMs(deviceDayCal, endMins);
+            }
+            return new long[]{startMs, endMs};
         }
     }
 

@@ -180,6 +180,7 @@ fun SettingsScreen(
 
     var azanSoundEnabled by remember { mutableStateOf(prefs.azanSoundEnabled) }
     var prePrayerAlertEnabled by remember { mutableStateOf(prefs.prePrayerAlertEnabled) }
+    var volumeKeyStopsAzan by remember { mutableStateOf(prefs.volumeKeyStopsAzan) }
     var selectedAzanVoice by remember { mutableStateOf(prefs.azanVoice) }
     var backgroundTestScheduledNote by remember { mutableStateOf<String?>(null) }
 
@@ -1599,6 +1600,29 @@ fun SettingsScreen(
                                 coroutineScope.launch(Dispatchers.IO) {
                                     BootReceiver.recalculateAndScheduleAll(context.applicationContext)
                                 }
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("إيقاف الأذان بزر خفض الصوت:", color = MoazenInkPrimary, fontSize = 13.sp)
+                            Text(
+                                "عند الضغط على زر خفض الصوت أثناء الأذان يكتمه فورًا دون إيقاف القرآن",
+                                color = MoazenInkMuted,
+                                fontSize = 10.5.sp
+                            )
+                        }
+                        Switch(
+                            checked = volumeKeyStopsAzan,
+                            onCheckedChange = {
+                                volumeKeyStopsAzan = it
+                                prefs.volumeKeyStopsAzan = it
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
                         )

@@ -311,12 +311,12 @@ export default function App() {
         window.removeEventListener('openPermissionDirectFromNotification', handleCustomOpenPerm);
       };
     }
+  }, []);
 
-    // Touch/click sound unlocker for iOS Safari and Android WebView
+  // Touch/click silent sound unlocker for iOS Safari & Android WebView (always active regardless of ServiceWorker support)
+  useEffect(() => {
     const unlockAudio = () => {
-      if (!soundService.isPlaying()) {
-        soundService.playTasbihClick();
-      }
+      soundService.unlockAudioContext();
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
     };
@@ -328,7 +328,7 @@ export default function App() {
     };
   }, []);
 
-  // Global Volume Down listener to stop Azan audio if volumeDownStopsAzan is enabled
+  // Global Volume Down listener to stop Azan audio only when volumeDownStopsAzan is enabled
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const ext = getExtendedSetupSettings();
@@ -340,7 +340,8 @@ export default function App() {
         e.keyCode === 174 ||
         e.keyCode === 25
       ) {
-        if (soundService.isPlaying()) {
+        if (soundService.isPlaying('azan')) {
+          e.preventDefault();
           soundService.stopAudio();
           setSmartAzanAudioPlaying(false);
           setActiveAzanBanner(null);

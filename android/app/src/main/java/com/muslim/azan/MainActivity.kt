@@ -25,7 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SystemPermissionHelper
-import com.muslim.azan.service.NativeAudioPlayerManager
+import com.muslim.azan.service.VolumeKeyStopPolicy
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.BottomNavBar
 import com.muslim.azan.ui.components.FloatingAudioBar
@@ -155,6 +155,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable(Screen.Duas.route) {
                                 DuasScreen(
+                                    prefs = prefs,
                                     onBack = { navController.popBackStack() }
                                 )
                             }
@@ -280,12 +281,18 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN &&
+            VolumeKeyStopPolicy.shouldStopAzanOnVolumeDown(
+                settingEnabled = prefs.volumeKeyStopsAzan,
+                servicePlayingNow = AzkarAudioService.isPlayingNow,
+                activeSection = AzkarAudioService.currentSection
+            )
+        ) {
             val stopIntent = Intent(this, AzkarAudioService::class.java).apply {
                 action = AzkarAudioService.ACTION_MUTE_AUDIO_ONLY
             }
             startService(stopIntent)
-            NativeAudioPlayerManager.stop()
+            return true
         }
         return super.onKeyDown(keyCode, event)
     }

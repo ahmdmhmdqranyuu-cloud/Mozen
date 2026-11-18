@@ -100,6 +100,13 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- Foreground Service for keeping streamed/offline Quran recitations alive with screen locked -->
+        <service
+            android:name=".service.QuranPlaybackService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
     </application>
 
 </manifest>

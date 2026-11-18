@@ -35,10 +35,14 @@ fun RamadanScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    var fastedToday by remember { mutableStateOf(true) }
-    var taraweehDone by remember { mutableStateOf(false) }
-    var quranDone by remember { mutableStateOf(false) }
-    var charityDone by remember { mutableStateOf(false) }
+    val todayKey = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    }
+    val initialHabits = remember(todayKey) { prefs.getRamadanDailyHabits(todayKey) }
+    var fastedToday by remember { mutableStateOf(initialHabits["fasted"] ?: true) }
+    var taraweehDone by remember { mutableStateOf(initialHabits["taraweeh"] ?: false) }
+    var quranDone by remember { mutableStateOf(initialHabits["quran"] ?: false) }
+    var charityDone by remember { mutableStateOf(initialHabits["charity"] ?: false) }
 
     var fastingDays by remember {
         mutableStateOf<Map<Int, String>>(prefs.getRamadanFastingDays())
@@ -315,16 +319,28 @@ fun RamadanScreen(
             }
 
             item {
-                ChecklistCard("صيام اليوم بنية خالصة", fastedToday) { fastedToday = !fastedToday }
+                ChecklistCard("صيام اليوم بنية خالصة", fastedToday) {
+                    fastedToday = !fastedToday
+                    prefs.setRamadanDailyHabit(todayKey, "fasted", fastedToday)
+                }
             }
             item {
-                ChecklistCard("صلاة التراويح وقيام الليل", taraweehDone) { taraweehDone = !taraweehDone }
+                ChecklistCard("صلاة التراويح وقيام الليل", taraweehDone) {
+                    taraweehDone = !taraweehDone
+                    prefs.setRamadanDailyHabit(todayKey, "taraweeh", taraweehDone)
+                }
             }
             item {
-                ChecklistCard("قراءة الورد اليومي من القرآن الكريم", quranDone) { quranDone = !quranDone }
+                ChecklistCard("قراءة الورد اليومي من القرآن الكريم", quranDone) {
+                    quranDone = !quranDone
+                    prefs.setRamadanDailyHabit(todayKey, "quran", quranDone)
+                }
             }
             item {
-                ChecklistCard("الصدقة وإفطار صائم", charityDone) { charityDone = !charityDone }
+                ChecklistCard("الصدقة وإفطار صائم", charityDone) {
+                    charityDone = !charityDone
+                    prefs.setRamadanDailyHabit(todayKey, "charity", charityDone)
+                }
             }
         }
     }

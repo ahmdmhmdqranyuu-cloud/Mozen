@@ -2,6 +2,11 @@
  * Audio Player Utility for Azan, Quran Recitation, and Subha clicks
  * 100% Offline Compatible with embedded local project audio files
  */
+import {
+  audioPriorityCoordinator,
+  AudioChannelCategory,
+  getCategoryPriority,
+} from './audioPriorityCoordinator';
 
 export interface AzanVoiceOption {
   id: string;
@@ -333,12 +338,6 @@ export const IQAMA_VOICES: IqamaVoiceOption[] = [
   },
 ];
 
-import {
-  audioPriorityCoordinator,
-  AudioChannelCategory,
-  getCategoryPriority,
-} from './audioPriorityCoordinator';
-
 export enum AudioFocusChange {
   AUDIOFOCUS_GAIN = 1,
   AUDIOFOCUS_LOSS = -1,
@@ -529,6 +528,23 @@ class SoundService {
       this.audioContext.resume();
     }
     return this.audioContext;
+  }
+
+  public unlockAudioContext(): void {
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {
+      // ignore unlock failures on restricted devices
+    }
   }
 
   public playTasbihClick() {
@@ -944,6 +960,7 @@ class SoundService {
 
       audio.onended = () => {
         this.currentAudio = null;
+        this.abandonAudioFocus(surahOwnerId);
         if (onEnd) onEnd();
       };
 
@@ -952,11 +969,15 @@ class SoundService {
           triedFallback = true;
           audio.src = fallbackUrl;
           audio.play().catch((e) => {
+            this.currentAudio = null;
+            this.abandonAudioFocus(surahOwnerId);
             if (onError) onError(e);
             if (onEnd) onEnd();
           });
           return;
         }
+        this.currentAudio = null;
+        this.abandonAudioFocus(surahOwnerId);
         if (onError) onError(err);
         if (onEnd) onEnd();
       };
@@ -966,15 +987,20 @@ class SoundService {
           triedFallback = true;
           audio.src = fallbackUrl;
           audio.play().catch((e) => {
+            this.currentAudio = null;
+            this.abandonAudioFocus(surahOwnerId);
             if (onError) onError(e);
           });
           return;
         }
+        this.currentAudio = null;
+        this.abandonAudioFocus(surahOwnerId);
         if (onError) onError(err);
       });
 
       return audio;
     } catch (err) {
+      this.abandonAudioFocus(surahOwnerId);
       if (onError) onError(err);
       return null;
     }

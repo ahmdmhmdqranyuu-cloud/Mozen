@@ -497,8 +497,8 @@ object SystemPermissionHelper {
         } else {
             Priority.PRIORITY_BALANCED_POWER_ACCURACY
         }
-        // 1. Active FusedLocationProviderClient (8s timeout)
-        val fused = withTimeoutOrNull(8_000L) {
+        // 1. Active FusedLocationProviderClient (4.5s timeout so offline GPS devices fall through promptly)
+        val fused = withTimeoutOrNull(4_500L) {
             runCatching {
                 val client = LocationServices.getFusedLocationProviderClient(context)
                 suspendCancellableCoroutine<Location?> { cont ->
@@ -523,8 +523,8 @@ object SystemPermissionHelper {
             }
         }
 
-        // 2. Native Android LocationManager active GPS / Network fix (8s timeout)
-        val activeNative = withTimeoutOrNull(8_000L) {
+        // 2. Native Android LocationManager active GPS / Network fix (10s timeout for true offline GPS cold-fix)
+        val activeNative = withTimeoutOrNull(10_000L) {
             requestSingleNativeLocation(context, fineGranted)
         }
         if (activeNative != null) {

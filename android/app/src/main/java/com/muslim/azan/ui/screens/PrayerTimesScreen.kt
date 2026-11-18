@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.PrayerTimeCalculator
 import com.muslim.azan.data.NativePreferences
@@ -59,19 +62,43 @@ fun PrayerTimesScreen(
     var asrOff by remember { mutableIntStateOf(prefs.asrOffsetMinutes) }
     var maghribOff by remember { mutableIntStateOf(prefs.maghribOffsetMinutes) }
     var ishaOff by remember { mutableIntStateOf(prefs.ishaOffsetMinutes) }
+    var highLatRule by remember { mutableStateOf(prefs.highLatitudeRule) }
     var isDetectingGps by remember { mutableStateOf(false) }
     var gpsDetail by remember { mutableStateOf<String?>(null) }
 
-    val highLatRule = remember { prefs.highLatitudeRule }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                cityName = prefs.cityName
+                lat = prefs.latitude
+                lng = prefs.longitude
+                cityTimezoneId = prefs.cityTimezoneId
+                calcMethod = prefs.calculationMethod
+                asrMethod = prefs.asrMethod
+                highLatRule = prefs.highLatitudeRule
+                fajrOff = prefs.fajrOffsetMinutes
+                sunriseOff = prefs.sunriseOffsetMinutes
+                duhaOff = prefs.duhaOffsetMinutes
+                dhuhrOff = prefs.dhuhrOffsetMinutes
+                asrOff = prefs.asrOffsetMinutes
+                maghribOff = prefs.maghribOffsetMinutes
+                ishaOff = prefs.ishaOffsetMinutes
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val cal = remember(cityTimezoneId) {
         val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
         Calendar.getInstance(tz)
     }
-    val tzOffsetHours = remember(cityTimezoneId, lng) {
+    val tzOffsetHours = remember(cityTimezoneId, lng, cal.timeInMillis) {
         PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis, lng)
     }
 
-    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, highLatRule, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
+    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, highLatRule, tzOffsetHours, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
         PrayerTimeCalculator.calculateDailyPrayers(
             cal,
             lat,

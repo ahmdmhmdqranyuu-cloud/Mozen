@@ -180,17 +180,18 @@ fun PrayerSettingsScreen(
         if (prefs.cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(prefs.cityTimezoneId) else TimeZone.getDefault()
     }
     val cal = remember(cityTz) { Calendar.getInstance(cityTz) }
-    val tzOffset = remember(prefs.cityTimezoneId) {
-        PrayerTimeCalculator.resolveTimezoneOffsetHours(prefs.cityTimezoneId, cal.timeInMillis)
+    val tzOffset = remember(prefs.cityTimezoneId, prefs.longitude, cal.timeInMillis) {
+        PrayerTimeCalculator.resolveTimezoneOffsetHours(prefs.cityTimezoneId, cal.timeInMillis, prefs.longitude)
     }
-    val baseTimes = remember(prefs.latitude, prefs.longitude, prefs.cityTimezoneId, prefs.calculationMethod, prefs.asrMethod) {
+    val baseTimes = remember(prefs.latitude, prefs.longitude, prefs.cityTimezoneId, prefs.calculationMethod, prefs.asrMethod, prefs.highLatitudeRule, tzOffset) {
         PrayerTimeCalculator.calculateDailyPrayers(
             cal,
             prefs.latitude,
             prefs.longitude,
             tzOffset,
             prefs.calculationMethod,
-            prefs.asrMethod
+            prefs.asrMethod,
+            prefs.highLatitudeRule
         )
     }
     val baseMinuteForPrayer = when (selectedPrayerKey) {

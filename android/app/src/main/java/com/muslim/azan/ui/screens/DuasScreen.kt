@@ -21,23 +21,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.model.DuaItem
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
 
 @Composable
 fun DuasScreen(
+    prefs: NativePreferences,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val initialDuas = listOf(
-        DuaItem("d1", "دعاء الفرج وكشف الكرب", "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ.", "القرآن الكريم - سورة الأنبياء", "الكرب والهم"),
-        DuaItem("d2", "دعاء تيسير الأمور", "رَبِّ اشْرَحْ لِي صَدْرِي * وَيَسِّرْ لِي أَمْرِي * وَاحْلُلْ عُقْدَةً مِّن لِّسَانِي * يَفْقَهُوا قَوْلِي.", "القرآن الكريم - سورة طه", "تيسير الأمور"),
-        DuaItem("d3", "دعاء الهداية والرحمة", "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً ۚ إِنَّكَ أَنتَ الْوَهَّابُ.", "القرآن الكريم - سورة آل عمران", "الهداية والرحمة"),
-        DuaItem("d4", "دعاء الوالدين", "رَّبِّ ارْحَمْهُمَا كَمَا رَبَّيَانِي صَغِيرًا.", "القرآن الكريم - سورة الإسراء", "بر الوالدين"),
-        DuaItem("d5", "سؤال العفو والعافية", "اللَّهُمَّ إِنَّكَ عَفُوٌّ كَرِيمٌ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي.", "سنن الترمذي", "العفو والمغفرة")
-    )
+    val initialFavs = remember { prefs.getFavoriteDuaIds() }
+    val initialDuas = remember(initialFavs) {
+        listOf(
+            DuaItem("d1", "دعاء الفرج وكشف الكرب", "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ.", "القرآن الكريم - سورة الأنبياء", "الكرب والهم", isFavorite = "d1" in initialFavs),
+            DuaItem("d2", "دعاء تيسير الأمور", "رَبِّ اشْرَحْ لِي صَدْرِي * وَيَسِّرْ لِي أَمْرِي * وَاحْلُلْ عُقْدَةً مِّن لِّسَانِي * يَفْقَهُوا قَوْلِي.", "القرآن الكريم - سورة طه", "تيسير الأمور", isFavorite = "d2" in initialFavs),
+            DuaItem("d3", "دعاء الهداية والرحمة", "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً ۚ إِنَّكَ أَنتَ الْوَهَّابُ.", "القرآن الكريم - سورة آل عمران", "الهداية والرحمة", isFavorite = "d3" in initialFavs),
+            DuaItem("d4", "دعاء الوالدين", "رَّبِّ ارْحَمْهُمَا كَمَا رَبَّيَانِي صَغِيرًا.", "القرآن الكريم - سورة الإسراء", "بر الوالدين", isFavorite = "d4" in initialFavs),
+            DuaItem("d5", "سؤال العفو والعافية", "اللَّهُمَّ إِنَّكَ عَفُوٌّ كَرِيمٌ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي.", "سنن الترمذي", "العفو والمغفرة", isFavorite = "d5" in initialFavs)
+        )
+    }
 
     var duas by remember { mutableStateOf(initialDuas) }
 
@@ -89,9 +94,8 @@ fun DuasScreen(
                             Row {
                                 IconButton(
                                     onClick = {
-                                        duas = duas.map {
-                                            if (it.id == dua.id) it.copy(isFavorite = !it.isFavorite) else it
-                                        }
+                                        val favs = prefs.toggleFavoriteDuaId(dua.id)
+                                        duas = duas.map { it.copy(isFavorite = it.id in favs) }
                                     }
                                 ) {
                                     Icon(

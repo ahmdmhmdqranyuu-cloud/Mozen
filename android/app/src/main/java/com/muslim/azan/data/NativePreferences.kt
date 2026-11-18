@@ -84,6 +84,10 @@ class NativePreferences(context: Context) {
         get() = prefs.getBoolean("pre_prayer_alert_enabled", true)
         set(value) = prefs.edit().putBoolean("pre_prayer_alert_enabled", value).apply()
 
+    var volumeKeyStopsAzan: Boolean
+        get() = prefs.getBoolean("volume_key_stops_azan", true)
+        set(value) = prefs.edit().putBoolean("volume_key_stops_azan", value).apply()
+
     var totalTasbihCount: Int
         get() = prefs.getInt("total_tasbih_count", 0)
         set(value) = prefs.edit().putInt("total_tasbih_count", value).apply()
@@ -881,4 +885,86 @@ class NativePreferences(context: Context) {
         map.forEach { (d, s) -> o.put(d.toString(), s) }
         prefs.edit().putString("ramadan_fasting_tracker_v1", o.toString()).apply()
     }
+
+    // =========================================================================
+    // Persistent User Preferences Across Feature Screens
+    // =========================================================================
+    var quranReciterIndex: Int
+        get() = prefs.getInt("quran_reciter_index", 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt("quran_reciter_index", value.coerceAtLeast(0)).apply()
+
+    var sheikhReciterIndex: Int
+        get() = prefs.getInt("sheikh_reciter_index", 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt("sheikh_reciter_index", value.coerceAtLeast(0)).apply()
+
+    fun getFavoriteDuaIds(): Set<String> {
+        val raw = prefs.getString("favorite_dua_ids_v1", null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildSet {
+                for (i in 0 until arr.length()) {
+                    val id = arr.optString(i, "")
+                    if (id.isNotBlank()) add(id)
+                }
+            }
+        }.getOrDefault(emptySet())
+    }
+
+    fun toggleFavoriteDuaId(duaId: String): Set<String> {
+        val next = getFavoriteDuaIds().toMutableSet()
+        if (!next.add(duaId)) {
+            next.remove(duaId)
+        }
+        val arr = JSONArray()
+        next.sorted().forEach { arr.put(it) }
+        prefs.edit().putString("favorite_dua_ids_v1", arr.toString()).apply()
+        return next
+    }
+
+    fun getRamadanDailyHabits(dateKey: String): Map<String, Boolean> {
+        val defaults = mapOf(
+            "fasted" to true,
+            "taraweeh" to false,
+            "quran" to false,
+            "charity" to false
+        )
+        val raw = prefs.getString("ramadan_daily_habits_$dateKey", null) ?: return defaults
+        return runCatching {
+            val o = JSONObject(raw)
+            mapOf(
+                "fasted" to o.optBoolean("fasted", true),
+                "taraweeh" to o.optBoolean("taraweeh", false),
+                "quran" to o.optBoolean("quran", false),
+                "charity" to o.optBoolean("charity", false)
+            )
+        }.getOrDefault(defaults)
+    }
+
+    fun setRamadanDailyHabit(dateKey: String, habitKey: String, done: Boolean) {
+        val current = getRamadanDailyHabits(dateKey).toMutableMap()
+        current[habitKey] = done
+        val o = JSONObject()
+        current.forEach { (k, v) -> o.put(k, v) }
+        prefs.edit().putString("ramadan_daily_habits_$dateKey", o.toString()).apply()
+    }
+
+    var zakatCurrencyIdx: Int
+        get() = prefs.getInt("zakat_currency_idx", 0).coerceAtLeast(0)
+        set(value) = prefs.edit().putInt("zakat_currency_idx", value.coerceAtLeast(0)).apply()
+
+    var zakatNisabStandard: String
+        get() = prefs.getString("zakat_nisab_standard", "gold") ?: "gold"
+        set(value) = prefs.edit().putString("zakat_nisab_standard", if (value == "silver") "silver" else "gold").apply()
+
+    var zakatGoldPrice: String
+        get() = prefs.getString("zakat_gold_price", "") ?: ""
+        set(value) = prefs.edit().putString("zakat_gold_price", value).apply()
+
+    var zakatSilverPrice: String
+        get() = prefs.getString("zakat_silver_price", "") ?: ""
+        set(value) = prefs.edit().putString("zakat_silver_price", value).apply()
+
+    var zakatFitrPerPerson: String
+        get() = prefs.getString("zakat_fitr_per_person", "") ?: ""
+        set(value) = prefs.edit().putString("zakat_fitr_per_person", value).apply()
 }

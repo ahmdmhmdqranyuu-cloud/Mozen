@@ -56,6 +56,21 @@ private val ZAKAT_CURRENCIES = listOf(
     ZakatCurrencyOption("EUR", "€", "يورو (€)", "80.5", "0.98", "14")
 )
 
+private fun normalizeAndParseDecimal(raw: String): Double? {
+    if (raw.isBlank()) return null
+    val sb = StringBuilder(raw.length)
+    for (ch in raw.trim()) {
+        when (ch) {
+            in '٠'..'٩' -> sb.append(('0'.code + (ch.code - '٠'.code)).toChar())
+            in '۰'..'۹' -> sb.append(('0'.code + (ch.code - '۰'.code)).toChar())
+            '٫' -> sb.append('.')
+            '٬', ',', ' ' -> Unit
+            else -> sb.append(ch)
+        }
+    }
+    return sb.toString().toDoubleOrNull()
+}
+
 @Composable
 fun ZakatScreen(
     onBack: () -> Unit
@@ -65,10 +80,12 @@ fun ZakatScreen(
     val prefs = remember { NativePreferences(context) }
     val scope = rememberCoroutineScope()
 
-    var selectedCurrencyIdx by remember { mutableIntStateOf(0) }
+    var selectedCurrencyIdx by remember {
+        mutableIntStateOf(prefs.zakatCurrencyIdx.coerceIn(0, ZAKAT_CURRENCIES.lastIndex))
+    }
     val activeCurrency = ZAKAT_CURRENCIES[selectedCurrencyIdx]
 
-    var nisabStandard by remember { mutableStateOf("gold") } // gold | silver
+    var nisabStandard by remember { mutableStateOf(prefs.zakatNisabStandard) } // gold | silver
     var cashAmount by remember { mutableStateOf("") }
     var receivablesAmount by remember { mutableStateOf("") }
     var gold24Grams by remember { mutableStateOf("") }
@@ -81,12 +98,18 @@ fun ZakatScreen(
     var rentalSavings by remember { mutableStateOf("") }
     var debtsToDeduct by remember { mutableStateOf("") }
 
-    var goldGramPrice by remember { mutableStateOf(activeCurrency.defaultGold24) }
-    var silverGramPrice by remember { mutableStateOf(activeCurrency.defaultSilver) }
+    var goldGramPrice by remember {
+        mutableStateOf(prefs.zakatGoldPrice.ifBlank { activeCurrency.defaultGold24 })
+    }
+    var silverGramPrice by remember {
+        mutableStateOf(prefs.zakatSilverPrice.ifBlank { activeCurrency.defaultSilver })
+    }
 
     // Zakat al-Fitr
     var fitrMembers by remember { mutableStateOf("1") }
-    var fitrPerPerson by remember { mutableStateOf(activeCurrency.defaultFitr) }
+    var fitrPerPerson by remember {
+        mutableStateOf(prefs.zakatFitrPerPerson.ifBlank { activeCurrency.defaultFitr })
+    }
 
     // Crops Zakat
     var cropsKg by remember { mutableStateOf("") }
@@ -96,18 +119,18 @@ fun ZakatScreen(
     var fetchingMetals by remember { mutableStateOf(false) }
     var metalsStatusMsg by remember { mutableStateOf<String?>(null) }
 
-    val cash = cashAmount.toDoubleOrNull() ?: 0.0
-    val receivables = receivablesAmount.toDoubleOrNull() ?: 0.0
-    val g24 = gold24Grams.toDoubleOrNull() ?: 0.0
-    val g21 = gold21Grams.toDoubleOrNull() ?: 0.0
-    val g18 = gold18Grams.toDoubleOrNull() ?: 0.0
-    val silver = silverGrams.toDoubleOrNull() ?: 0.0
-    val priceGold24 = goldGramPrice.toDoubleOrNull() ?: 0.0
-    val priceSilver = silverGramPrice.toDoubleOrNull() ?: 0.0
-    val goods = tradeGoods.toDoubleOrNull() ?: 0.0
-    val stocks = stocksAmount.toDoubleOrNull() ?: 0.0
-    val rental = rentalSavings.toDoubleOrNull() ?: 0.0
-    val debts = debtsToDeduct.toDoubleOrNull() ?: 0.0
+    val cash = normalizeAndParseDecimal(cashAmount) ?: 0.0
+    val receivables = normalizeAndParseDecimal(receivablesAmount) ?: 0.0
+    val g24 = normalizeAndParseDecimal(gold24Grams) ?: 0.0
+    val g21 = normalizeAndParseDecimal(gold21Grams) ?: 0.0
+    val g18 = normalizeAndParseDecimal(gold18Grams) ?: 0.0
+    val silver = normalizeAndParseDecimal(silverGrams) ?: 0.0
+    val priceGold24 = normalizeAndParseDecimal(goldGramPrice) ?: 0.0
+    val priceSilver = normalizeAndParseDecimal(silverGramPrice) ?: 0.0
+    val goods = normalizeAndParseDecimal(tradeGoods) ?: 0.0
+    val stocks = normalizeAndParseDecimal(stocksAmount) ?: 0.0
+    val rental = normalizeAndParseDecimal(rentalSavings) ?: 0.0
+    val debts = normalizeAndParseDecimal(debtsToDeduct) ?: 0.0
 
     val eqGold24Grams = g24 + g21 * (21.0 / 24.0) + g18 * (18.0 / 24.0)
     val goldValue = eqGold24Grams * priceGold24
@@ -121,11 +144,11 @@ fun ZakatScreen(
     val nisabProgress = if (nisabThreshold > 0) (totalWealth / nisabThreshold).toFloat().coerceIn(0f, 1f) else 0f
     val zakatAmount = if (hasReachedNisab) totalWealth * 0.025 else 0.0
 
-    val fitrMembersInt = (fitrMembers.toIntOrNull() ?: 1).coerceAtLeast(1)
-    val fitrUnit = (fitrPerPerson.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+    val fitrMembersInt = (normalizeAndParseDecimal(fitrMembers)?.toInt() ?: 1).coerceAtLeast(1)
+    val fitrUnit = (normalizeAndParseDecimal(fitrPerPerson) ?: 0.0).coerceAtLeast(0.0)
     val fitrTotalDue = fitrMembersInt * fitrUnit
 
-    val cropsWeight = cropsKg.toDoubleOrNull() ?: 0.0
+    val cropsWeight = normalizeAndParseDecimal(cropsKg) ?: 0.0
     val cropsDueKg = if (cropsWeight >= 653.0) cropsWeight * (if (cropsNaturalIrrigation) 0.10 else 0.05) else 0.0
 
     Column(
@@ -214,9 +237,11 @@ fun ZakatScreen(
                                                 val silp = obj.optDouble("silverPerGram", 0.0)
                                                 if (g24p > 0) {
                                                     goldGramPrice = if (g24p % 1.0 == 0.0) g24p.toInt().toString() else String.format(Locale.US, "%.2f", g24p)
+                                                    prefs.zakatGoldPrice = goldGramPrice
                                                 }
                                                 if (silp > 0) {
                                                     silverGramPrice = if (silp % 1.0 == 0.0) silp.toInt().toString() else String.format(Locale.US, "%.2f", silp)
+                                                    prefs.zakatSilverPrice = silverGramPrice
                                                 }
                                                 val src = obj.optString("source", "reference")
                                                 metalsStatusMsg = if (src == "live") "تم تحديث السعر الفوري بنجاح ✓" else "تم ضبط السعر الاسترشادي المعتمد"
@@ -251,9 +276,13 @@ fun ZakatScreen(
                                         .background(if (selected) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
                                         .clickable {
                                             selectedCurrencyIdx = idx
+                                            prefs.zakatCurrencyIdx = idx
                                             goldGramPrice = cur.defaultGold24
                                             silverGramPrice = cur.defaultSilver
                                             fitrPerPerson = cur.defaultFitr
+                                            prefs.zakatGoldPrice = cur.defaultGold24
+                                            prefs.zakatSilverPrice = cur.defaultSilver
+                                            prefs.zakatFitrPerPerson = cur.defaultFitr
                                             metalsStatusMsg = null
                                         }
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
@@ -279,7 +308,10 @@ fun ZakatScreen(
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (nisabStandard == key) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
-                                        .clickable { nisabStandard = key }
+                                        .clickable {
+                                            nisabStandard = key
+                                            prefs.zakatNisabStandard = key
+                                        }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -422,8 +454,14 @@ fun ZakatScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ZakatCompactField("سعر جرام الذهب 24:", goldGramPrice, Modifier.weight(1f)) { goldGramPrice = it }
-                        ZakatCompactField("سعر جرام الفضة:", silverGramPrice, Modifier.weight(1f)) { silverGramPrice = it }
+                        ZakatCompactField("سعر جرام الذهب 24:", goldGramPrice, Modifier.weight(1f)) {
+                            goldGramPrice = it
+                            prefs.zakatGoldPrice = it
+                        }
+                        ZakatCompactField("سعر جرام الفضة:", silverGramPrice, Modifier.weight(1f)) {
+                            silverGramPrice = it
+                            prefs.zakatSilverPrice = it
+                        }
                     }
                 }
             }
@@ -439,7 +477,10 @@ fun ZakatScreen(
                         Text("حاسبة زكاة الفطر (قبل صلاة العيد)", color = MoazenInkEmerald, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ZakatCompactField("عدد أفراد الأسرة:", fitrMembers, Modifier.weight(1f)) { fitrMembers = it }
-                            ZakatCompactField("قيمة الفرد (${activeCurrency.symbol}):", fitrPerPerson, Modifier.weight(1f)) { fitrPerPerson = it }
+                            ZakatCompactField("قيمة الفرد (${activeCurrency.symbol}):", fitrPerPerson, Modifier.weight(1f)) {
+                                fitrPerPerson = it
+                                prefs.zakatFitrPerPerson = it
+                            }
                         }
                         Surface(
                             shape = RoundedCornerShape(10.dp),

@@ -397,6 +397,9 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                     _isPaused.value = false
                     _currentDurationMs.value = mp.duration.toLong()
                     handler.post(progressRunnable)
+                    activeContext?.let { ctx ->
+                        QuranPlaybackService.syncPlayback(ctx, playlistTitle, playlistSubtitle, true)
+                    }
                 }
             }
             mediaPlayer = player
@@ -430,6 +433,11 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                     _isPlaying.value = false
                     _isPaused.value = true
                     handler.removeCallbacks(progressRunnable)
+                    if (playlistUrls.isNotEmpty()) {
+                        activeContext?.let { ctx ->
+                            QuranPlaybackService.syncPlayback(ctx, _currentTitle.value, _currentSubtitle.value, false)
+                        }
+                    }
                 }
             }
         }
@@ -449,6 +457,11 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                     _isPlaying.value = true
                     _isPaused.value = false
                     handler.post(progressRunnable)
+                    if (playlistUrls.isNotEmpty()) {
+                        activeContext?.let { ctx ->
+                            QuranPlaybackService.syncPlayback(ctx, _currentTitle.value, _currentSubtitle.value, true)
+                        }
+                    }
                 }
             }
         }
@@ -494,6 +507,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
     fun stop() {
         releaseMediaPlayerOnly()
         abandonFocus()
+        QuranPlaybackService.stopService(activeContext)
         playlistUrls = emptyList()
         playlistIndex = 0
         playlistCurrentRepeat = 0
@@ -502,8 +516,11 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         _isPlaying.value = false
         _isPaused.value = false
         _currentTrackTag.value = ""
+        _currentTitle.value = ""
+        _currentSubtitle.value = ""
         _currentProgress.value = 0f
         _currentPositionMs.value = 0L
+        _currentDurationMs.value = 0L
     }
 
     override fun onCompletion(mp: MediaPlayer?) {
@@ -528,11 +545,15 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         val doneCb = onFileOrQueueComplete
         releaseMediaPlayerOnly()
         abandonFocus()
+        QuranPlaybackService.stopService(activeContext)
         playlistUrls = emptyList()
         onFileOrQueueComplete = null
         onQueueError = null
         _isPlaying.value = false
         _isPaused.value = false
+        _currentTrackTag.value = ""
+        _currentTitle.value = ""
+        _currentSubtitle.value = ""
         _currentProgress.value = 1f
         doneCb?.invoke()
     }

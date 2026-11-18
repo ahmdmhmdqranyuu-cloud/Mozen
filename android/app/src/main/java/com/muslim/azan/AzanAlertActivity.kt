@@ -3,6 +3,7 @@ package com.muslim.azan
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -27,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.service.VolumeKeyStopPolicy
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
 
@@ -200,5 +203,24 @@ class AzanAlertActivity : ComponentActivity() {
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
             )
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val prefs = NativePreferences(this)
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN &&
+            VolumeKeyStopPolicy.shouldStopAzanOnVolumeDown(
+                settingEnabled = prefs.volumeKeyStopsAzan,
+                servicePlayingNow = AzkarAudioService.isPlayingNow,
+                activeSection = AzkarAudioService.currentSection
+            )
+        ) {
+            val stopIntent = Intent(this, AzkarAudioService::class.java).apply {
+                action = AzkarAudioService.ACTION_STOP_AUDIO
+            }
+            startService(stopIntent)
+            finish()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }

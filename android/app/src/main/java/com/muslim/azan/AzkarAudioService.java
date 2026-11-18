@@ -43,6 +43,7 @@ import androidx.core.app.ServiceCompat;
 import com.muslim.azan.service.AudioFocusStateMachine;
 import com.muslim.azan.service.FifoAudioQueue;
 import com.muslim.azan.service.NativeAudioPlayerManager;
+import com.muslim.azan.service.VolumeKeyStopPolicy;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -71,6 +72,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     public static volatile String currentSection = "";
     public static volatile String activeTrackLabel = "";
     public static volatile String lastAudioError = null;
+
+    public static boolean isAzanOrPrayerAlertPlaying() {
+        return isPlayingNow && VolumeKeyStopPolicy.isAzanOrPrayerAlertSection(currentSection);
+    }
 
     public static int getSectionPriority(String sec) {
         if (sec == null) return 0;

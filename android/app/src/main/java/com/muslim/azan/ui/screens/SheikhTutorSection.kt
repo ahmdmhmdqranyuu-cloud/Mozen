@@ -102,7 +102,9 @@ fun SheikhTutorSection(
     var activeTab by remember { mutableIntStateOf(0) }
     var showSessionControls by remember { mutableStateOf(false) }
 
-    var selectedReciterIdx by remember { mutableIntStateOf(0) }
+    var selectedReciterIdx by remember {
+        mutableIntStateOf(prefs.sheikhReciterIndex.coerceIn(0, SHEIKH_RECITERS.lastIndex))
+    }
     var targetRepeats by remember { mutableIntStateOf(prefs.sheikhTargetRepeats) }
     var currentRepeat by remember { mutableIntStateOf(0) }
     var dialect by remember { mutableStateOf(prefs.sheikhDialect) }
@@ -2222,6 +2224,7 @@ fun SheikhTutorSection(
                                 .background(if (selectedReciterIdx == idx) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
                                 .clickable {
                                     selectedReciterIdx = idx
+                                    prefs.sheikhReciterIndex = idx
                                     showReciterPicker = false
                                 }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),

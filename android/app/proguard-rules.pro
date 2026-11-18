@@ -1,11 +1,14 @@
-# Application classes & native services/receivers
+# Application classes & native services/receivers/workers
 -keep class com.muslim.azan.** { *; }
+-keep class com.muslim.azan.service.QuranPlaybackService { *; }
+-keep class com.muslim.azan.service.RecitationUploadWorker { *; }
+-keep class com.muslim.azan.service.VolumeKeyStopPolicy { *; }
 -keepclassmembers class * extends android.content.BroadcastReceiver { *; }
 -keepclassmembers class * extends android.app.Service { *; }
 -keepclassmembers class * extends android.app.Activity { *; }
 
 # Keep Kotlin metadata & Coroutines (essential for Compose & reflection)
--keepattributes RuntimeVisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod,Exceptions
 -keep class kotlin.Metadata { *; }
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
@@ -31,9 +34,15 @@
 -keep class androidx.lifecycle.** { *; }
 -keep class androidx.media.** { *; }
 -keep class androidx.work.** { *; }
--keep class * extends androidx.work.Worker
--keep class * extends androidx.work.CoroutineWorker
--keep class * extends androidx.work.ListenableWorker
+-keep public class * extends androidx.work.Worker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+-keep public class * extends androidx.work.CoroutineWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+-keep public class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
 -keepnames class androidx.work.impl.background.systemalarm.**
 -keepnames class androidx.work.impl.background.systemjob.**
 -dontwarn androidx.compose.**

@@ -254,6 +254,44 @@ function runIntegrationTests() {
         false,
         'AndroidManifest.xml must not use restricted USE_EXACT_ALARM permission'
       );
+      assert.match(
+        manifestXml,
+        /\.service\.QuranPlaybackService/,
+        'AndroidManifest.xml must register QuranPlaybackService with mediaPlayback foregroundServiceType'
+      );
+
+      const appGradle = fs.readFileSync(path.join(rootDir, 'android/app/build.gradle'), 'utf8');
+      assert.match(appGradle, /enableV3Signing\s*=\s*true/, 'build.gradle must enable V3 APK signing');
+      assert.match(appGradle, /enableSplit\s*=\s*false/, 'build.gradle must keep language split disabled in AAB bundles');
+
+      assert.match(workflowApk, /keytool -list/, 'build-apk.yml must validate release keystore via keytool');
+      assert.match(workflowApk, /bundleRelease/, 'build-apk.yml must build signed Release AAB');
+      assert.match(workflowApk, /apksigner" verify --verbose --print-certs/, 'build-apk.yml must verify APK certificates');
+      assert.match(workflowApk, /jarsigner -verify -verbose -certs/, 'build-apk.yml must verify AAB signature');
+
+      const azanServiceJava = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAudioService.java'),
+        'utf8'
+      );
+      assert.match(
+        azanServiceJava,
+        /isAzanOrPrayerAlertPlaying\(\)/,
+        'AzkarAudioService must expose isAzanOrPrayerAlertPlaying()'
+      );
+
+      const bootReceiverJava = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/BootReceiver.java'),
+        'utf8'
+      );
+      assert.match(
+        bootReceiverJava,
+        /computeSalawatWindowForDay\(/,
+        'BootReceiver must align Salawat auto start/end in matching timezone calendar'
+      );
+
+      const appTsx = fs.readFileSync(path.join(rootDir, 'src/App.tsx'), 'utf8');
+      assert.match(appTsx, /soundService\.isPlaying\('azan'\)/, 'Web VolumeDown handler must stop Azan only');
+      assert.match(appTsx, /soundService\.unlockAudioContext\(\)/, 'Web iOS unlocker must unlock AudioContext silently');
     }
   );
 

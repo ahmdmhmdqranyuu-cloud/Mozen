@@ -60,7 +60,9 @@ fun QuranScreen(
     var searchQuery by remember { mutableStateOf("") }
     var currentAyahs by remember { mutableStateOf<List<Ayah>>(emptyList()) }
     var pageAyahs by remember { mutableStateOf<List<Ayah>>(emptyList()) }
-    var selectedReciterIndex by remember { mutableIntStateOf(0) }
+    var selectedReciterIndex by remember {
+        mutableIntStateOf(prefs.quranReciterIndex.coerceIn(0, NativeDataManager.reciters.lastIndex))
+    }
     var showReciterDialog by remember { mutableStateOf(false) }
     var showPageJumpDialog by remember { mutableStateOf(false) }
     var pageJumpInput by remember { mutableStateOf(currentPage.toString()) }
@@ -960,6 +962,7 @@ fun QuranScreen(
                                 .background(if (selectedReciterIndex == index) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
                                 .clickable {
                                     selectedReciterIndex = index
+                                    prefs.quranReciterIndex = index
                                     showReciterDialog = false
                                 }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
