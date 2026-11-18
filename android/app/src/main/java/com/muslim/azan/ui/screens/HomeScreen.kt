@@ -1,6 +1,7 @@
 package com.muslim.azan.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -822,7 +823,11 @@ fun HomeScreen(
                                                 putExtra(Intent.EXTRA_TEXT, shareText)
                                                 type = "text/plain"
                                             }
-                                            context.startActivity(Intent.createChooser(sendIntent, "مشاركة آية اليوم"))
+                                            runCatching {
+                                                context.startActivity(Intent.createChooser(sendIntent, "مشاركة آية اليوم"))
+                                            }.onFailure {
+                                                Toast.makeText(context, "تعذر العثور على تطبيق للمشاركة.", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -914,7 +919,11 @@ fun HomeScreen(
                                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                                         type = "text/plain"
                                                     }
-                                                    context.startActivity(Intent.createChooser(sendIntent, "مشاركة دعاء اليوم"))
+                                                    runCatching {
+                                                        context.startActivity(Intent.createChooser(sendIntent, "مشاركة دعاء اليوم"))
+                                                    }.onFailure {
+                                                        Toast.makeText(context, "تعذر العثور على تطبيق للمشاركة.", Toast.LENGTH_SHORT).show()
+                                                    }
                                                 }
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
@@ -1009,7 +1018,11 @@ fun HomeScreen(
                                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                                         type = "text/plain"
                                                     }
-                                                    context.startActivity(Intent.createChooser(sendIntent, "مشاركة حديث اليوم"))
+                                                    runCatching {
+                                                        context.startActivity(Intent.createChooser(sendIntent, "مشاركة حديث اليوم"))
+                                                    }.onFailure {
+                                                        Toast.makeText(context, "تعذر العثور على تطبيق للمشاركة.", Toast.LENGTH_SHORT).show()
+                                                    }
                                                 }
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {

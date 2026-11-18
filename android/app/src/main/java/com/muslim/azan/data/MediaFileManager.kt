@@ -260,10 +260,18 @@ object MediaFileManager {
                 if (tempFile.exists()) tempFile.delete()
                 connection.disconnect()
                 // Retry once from start
-                val retryConn = url.openConnection() as HttpURLConnection
-                retryConn.connectTimeout = 15000
-                retryConn.readTimeout = 25000
+                val retryConn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15000
+                    readTimeout = 25000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "AlMoazen-Android/2.2")
+                }
                 retryConn.connect()
+                val retryCode = retryConn.responseCode
+                if (retryCode !in 200..299) {
+                    retryConn.disconnect()
+                    return@withContext Result.failure(Exception("HTTP retry after 416 failed with code: $retryCode"))
+                }
                 connection = retryConn
                 appendMode = false
             } else {

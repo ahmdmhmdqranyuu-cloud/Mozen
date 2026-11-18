@@ -265,6 +265,9 @@ public class AlarmScheduler {
 
                         @Override
                         public void scheduleExactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                                throw new SecurityException("Exact alarm permission is not granted");
+                            }
                             PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pi);
@@ -275,6 +278,9 @@ public class AlarmScheduler {
 
                         @Override
                         public void scheduleExactLegacy(JSONObject item, int requestCode, long triggerEpochMs) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                                throw new SecurityException("Exact alarm permission is not granted");
+                            }
                             PendingIntent pi = buildAlarmPi(item, requestCode, triggerEpochMs);
                             alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerEpochMs, pi);
                         }

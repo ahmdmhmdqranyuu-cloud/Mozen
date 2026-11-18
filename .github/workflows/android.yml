@@ -69,7 +69,7 @@ jobs:
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
             echo "=== Gradle attempt $ATTEMPT/$MAX_ATTEMPTS ==="
-            if ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace \
+            if ./gradlew testDebugUnitTest lint assembleDebug --stacktrace \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
@@ -88,7 +88,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Debug APK Output & Signature
+      - name: Verify Debug APK Alignment & Signature
         run: |
           DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
           if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
@@ -98,7 +98,8 @@ jobs:
           ls -lh "$DEBUG_APK"
           BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$DEBUG_APK")
           printf '%s\n' "$BADGING" | head -n 5
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$DEBUG_APK"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$DEBUG_APK" | tail -n 10
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$DEBUG_APK"
 
       - name: Upload CI Debug APK
         uses: actions/upload-artifact@v4

@@ -923,7 +923,7 @@ fun SettingsScreen(
                                     },
                                     label = { Text("خط العرض (-90..90)", fontSize = 10.sp) },
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                     modifier = Modifier.weight(1f)
                                 )
                                 OutlinedTextField(
@@ -934,7 +934,7 @@ fun SettingsScreen(
                                     },
                                     label = { Text("خط الطول (-180..180)", fontSize = 10.sp) },
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                     modifier = Modifier.weight(1f)
                                 )
                             }

@@ -261,13 +261,37 @@ function runIntegrationTests() {
       );
 
       const appGradle = fs.readFileSync(path.join(rootDir, 'android/app/build.gradle'), 'utf8');
+      assert.match(appGradle, /enableV1Signing\s*=\s*true/, 'build.gradle must enable V1 APK signing');
+      assert.match(appGradle, /enableV2Signing\s*=\s*true/, 'build.gradle must enable V2 APK signing');
       assert.match(appGradle, /enableV3Signing\s*=\s*true/, 'build.gradle must enable V3 APK signing');
       assert.match(appGradle, /enableSplit\s*=\s*false/, 'build.gradle must keep language split disabled in AAB bundles');
+      assert.equal(
+        appGradle.includes('CI_SIGN_RELEASE_WITH_DEBUG'),
+        false,
+        'build.gradle must NEVER fall back to Debug signing for Release artifacts'
+      );
+      assert.match(appGradle, /checkReleaseBuilds\s+true/, 'build.gradle must enable checkReleaseBuilds in lint');
+      assert.match(appGradle, /abortOnError\s+true/, 'build.gradle must enforce abortOnError true in lint');
+      assert.match(appGradle, /gradle\.taskGraph\.whenReady/, 'build.gradle must reject Release builds lacking official keystore');
 
+      assert.match(workflowApk, /build-and-test-debug:/, 'build-apk.yml must separate Debug job');
+      assert.match(workflowApk, /build-and-verify-release:/, 'build-apk.yml must separate Release job');
+      assert.match(workflowApk, /secrets\.KEYSTORE_FILE/, 'build-apk.yml must support KEYSTORE_FILE secret');
+      assert.match(workflowApk, /secrets\.KEYSTORE_BASE64/, 'build-apk.yml must support KEYSTORE_BASE64 secret');
+      assert.equal(
+        workflowApk.includes('CI_SIGN_RELEASE_WITH_DEBUG'),
+        false,
+        'build-apk.yml must NEVER sign Release with debug key'
+      );
+      assert.match(workflowApk, /testDebugUnitTest\s+lint\s+assembleDebug/, 'build-apk.yml Debug job must run unit tests, strict lint, and assembleDebug');
+      assert.match(workflowApk, /assembleRelease\s+bundleRelease/, 'build-apk.yml Release job must run assembleRelease and bundleRelease');
       assert.match(workflowApk, /keytool -list/, 'build-apk.yml must validate release keystore via keytool');
-      assert.match(workflowApk, /bundleRelease/, 'build-apk.yml must build signed Release AAB');
-      assert.match(workflowApk, /apksigner" verify --verbose --print-certs/, 'build-apk.yml must verify APK certificates');
+      assert.match(workflowApk, /zipalign"\s+-c\s+-v\s+4/, 'build-apk.yml must verify 4-byte APK alignment');
+      assert.match(workflowApk, /apksigner"\s+verify\s+--verbose\s+--print-certs/, 'build-apk.yml must verify APK certificates');
+      assert.match(workflowApk, /Verified using v3 scheme/, 'build-apk.yml must assert V1+V2+V3 schemes on Release APK');
       assert.match(workflowApk, /jarsigner -verify -verbose -certs/, 'build-apk.yml must verify AAB signature');
+      assert.match(workflowAndroid, /testDebugUnitTest\s+lint\s+assembleDebug/, 'android.yml must run strict lint');
+      assert.match(workflowAndroid, /zipalign"\s+-c\s+-v\s+4/, 'android.yml must verify Debug APK alignment');
 
       const azanServiceJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAudioService.java'),
@@ -277,6 +301,46 @@ function runIntegrationTests() {
         azanServiceJava,
         /isAzanOrPrayerAlertPlaying\(\)/,
         'AzkarAudioService must expose isAzanOrPrayerAlertPlaying()'
+      );
+      assert.match(
+        azanServiceJava,
+        /QUEUE_SEQ\.incrementAndGet\(\)/,
+        'AzkarAudioService must use monotonic sequence IDs to prevent FIFO queue key collisions'
+      );
+      assert.match(
+        azanServiceJava,
+        /hasExplicitEnabledPerPrayer/,
+        'AzkarAudioService must respect global azanSoundEnabled when no explicit per-prayer override enables sound'
+      );
+
+      const alarmSchedulerJava = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AlarmScheduler.java'),
+        'utf8'
+      );
+      assert.match(
+        alarmSchedulerJava,
+        /alarmManager\.canScheduleExactAlarms\(\)/,
+        'AlarmScheduler backend methods must guard exact alarm APIs with canScheduleExactAlarms()'
+      );
+
+      const recitationManagerKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/service/QuranRecitationManager.kt'),
+        'utf8'
+      );
+      assert.match(
+        recitationManagerKt,
+        /finally\s*\{\s*runCatching\s*\{\s*retriever\.release\(\)\s*\}/,
+        'QuranRecitationManager must release MediaMetadataRetriever in a finally block'
+      );
+
+      const mediaFileManagerKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/data/MediaFileManager.kt'),
+        'utf8'
+      );
+      assert.match(
+        mediaFileManagerKt,
+        /retryCode !in 200\.\.299/,
+        'MediaFileManager HTTP 416 retry must verify HTTP 2xx status before streaming'
       );
 
       const bootReceiverJava = fs.readFileSync(

@@ -1,6 +1,7 @@
 package com.muslim.azan.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -112,7 +113,11 @@ fun DuasScreen(
                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                             type = "text/plain"
                                         }
-                                        context.startActivity(Intent.createChooser(intent, "مشاركة الدعاء"))
+                                        runCatching {
+                                            context.startActivity(Intent.createChooser(intent, "مشاركة الدعاء"))
+                                        }.onFailure {
+                                            Toast.makeText(context, "تعذر العثور على تطبيق للمشاركة.", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 ) {
                                     Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = MoazenInkMuted)

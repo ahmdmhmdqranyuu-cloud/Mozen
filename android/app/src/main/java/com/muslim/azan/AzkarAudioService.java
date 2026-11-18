@@ -25,6 +25,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.provider.Settings;
 import android.app.AlarmManager;
 import android.util.Log;
@@ -48,6 +49,7 @@ import com.muslim.azan.service.VolumeKeyStopPolicy;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Standard Android Foreground Service:
@@ -128,6 +130,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
+    private static final AtomicInteger QUEUE_SEQ = new AtomicInteger(0);
     private final FifoAudioQueue<Intent> pendingAudioQueue = new FifoAudioQueue<>(20);
     private final AudioFocusStateMachine focusStateMachine = new AudioFocusStateMachine();
     private volatile boolean currentIsTestAlarm = false;
@@ -319,7 +322,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 String pKey = intent.getStringExtra("prayerKey");
                 String queueKey = (section != null ? section : "unknown") + "_"
                         + (pKey != null ? pKey : "") + "_"
-                        + (System.currentTimeMillis() / 1000L);
+                        + System.currentTimeMillis() + "_"
+                        + QUEUE_SEQ.incrementAndGet();
                 pendingAudioQueue.enqueue(queueKey, new Intent(intent));
                 Log.d(TAG, "FIFO queued deferred audio trigger (" + section + "), queueSize=" + pendingAudioQueue.size());
             } else {
@@ -393,8 +397,19 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
 
         boolean modePlaysSound = !"silent".equals(alertMode) && !"vibrate_only".equals(alertMode);
+        String incomingPrayerKey = intent.getStringExtra("prayerKey");
+        boolean hasExplicitEnabledPerPrayer = false;
+        if (incomingPrayerKey != null && !incomingPrayerKey.isEmpty()) {
+            String cfgRaw = prefs.getString("prayer_config_" + incomingPrayerKey, null);
+            if (cfgRaw != null && !cfgRaw.isEmpty()) {
+                try {
+                    org.json.JSONObject cfgObj = new org.json.JSONObject(cfgRaw);
+                    hasExplicitEnabledPerPrayer = cfgObj.optBoolean("soundEnabled", azanSoundEnabled);
+                } catch (Exception ignored) {}
+            }
+        }
         // Explicit user sound tests ALWAYS play even when the scheduled Azan mute switch is off
-        boolean shouldPlayAudio = isTestAlarm || (autoPlay && modePlaysSound && (!"prayer_azan".equals(section) || azanSoundEnabled || intent.hasExtra("prayerKey")));
+        boolean shouldPlayAudio = isTestAlarm || (autoPlay && modePlaysSound && (!"prayer_azan".equals(section) || azanSoundEnabled || hasExplicitEnabledPerPrayer));
 
         if (shouldPlayAudio) {
             Notification notification = buildNotification(title, body, section, cityName);
@@ -442,8 +457,14 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
     private void triggerShortVibration() {
         try {
-            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            if (v == null) return;
+            Vibrator v;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+                v = vm != null ? vm.getDefaultVibrator() : null;
+            } else {
+                v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            }
+            if (v == null || !v.hasVibrator()) return;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 v.vibrate(VibrationEffect.createWaveform(new long[]{0, 400, 200, 400}, -1));
             } else {

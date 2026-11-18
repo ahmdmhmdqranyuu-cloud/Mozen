@@ -51,9 +51,11 @@ android {
     def releaseKeystorePassword = System.getenv("KEYSTORE_PASSWORD")
     def releaseKeyAlias = System.getenv("KEY_ALIAS")
     def releaseKeyPassword = System.getenv("KEY_PASSWORD")
-    def ciTestSignRelease = System.getenv("CI_SIGN_RELEASE_WITH_DEBUG") == "true"
-    def hasValidReleaseSigning = releaseKeystorePath != null && !releaseKeystorePath.isEmpty() &&
-            file(releaseKeystorePath).exists() &&
+    def releaseKeystoreFile = (releaseKeystorePath != null && !releaseKeystorePath.trim().isEmpty()) ? file(releaseKeystorePath.trim()) : null
+    def hasValidReleaseSigning = releaseKeystoreFile != null &&
+            releaseKeystoreFile.exists() &&
+            releaseKeystoreFile.isFile() &&
+            releaseKeystoreFile.length() > 0 &&
             releaseKeystorePassword != null && !releaseKeystorePassword.isEmpty() &&
             releaseKeyAlias != null && !releaseKeyAlias.isEmpty() &&
             releaseKeyPassword != null && !releaseKeyPassword.isEmpty()
@@ -66,7 +68,7 @@ android {
         }
         if (hasValidReleaseSigning) {
             release {
-                storeFile file(releaseKeystorePath)
+                storeFile releaseKeystoreFile
                 storePassword releaseKeystorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
@@ -99,9 +101,27 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasValidReleaseSigning) {
                 signingConfig signingConfigs.release
-            } else if (ciTestSignRelease) {
-                signingConfig signingConfigs.debug
             }
+        }
+    }
+
+    gradle.taskGraph.whenReady { taskGraph ->
+        def releaseArtifactTasks = [
+            "assembleRelease",
+            "bundleRelease",
+            "packageRelease",
+            "packageReleaseBundle",
+            "signReleaseBundle"
+        ]
+        def buildingReleaseArtifact = taskGraph.allTasks.any { t ->
+            t.project == project && releaseArtifactTasks.any { targetName ->
+                t.name.equalsIgnoreCase(targetName)
+            }
+        }
+        if (buildingReleaseArtifact && !hasValidReleaseSigning) {
+            throw new GradleException(
+                "Release signing configuration missing or invalid: KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD environment variables must all point to a valid release keystore. Signing Release with the debug key is prohibited."
+            )
         }
     }
 
@@ -121,8 +141,9 @@ android {
     }
 
     lint {
-        checkReleaseBuilds false
-        abortOnError false
+        checkReleaseBuilds true
+        abortOnError true
+        warningsAsErrors false
     }
 
     packaging {

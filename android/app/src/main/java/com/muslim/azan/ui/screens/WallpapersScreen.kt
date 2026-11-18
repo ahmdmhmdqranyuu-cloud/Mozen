@@ -796,7 +796,11 @@ fun WallpapersScreen(
                                             putExtra(Intent.EXTRA_TEXT, "$activeTitle — من تطبيق مسلم بلس")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
-                                        context.startActivity(Intent.createChooser(shareIntent, "مشاركة الخلفية"))
+                                        runCatching {
+                                            context.startActivity(Intent.createChooser(shareIntent, "مشاركة الخلفية"))
+                                        }.onFailure {
+                                            Toast.makeText(context, "تعذر العثور على تطبيق للمشاركة.", Toast.LENGTH_SHORT).show()
+                                        }
                                     } else {
                                         Toast.makeText(context, "تعذر تجهيز ملف المشاركة.", Toast.LENGTH_SHORT).show()
                                     }

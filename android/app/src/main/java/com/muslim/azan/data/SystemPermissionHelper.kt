@@ -149,9 +149,16 @@ object SystemPermissionHelper {
         return LocationManagerCompat.isLocationEnabled(lm)
     }
 
+    private fun startActivitySafely(context: Context, intent: Intent) {
+        if (context !is android.app.Activity) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
+
     fun openLocationSourceSettings(context: Context) {
         try {
-            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            startActivitySafely(context, Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         } catch (_: Exception) {
             openAppDetailsSettings(context)
         }
@@ -168,7 +175,7 @@ object SystemPermissionHelper {
                     data = Uri.parse("package:" + context.packageName)
                 }
             }
-            context.startActivity(intent)
+            startActivitySafely(context, intent)
         } catch (_: Exception) {
             openAppDetailsSettings(context)
         }
@@ -180,7 +187,7 @@ object SystemPermissionHelper {
                 val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                     data = Uri.parse("package:" + context.packageName)
                 }
-                context.startActivity(intent)
+                startActivitySafely(context, intent)
                 return
             } catch (_: Exception) {}
         }
@@ -194,7 +201,7 @@ object SystemPermissionHelper {
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + context.packageName)
                 )
-                context.startActivity(intent)
+                startActivitySafely(context, intent)
                 return
             } catch (_: Exception) {}
         }
@@ -207,11 +214,11 @@ object SystemPermissionHelper {
                 val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                     data = Uri.parse("package:" + context.packageName)
                 }
-                context.startActivity(intent)
+                startActivitySafely(context, intent)
                 return
             } catch (_: Exception) {
                 try {
-                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    startActivitySafely(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     return
                 } catch (_: Exception) {}
             }
@@ -225,7 +232,7 @@ object SystemPermissionHelper {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
                     data = Uri.parse("package:" + context.packageName)
                 }
-                context.startActivity(intent)
+                startActivitySafely(context, intent)
                 return
             } catch (_: Exception) {}
         }
@@ -243,7 +250,7 @@ object SystemPermissionHelper {
     fun openNotificationPolicySettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                startActivitySafely(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
                 return
             } catch (_: Exception) {}
         }
@@ -255,7 +262,7 @@ object SystemPermissionHelper {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:" + context.packageName)
             }
-            context.startActivity(intent)
+            startActivitySafely(context, intent)
         } catch (_: Exception) {}
     }
 

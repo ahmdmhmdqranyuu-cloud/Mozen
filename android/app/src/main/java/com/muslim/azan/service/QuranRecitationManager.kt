@@ -349,10 +349,13 @@ object QuranRecitationManager {
             var durationMs = 0L
             runCatching {
                 val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(context, uri)
-                val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                durationMs = durStr?.toLongOrNull() ?: 0L
-                retriever.release()
+                try {
+                    retriever.setDataSource(context, uri)
+                    val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                    durationMs = durStr?.toLongOrNull() ?: 0L
+                } finally {
+                    runCatching { retriever.release() }
+                }
             }
             if (durationMs <= 0L) {
                 durationMs = ((rawBytes.size.toLong() * 1000L) / 16000L).coerceIn(1200L, 600_000L)

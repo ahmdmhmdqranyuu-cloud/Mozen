@@ -13,16 +13,8 @@ on:
       - master
   workflow_dispatch:
     inputs:
-      ci_test_sign_release:
-        description: 'Sign Release APK with debug key for test installation when Release Keystore secrets are absent'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
       create_release:
-        description: 'Create/update a GitHub Release with the built APK attached (for manual runs)'
+        description: 'Create/update a GitHub Release with verified Debug APK, Release APK, and Release AAB attached'
         required: false
         default: 'false'
         type: choice
@@ -38,8 +30,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-android:
-    name: Build Native Android Debug & Release APK
+  build-and-test-debug:
+    name: Unit Tests, Lint & Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -90,46 +82,7 @@ jobs:
         run: |
           chmod +x gradlew android/gradlew
 
-      - name: Configure Release Signing Keystore (from GitHub Secrets if provided)
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          MANUAL_TEST_SIGN: ${{ inputs.ci_test_sign_release || 'false' }}
-        run: |
-          if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
-              echo "Error: KEYSTORE_BASE64 is set, so KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD secrets must all be provided."
-              exit 1
-            fi
-            mkdir -p "$HOME/.android"
-            echo "$KEYSTORE_BASE64" | base64 --decode > "$HOME/.android/release.keystore"
-            if [ ! -s "$HOME/.android/release.keystore" ]; then
-              echo "Error: Decoded release keystore is empty."
-              exit 1
-            fi
-            if ! keytool -list -v -keystore "$HOME/.android/release.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
-              echo "Error: Failed to verify keystore alias or password with keytool."
-              exit 1
-            fi
-            echo "KEYSTORE_FILE=$HOME/.android/release.keystore" >> "$GITHUB_ENV"
-            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-            echo "RELEASE_SIGNED=true" >> "$GITHUB_ENV"
-            echo "CI_SIGN_RELEASE_WITH_DEBUG=false" >> "$GITHUB_ENV"
-          elif [ "$MANUAL_TEST_SIGN" = "true" ]; then
-            echo "::notice::Release Keystore secrets not found; signing Release APK/AAB with debug key as requested for test installation only (not for Play Store publishing)."
-            echo "RELEASE_SIGNED=test" >> "$GITHUB_ENV"
-            echo "CI_SIGN_RELEASE_WITH_DEBUG=true" >> "$GITHUB_ENV"
-          else
-            echo "::notice::KEYSTORE_BASE64 secret is not configured. Debug APK (installable for testing) will be uploaded; Release APK/AAB will remain unsigned unless keystore secrets are added."
-            echo "RELEASE_SIGNED=false" >> "$GITHUB_ENV"
-            echo "CI_SIGN_RELEASE_WITH_DEBUG=false" >> "$GITHUB_ENV"
-          fi
-
-      - name: Run Unit Tests, Lint & Build Native Android APKs & AAB (Debug, Release R8, bundleRelease with HTTP 429 Retry)
+      - name: Run Unit Tests, Strict Lint & Assemble Debug APK (with HTTP 429 Retry)
         working-directory: android
         run: |
           MAX_ATTEMPTS=4
@@ -137,15 +90,15 @@ jobs:
           ATTEMPT=1
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-            echo "=== Gradle build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
-            if ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease --stacktrace \
+            echo "=== Gradle Debug build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            if ./gradlew testDebugUnitTest lint assembleDebug --stacktrace \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
               break
             fi
             if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-              echo "::warning::Gradle build failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Waiting ${BACKOFF_SEC}s before retry in case of Maven HTTP 429 or transient network error..."
+              echo "::warning::Gradle failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Waiting ${BACKOFF_SEC}s before retry..."
               sleep "$BACKOFF_SEC"
               BACKOFF_SEC=$((BACKOFF_SEC * 2))
             fi
@@ -153,91 +106,233 @@ jobs:
           done
           ./gradlew --stop || true
           if [ "$SUCCESS" != "true" ]; then
-            echo "Error: Gradle failed after $MAX_ATTEMPTS attempts."
+            echo "::error::Debug unit tests, lint, or assembleDebug failed after $MAX_ATTEMPTS attempts."
             exit 1
           fi
 
-      - name: Verify Debug APK, Release APK & Release AAB Signatures
+      - name: Verify Debug APK Alignment & Debug Signature
         run: |
           DEBUG_APK=$(find android/app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)
-          RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
-          RELEASE_AAB=$(find android/app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' | head -n 1)
           if [ -z "$DEBUG_APK" ] || [ ! -s "$DEBUG_APK" ]; then
-            echo "Error: Debug APK was not generated."
+            echo "::error::Debug APK was not generated."
             exit 1
           fi
-          if [ -z "$RELEASE_APK" ] || [ ! -s "$RELEASE_APK" ]; then
-            echo "Error: Release APK was not generated."
-            exit 1
-          fi
-          if [ -z "$RELEASE_AAB" ] || [ ! -s "$RELEASE_AAB" ]; then
-            echo "Error: Release AAB was not generated."
-            exit 1
-          fi
-          ls -lh "$DEBUG_APK" "$RELEASE_APK" "$RELEASE_AAB"
-          DEBUG_SIZE=$(du -h "$DEBUG_APK" | cut -f1)
-          RELEASE_SIZE=$(du -h "$RELEASE_APK" | cut -f1)
-          AAB_SIZE=$(du -h "$RELEASE_AAB" | cut -f1)
-          echo "DEBUG_APK_PATH=$DEBUG_APK" >> "$GITHUB_ENV"
-          echo "RELEASE_APK_PATH=$RELEASE_APK" >> "$GITHUB_ENV"
-          echo "RELEASE_AAB_PATH=$RELEASE_AAB" >> "$GITHUB_ENV"
-          echo "DEBUG_APK_NAME=$(basename "$DEBUG_APK")" >> "$GITHUB_ENV"
-          echo "RELEASE_APK_NAME=$(basename "$RELEASE_APK")" >> "$GITHUB_ENV"
-          echo "RELEASE_AAB_NAME=$(basename "$RELEASE_AAB")" >> "$GITHUB_ENV"
-          echo "DEBUG_APK_SIZE=$DEBUG_SIZE" >> "$GITHUB_ENV"
-          echo "RELEASE_APK_SIZE=$RELEASE_SIZE" >> "$GITHUB_ENV"
-          echo "RELEASE_AAB_SIZE=$AAB_SIZE" >> "$GITHUB_ENV"
+          ls -lh "$DEBUG_APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$DEBUG_APK" | head -n 5
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$RELEASE_APK" | head -n 5
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$DEBUG_APK" | tail -n 10
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$DEBUG_APK"
-          if [ "${RELEASE_SIGNED:-false}" = "true" ] || [ "${RELEASE_SIGNED:-false}" = "test" ]; then
-            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$RELEASE_APK"
-            jarsigner -verify -verbose -certs "$RELEASE_AAB" | tail -n 15
-          fi
-
-      - name: Write Build & Install Summary
-        if: always()
-        run: |
           {
-            echo "## نتائج بناء ملفات APK و AAB لتطبيق مسلم بلس"
-            echo "- **Debug APK (\`${DEBUG_APK_NAME:-AlMoazen-debug.apk}\` — ${DEBUG_APK_SIZE:-unknown})**: موقّع (V1+V2+V3) بمفتاح التطوير وجاهز للتثبيت والتجربة على أجهزة Android (غير مخصص للنشر الرسمي على المتجر)."
-            if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
-              echo "- **Release APK (\`${RELEASE_APK_NAME:-AlMoazen-release.apk}\` — ${RELEASE_APK_SIZE:-unknown})**: مضغوط بتقنية R8 وموقّع رسميًا (V1+V2+V3) بمفتاح الإصدار وتم التحقق منه بـ apksigner."
-              echo "- **Release AAB (\`${RELEASE_AAB_NAME:-app-release.aab}\` — ${RELEASE_AAB_SIZE:-unknown})**: جاهز للرفع على Google Play Store وموقّع رسميًا وتم التحقق منه بـ jarsigner."
-            elif [ "${RELEASE_SIGNED:-false}" = "test" ]; then
-              echo "- **Release APK (\`${RELEASE_APK_NAME:-AlMoazen-release.apk}\` — ${RELEASE_APK_SIZE:-unknown})**: مضغوط بتقنية R8 وموقّع تجريبيًا بمفتاح Debug للاختبار فقط (وليس إصدارًا رسميًا للنشر)."
-              echo "- **Release AAB (\`${RELEASE_AAB_NAME:-app-release.aab}\` — ${RELEASE_AAB_SIZE:-unknown})**: موقّع تجريبيًا بمفتاح Debug للاختبار فقط (وليس للنشر على Play Store)."
-            else
-              echo "- **Release APK / AAB**: تم البناء والتحقق من الترجمة، ولكن لم يتم رفع ملفات Release لأن أسرار التوقيع (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) غير مضافة في GitHub Secrets. استخدم ملف Debug APK للاختبار أو أضف أسرار التوقيع لإصدار Release رسمي."
-            fi
+            echo "### Debug Build Verification"
+            echo "- Debug APK: \`$(basename "$DEBUG_APK")\` ($(du -h "$DEBUG_APK" | cut -f1))"
+            echo "- Unit tests (\`testDebugUnitTest\`), strict \`lint\`, \`zipalign -c -v 4\`, and \`apksigner verify\` passed."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Debug APK Artifact (Installable for Testing)
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: MuslimPlus-Debug-APK
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Upload Release APK Artifact (Signed)
+  build-and-verify-release:
+    name: Build & Verify Official Release APK + AAB
+    needs: build-and-test-debug
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cache Gradle & Android Wrapper
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-android-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties') }}
+          restore-keys: |
+            gradle-android-${{ runner.os }}-
+
+      - name: Set up Android SDK 36 (Command-line Tools & Build Tools 36.0.0)
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          if [ ! -d "$SDK_ROOT" ]; then
+            SDK_ROOT="$HOME/android-sdk"
+            mkdir -p "$SDK_ROOT"
+          fi
+          if [ ! -x "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            curl -fsSL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline-tools.zip
+            unzip -q -o /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            mv /tmp/cmdline-tools-extract/cmdline-tools "$SDK_ROOT/cmdline-tools/latest"
+            rm -rf /tmp/cmdline-tools.zip /tmp/cmdline-tools-extract
+          fi
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          set +o pipefail
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --licenses >/dev/null
+          set -o pipefail
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x gradlew android/gradlew
+
+      - name: Configure & Validate Official Release Keystore
+        env:
+          SECRET_KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+          SECRET_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+            echo "::error::Official Release signing requires KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD secrets. Debug fallback signing is strictly disabled."
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.android"
+          KEYSTORE_OUT="$HOME/.android/release.keystore"
+
+          if [ -n "${SECRET_KEYSTORE_FILE:-}" ]; then
+            if [ -f "$SECRET_KEYSTORE_FILE" ]; then
+              cp "$SECRET_KEYSTORE_FILE" "$KEYSTORE_OUT"
+            else
+              printf '%s' "$SECRET_KEYSTORE_FILE" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_OUT"
+            fi
+          elif [ -n "${SECRET_KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$SECRET_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_OUT"
+          else
+            echo "::error::Official Release signing requires secrets.KEYSTORE_FILE (or secrets.KEYSTORE_BASE64). No keystore was provided."
+            exit 1
+          fi
+
+          if [ ! -s "$KEYSTORE_OUT" ]; then
+            echo "::error::Decoded release keystore file is empty."
+            exit 1
+          fi
+
+          KEYTOOL_INFO=$(keytool -list -v -keystore "$KEYSTORE_OUT" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1) || {
+            echo "::error::keytool failed to validate keystore credentials/alias."
+            exit 1
+          }
+
+          if printf '%s' "$KEYTOOL_INFO" | grep -qi "CN=Android Debug"; then
+            echo "::error::Android Debug keystore is forbidden for Release builds."
+            exit 1
+          fi
+
+          echo "KEYSTORE_FILE=$KEYSTORE_OUT" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build Signed Release APK (R8) & Release AAB (with HTTP 429 Retry)
+        working-directory: android
+        run: |
+          MAX_ATTEMPTS=4
+          BACKOFF_SEC=15
+          ATTEMPT=1
+          SUCCESS=false
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "=== Gradle Release build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            if ./gradlew assembleRelease bundleRelease --stacktrace \
+              -Dorg.gradle.internal.repository.max.retries=6 \
+              -Dorg.gradle.internal.repository.initial.backoff=2000; then
+              SUCCESS=true
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "::warning::Gradle Release build failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Waiting ${BACKOFF_SEC}s before retry..."
+              sleep "$BACKOFF_SEC"
+              BACKOFF_SEC=$((BACKOFF_SEC * 2))
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          ./gradlew --stop || true
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::assembleRelease / bundleRelease failed after $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
+
+      - name: Verify Release APK (aapt2, zipalign, apksigner V1+V2+V3) & Release AAB (jarsigner)
+        run: |
+          RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
+          RELEASE_AAB=$(find android/app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' | head -n 1)
+
+          if [ -z "$RELEASE_APK" ] || [ ! -s "$RELEASE_APK" ]; then
+            echo "::error::Release APK was not generated."
+            exit 1
+          fi
+          if [ -z "$RELEASE_AAB" ] || [ ! -s "$RELEASE_AAB" ]; then
+            echo "::error::Release AAB was not generated."
+            exit 1
+          fi
+
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$RELEASE_APK" | head -n 5
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$RELEASE_APK" | tail -n 10
+
+          APKSIGNER_OUT=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$RELEASE_APK")
+          printf '%s\n' "$APKSIGNER_OUT"
+
+          echo "$APKSIGNER_OUT" | grep -q "Verified using v1 scheme (JAR signing): true"
+          echo "$APKSIGNER_OUT" | grep -q "Verified using v2 scheme (APK Signature Scheme v2): true"
+          echo "$APKSIGNER_OUT" | grep -q "Verified using v3 scheme (APK Signature Scheme v3): true"
+          if printf '%s' "$APKSIGNER_OUT" | grep -qi "CN=Android Debug"; then
+            echo "::error::Release APK must NEVER be signed with Android Debug certificate."
+            exit 1
+          fi
+
+          JARSIGNER_OUT=$(jarsigner -verify -verbose -certs "$RELEASE_AAB")
+          printf '%s\n' "$JARSIGNER_OUT" | tail -n 15
+          echo "$JARSIGNER_OUT" | grep -q "jar verified."
+          if printf '%s' "$JARSIGNER_OUT" | grep -qi "CN=Android Debug"; then
+            echo "::error::Release AAB must NEVER be signed with Android Debug certificate."
+            exit 1
+          fi
+
+          RELEASE_SIZE=$(du -h "$RELEASE_APK" | cut -f1)
+          AAB_SIZE=$(du -h "$RELEASE_AAB" | cut -f1)
+          echo "RELEASE_APK_PATH=$RELEASE_APK" >> "$GITHUB_ENV"
+          echo "RELEASE_AAB_PATH=$RELEASE_AAB" >> "$GITHUB_ENV"
+          {
+            echo "### Official Release Verification"
+            echo "- Release APK: \`$(basename "$RELEASE_APK")\` ($RELEASE_SIZE) — R8 minified/shrunk, \`zipalign -c -v 4\` passed, \`apksigner\` V1+V2+V3 verified."
+            echo "- Release AAB: \`$(basename "$RELEASE_AAB")\` ($AAB_SIZE) — \`jarsigner -verify\` passed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Signed Release APK Artifact
         uses: actions/upload-artifact@v4
-        if: success() && (env.RELEASE_SIGNED == 'true' || env.RELEASE_SIGNED == 'test')
         with:
           name: MuslimPlus-Release-APK
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
-      - name: Upload Release AAB Artifact (Signed Play Store Bundle)
+      - name: Upload Signed Release AAB Artifact
         uses: actions/upload-artifact@v4
-        if: success() && (env.RELEASE_SIGNED == 'true' || env.RELEASE_SIGNED == 'test')
         with:
           name: MuslimPlus-Release-AAB
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 
-      - name: Publish GitHub Release with APK & AAB on Tag or Manual Request
-        if: success() && (startsWith(github.ref, 'refs/tags/') || inputs.create_release == 'true')
+      - name: Download Verified Debug APK for Release Notes Bundle
+        if: startsWith(github.ref, 'refs/tags/') || inputs.create_release == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: MuslimPlus-Debug-APK
+          path: /tmp/debug-artifact
+
+      - name: Publish GitHub Release with Verified Official Release APK, AAB & Debug APK
+        if: startsWith(github.ref, 'refs/tags/') || inputs.create_release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -247,17 +342,13 @@ jobs:
             TAG_NAME="build-${GITHUB_RUN_NUMBER}"
           fi
 
-          FILES_TO_UPLOAD=("$DEBUG_APK_PATH")
-          NOTES="تم بناء تطبيق مسلم بلس بصيغة APK و AAB بنجاح عبر GitHub Actions."
-          if [ "${RELEASE_SIGNED:-false}" = "true" ]; then
-            FILES_TO_UPLOAD+=("$RELEASE_APK_PATH" "$RELEASE_AAB_PATH")
-            NOTES="${NOTES} يتضمن هذا الإصدار ملف Release APK و Release AAB موقّعين رسميًا (V1+V2+V3) بالإضافة إلى نسخة Debug للاختبار."
-          elif [ "${RELEASE_SIGNED:-false}" = "test" ]; then
-            FILES_TO_UPLOAD+=("$RELEASE_APK_PATH" "$RELEASE_AAB_PATH")
-            NOTES="${NOTES} ملاحظة: ملفات هذا الإصدار موقّعة بتوقيع Debug للتجربة فقط وليست إصدارًا رسميًا للمتجر."
-          else
-            NOTES="${NOTES} ملاحظة: نظرًا لعدم إضافة أسرار التوقيع الرسمي، تم إرفاق ملف Debug APK القابل للتثبيت للاختبار فقط."
+          DEBUG_APK_PATH=$(find /tmp/debug-artifact -maxdepth 2 -name '*.apk' | head -n 1)
+          FILES_TO_UPLOAD=("$RELEASE_APK_PATH" "$RELEASE_AAB_PATH")
+          if [ -n "$DEBUG_APK_PATH" ] && [ -s "$DEBUG_APK_PATH" ]; then
+            FILES_TO_UPLOAD+=("$DEBUG_APK_PATH")
           fi
+
+          NOTES="تم بناء تطبيق مسلم بلس والتحقق من التوقيع الرسمي (V1+V2+V3) والمحاذاة (zipalign) لكل من Release APK و Release AAB بالإضافة إلى نسخة Debug للاختبار."
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" "${FILES_TO_UPLOAD[@]}" --clobber
