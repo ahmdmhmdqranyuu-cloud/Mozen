@@ -3,6 +3,8 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+apply from: rootProject.file('signing.gradle')
+
 android {
     namespace 'com.muslim.azan.wear'
     compileSdk 36
@@ -31,48 +33,6 @@ android {
         jvmTarget = '17'
     }
 
-    def releaseKeystorePath = System.getenv("KEYSTORE_FILE")
-    def releaseKeystorePassword = System.getenv("KEYSTORE_PASSWORD")
-    def releaseKeyAlias = System.getenv("KEY_ALIAS")
-    def releaseKeyPassword = System.getenv("KEY_PASSWORD")
-    def releaseKeystoreFile = null
-    if (releaseKeystorePath != null && !releaseKeystorePath.trim().isEmpty()) {
-        def rawKs = new File(releaseKeystorePath.trim())
-        if (rawKs.isAbsolute()) {
-            releaseKeystoreFile = rawKs
-        } else if (file(releaseKeystorePath.trim()).exists()) {
-            releaseKeystoreFile = file(releaseKeystorePath.trim())
-        } else {
-            releaseKeystoreFile = rootProject.file(releaseKeystorePath.trim())
-        }
-    }
-    def hasValidReleaseSigning = releaseKeystoreFile != null &&
-            releaseKeystoreFile.exists() &&
-            releaseKeystoreFile.isFile() &&
-            releaseKeystoreFile.length() > 0 &&
-            releaseKeystorePassword != null && !releaseKeystorePassword.isEmpty() &&
-            releaseKeyAlias != null && !releaseKeyAlias.isEmpty() &&
-            releaseKeyPassword != null && !releaseKeyPassword.isEmpty()
-
-    signingConfigs {
-        debug {
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
-        }
-        if (hasValidReleaseSigning) {
-            release {
-                storeFile releaseKeystoreFile
-                storePassword releaseKeystorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
-            }
-        }
-    }
-
     buildTypes {
         debug {
             debuggable true
@@ -81,29 +41,6 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (hasValidReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
-        }
-    }
-
-    gradle.taskGraph.whenReady { taskGraph ->
-        def releaseArtifactTasks = [
-            "assembleRelease",
-            "bundleRelease",
-            "packageRelease",
-            "packageReleaseBundle",
-            "signReleaseBundle"
-        ]
-        def buildingReleaseArtifact = taskGraph.allTasks.any { t ->
-            t.project == project && releaseArtifactTasks.any { targetName ->
-                t.name.equalsIgnoreCase(targetName)
-            }
-        }
-        if (buildingReleaseArtifact && !hasValidReleaseSigning) {
-            throw new GradleException(
-                "Wear OS Release signing configuration missing or invalid: KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD environment variables must all point to a valid release keystore. Signing Release with the debug key is prohibited."
-            )
         }
     }
 

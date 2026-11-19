@@ -33,6 +33,40 @@ allprojects {
     }
 }
 
+tasks.register('printBuildEnvironment') {
+    group = 'diagnostics'
+    description = 'Prints detected signing and SDK environment variables (with masked passwords) to diagnose build behavior.'
+    doLast {
+        def ksFile = System.getenv('KEYSTORE_FILE')
+        def ksPass = System.getenv('KEYSTORE_PASSWORD')
+        def keyAlias = System.getenv('KEY_ALIAS')
+        def keyPass = System.getenv('KEY_PASSWORD')
+        def ksObj = (ksFile != null && !ksFile.trim().isEmpty()) ? new File(ksFile.trim()) : null
+        def mask = { String v -> (v == null || v.isEmpty()) ? '[NOT SET]' : "*** [SET, length=${v.length()}]" }
+
+        println '================ [Root Build Environment Diagnostics] ================'
+        println "KEYSTORE_FILE      : ${ksFile ?: '[NOT SET]'} (exists=${ksObj != null && ksObj.exists()}, bytes=${ksObj != null && ksObj.exists() ? ksObj.length() : 0})"
+        println "KEYSTORE_PASSWORD  : ${mask(ksPass)}"
+        println "KEY_ALIAS          : ${keyAlias ?: '[NOT SET]'}"
+        println "KEY_PASSWORD       : ${mask(keyPass)}"
+        println "ANDROID_HOME       : ${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT') ?: '[NOT SET]'}"
+        println "JAVA_VERSION       : ${System.getProperty('java.version')}"
+        println "Gradle Daemon/Par  : daemon=${System.getProperty('org.gradle.daemon')}, parallel=${System.getProperty('org.gradle.parallel')}"
+        println '======================================================================'
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def hasReleaseTask = taskGraph.allTasks.any { t ->
+        t.name.toLowerCase().contains('release')
+    }
+    if (hasReleaseTask) {
+        def ksFile = System.getenv('KEYSTORE_FILE')
+        def ksObj = (ksFile != null && !ksFile.trim().isEmpty()) ? new File(ksFile.trim()) : null
+        println "[BuildDiagnostic] Release build triggered -> KEYSTORE_FILE=${ksFile ?: '[NOT SET]'} (exists=${ksObj != null && ksObj.exists()}), KEY_ALIAS=${System.getenv('KEY_ALIAS') ?: '[NOT SET]'}"
+    }
+}
+
 tasks.register('clean', Delete) {
     delete rootProject.layout.buildDirectory
 }

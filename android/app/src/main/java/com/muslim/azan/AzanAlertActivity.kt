@@ -51,6 +51,24 @@ class AzanAlertActivity : ComponentActivity() {
         val body = intent?.getStringExtra("body") ?: "الله أكبر • حي على الصلاة، حي على الفلاح"
         val cityName = intent?.getStringExtra("cityName") ?: ""
 
+        if (intent?.getBooleanExtra("autoStartAzanAudio", false) == true && !AzkarAudioService.isPlayingNow) {
+            val svcIntent = Intent(this, AzkarAudioService::class.java).apply {
+                putExtra("section", intent?.getStringExtra("section") ?: "prayer_azan")
+                putExtra("prayerName", intent?.getStringExtra("prayerName") ?: "")
+                putExtra("cityName", cityName)
+                putExtra("title", title)
+                putExtra("body", body)
+                putExtra("audioTrackId", intent?.getStringExtra("audioTrackId") ?: "makkah")
+                putExtra("volumePercent", intent?.getIntExtra("volumePercent", 100) ?: 100)
+                putExtra("autoPlay", true)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(svcIntent)
+            } else {
+                startService(svcIntent)
+            }
+        }
+
         setContent {
             AlMoazenTheme {
                 Box(

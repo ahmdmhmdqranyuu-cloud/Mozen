@@ -78,7 +78,8 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     prefs: NativePreferences,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onReopenOnboarding: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -649,6 +650,16 @@ fun SettingsScreen(
                         PermissionStatusLine("الظهور على شاشة القفل:", permStatus.fullScreenIntentGranted)
                     }
                     PermissionStatusLine("إذن الميكروفون (شيخي):", permStatus.microphoneGranted)
+
+                    if (onReopenOnboarding != null) {
+                        Button(
+                            onClick = onReopenOnboarding,
+                            colors = ButtonDefaults.buttonColors(containerColor = MoazenGoldDark),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("فتح معالج الإعداد السريع لأول مرة", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
                     if (!permStatus.microphoneGranted) {
                         Button(

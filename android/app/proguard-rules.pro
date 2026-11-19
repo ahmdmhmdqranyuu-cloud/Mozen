@@ -39,10 +39,27 @@
 -keepnames class androidx.work.impl.background.systemalarm.**
 -keepnames class androidx.work.impl.background.systemjob.**
 
+# Location Services (Google Play Services Location + Android Geocoder & LocationListener callbacks)
+-keep class com.google.android.gms.location.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-keep class com.google.android.gms.common.api.** { *; }
+-keepclassmembers class * implements android.location.LocationListener { *; }
+-keepclassmembers class * implements android.location.Geocoder$GeocodeListener { *; }
+
+# Media Playback & Audio Focus (androidx.media, MediaPlayer & AudioManager callbacks)
+-keep class androidx.media.** { *; }
+-keep class android.support.v4.media.** { *; }
+-keep class com.muslim.azan.service.** { *; }
+-keepclassmembers class * implements android.media.MediaPlayer$OnPreparedListener { *; }
+-keepclassmembers class * implements android.media.MediaPlayer$OnCompletionListener { *; }
+-keepclassmembers class * implements android.media.MediaPlayer$OnErrorListener { *; }
+-keepclassmembers class * implements android.media.AudioManager$OnAudioFocusChangeListener { *; }
+
 # Google Play Services Location & optional compile-only annotations under R8 fullMode
 -dontwarn com.google.android.gms.**
 -dontwarn androidx.compose.**
 -dontwarn androidx.work.**
+-dontwarn androidx.media.**
 -dontwarn org.codehaus.mojo.animal_sniffer.**
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**

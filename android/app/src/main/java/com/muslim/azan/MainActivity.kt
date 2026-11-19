@@ -54,6 +54,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AlMoazenTheme {
+                var showOnboarding by remember { mutableStateOf(!prefs.onboardingCompleted) }
+
+                if (showOnboarding) {
+                    OnboardingSetupScreen(
+                        prefs = prefs,
+                        onCompleted = {
+                            prefs.onboardingCompleted = true
+                            showOnboarding = false
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                BootReceiver.recalculateAndScheduleAll(applicationContext)
+                            }
+                        }
+                    )
+                } else {
                 val navController = rememberNavController()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
@@ -205,7 +219,8 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     prefs = prefs,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    onReopenOnboarding = { showOnboarding = true }
                                 )
                             }
                             composable(
@@ -263,6 +278,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+                }
                 }
             }
         }

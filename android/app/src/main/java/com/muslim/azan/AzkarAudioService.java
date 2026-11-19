@@ -134,6 +134,11 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private final FifoAudioQueue<Intent> pendingAudioQueue = new FifoAudioQueue<>(20);
     private final AudioFocusStateMachine focusStateMachine = new AudioFocusStateMachine();
     private volatile boolean currentIsTestAlarm = false;
+    private volatile boolean pendingDelayedAudioFocusStart = false;
+    private volatile boolean pendingShortToneMode = false;
+    private volatile String pendingTrackTitle = "";
+    private volatile String pendingResolvedFileName = "";
+    private volatile String pendingVolumeWarning = null;
     private volatile String currentAudioTrackId = "";
     private float currentScalarVolume = 1.0f;
 
@@ -142,6 +147,25 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
+        if (focusChange == AudioManager.AUDIOFOCUS_GAIN && pendingDelayedAudioFocusStart) {
+            pendingDelayedAudioFocusStart = false;
+            try {
+                if (mediaPlayer != null) {
+                    mediaPlayer.setVolume(currentScalarVolume, currentScalarVolume);
+                    if (!mediaPlayer.isPlaying()) {
+                        mediaPlayer.start();
+                    }
+                    if (pendingShortToneMode) {
+                        mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
+                    }
+                    publishAudioState(true, pendingTrackTitle + " (" + pendingResolvedFileName + ")", pendingVolumeWarning);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed starting deferred AudioFocus playback", e);
+                stopServiceCleanly();
+            }
+            return;
+        }
         boolean playing = false;
         try {
             playing = mediaPlayer != null && mediaPlayer.isPlaying();
@@ -153,6 +177,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         );
         switch (action) {
             case STOP_PERMANENT:
+                pendingDelayedAudioFocusStart = false;
                 stopServiceCleanly();
                 break;
             case PAUSE_TRANSIENT:
@@ -826,7 +851,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             volumeWarning = "تنبيه: مستوى صوت المنبه في الهاتف مضبوط على صفر، ارفع صوت المنبه لسماع الأذان";
         }
 
-        if (!requestAudioFocus()) {
+        int focusResult = requestAudioFocusResult();
+        if (focusResult == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
             Log.w(TAG, "Audio focus denied; aborting playback to avoid overlapping audio");
             String focusErr = "لم يتم منح التركيز الصوتي من النظام — تم إلغاء التشغيل لتجنب تداخل الأصوات";
             publishAudioState(false, title, focusErr);
@@ -834,6 +860,11 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             finishWithVisualFallback(title, body, section);
             return;
         }
+        boolean delayedFocus = (focusResult == AudioManager.AUDIOFOCUS_REQUEST_DELAYED);
+        pendingTrackTitle = title != null ? title : "";
+        pendingResolvedFileName = resolvedFileName;
+        pendingVolumeWarning = volumeWarning;
+        pendingShortToneMode = shortToneMode;
 
         try {
             float scalarVol = volumePercent <= 0 ? 0.0f : Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
@@ -912,12 +943,19 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 mediaPlayer.setOnCompletionListener(this);
                 mediaPlayer.setOnErrorListener(this);
                 mediaPlayer.prepare();
-                mediaPlayer.start();
-                if (shortToneMode) {
-                    mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
+                if (delayedFocus) {
+                    pendingDelayedAudioFocusStart = true;
+                    Log.d(TAG, "Audio focus delayed; MediaPlayer prepared and waiting for AUDIOFOCUS_GAIN: " + resolvedFileName);
+                    publishAudioState(false, title + " (بانتظار التركيز الصوتي)", volumeWarning);
+                } else {
+                    pendingDelayedAudioFocusStart = false;
+                    mediaPlayer.start();
+                    if (shortToneMode) {
+                        mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
+                    }
+                    Log.d(TAG, "Audio started playing successfully: " + resolvedFileName);
+                    publishAudioState(true, title + " (" + resolvedFileName + ")", volumeWarning);
                 }
-                Log.d(TAG, "Audio started playing successfully: " + resolvedFileName);
-                publishAudioState(true, title + " (" + resolvedFileName + ")", volumeWarning);
                 if (currentIsTestAlarm) {
                     AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(this);
                     AlarmScheduleTracker.saveBackgroundTestStatus(
@@ -1157,13 +1195,12 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         }
     }
 
-    private boolean requestAudioFocus() {
+    private int requestAudioFocusResult() {
         if (audioManager == null) {
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         }
-        if (audioManager == null) return false;
+        if (audioManager == null) return AudioManager.AUDIOFOCUS_REQUEST_FAILED;
         focusStateMachine.reset();
-        int focusResult;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAudioAttributes(
@@ -1172,10 +1209,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                                     .build()
                     )
-                    .setAcceptsDelayedFocusGain(false)
+                    .setAcceptsDelayedFocusGain(true)
                     .setOnAudioFocusChangeListener(audioFocusChangeListener)
                     .build();
-            focusResult = audioManager.requestAudioFocus(audioFocusRequest);
+            return audioManager.requestAudioFocus(audioFocusRequest);
         } else {
             @SuppressWarnings("deprecation")
             int legacyResult = audioManager.requestAudioFocus(
@@ -1183,9 +1220,8 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     AudioManager.STREAM_ALARM,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
             );
-            focusResult = legacyResult;
+            return legacyResult;
         }
-        return focusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
     }
 
     private void abandonAudioFocus() {
@@ -1201,6 +1237,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     }
 
     private void stopAudioAndCleanUp() {
+        pendingDelayedAudioFocusStart = false;
         if (mediaPlayer != null) {
             try {
                 if (mediaPlayer.isPlaying()) {

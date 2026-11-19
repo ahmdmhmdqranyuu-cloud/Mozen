@@ -9,6 +9,10 @@
     volatile <fields>;
 }
 
+-keepclassmembers class * implements android.location.LocationListener { *; }
+-keepclassmembers class * implements android.media.MediaPlayer$OnCompletionListener { *; }
+-keepclassmembers class * implements android.media.AudioManager$OnAudioFocusChangeListener { *; }
+
 -dontwarn androidx.compose.**
 -dontwarn androidx.wear.**
 -dontwarn org.codehaus.mojo.animal_sniffer.**

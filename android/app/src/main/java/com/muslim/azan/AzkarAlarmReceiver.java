@@ -161,7 +161,16 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                         )
                 );
             }
-            postFallbackNotification(context, section, title, body);
+            postFallbackNotification(
+                    context,
+                    section,
+                    prayerName,
+                    cityName,
+                    audioTrackId,
+                    volumePercent,
+                    title,
+                    body
+            );
         }
 
         // Rolling schedule maintenance protected by goAsync() so Android 12-16 does not kill the thread prematurely
@@ -191,7 +200,16 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         }).start();
     }
 
-    private void postFallbackNotification(Context context, String section, String title, String body) {
+    private void postFallbackNotification(
+            Context context,
+            String section,
+            String prayerName,
+            String cityName,
+            String audioTrackId,
+            int volumePercent,
+            String title,
+            String body
+    ) {
         try {
             NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager == null) return;
@@ -213,24 +231,59 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                 manager.createNotificationChannel(channel);
             }
 
-            Intent openAppIntent = new Intent(context, MainActivity.class);
-            openAppIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            boolean isPrayerOrIqama = "prayer_azan".equals(section)
+                    || "iqama".equals(section)
+                    || "prePrayerAlert".equals(section)
+                    || "iftar".equals(section);
+
+            String resolvedTitle = title != null && !title.isEmpty() ? title : "مسلم بلس";
+            String resolvedBody = body != null && !body.isEmpty() ? body : "حان موعد الصلاة والأذكار";
+
+            Intent targetIntent;
+            if (isPrayerOrIqama) {
+                targetIntent = new Intent(context, AzanAlertActivity.class);
+                targetIntent.putExtra("title", resolvedTitle);
+                targetIntent.putExtra("body", resolvedBody);
+                targetIntent.putExtra("cityName", cityName != null ? cityName : "");
+                targetIntent.putExtra("section", section);
+                targetIntent.putExtra("prayerName", prayerName != null ? prayerName : "");
+                targetIntent.putExtra("audioTrackId", audioTrackId != null ? audioTrackId : "makkah");
+                targetIntent.putExtra("volumePercent", volumePercent);
+                targetIntent.putExtra("autoStartAzanAudio", true);
+                targetIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
+            } else {
+                targetIntent = new Intent(context, MainActivity.class);
+                targetIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            }
+
             PendingIntent pendingOpenIntent = PendingIntent.getActivity(
                     context,
-                    0,
-                    openAppIntent,
+                    isPrayerOrIqama ? 4011 : 0,
+                    targetIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
             int notifId = 3000 + Math.abs((section != null ? section : "fallback").hashCode() % 100);
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, FALLBACK_CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_notification_muslim_plus)
-                    .setContentTitle(title != null && !title.isEmpty() ? title : "مسلم بلس")
-                    .setContentText(body != null && !body.isEmpty() ? body : "حان موعد الصلاة والأذكار")
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentTitle(resolvedTitle)
+                    .setContentText(resolvedBody)
+                    .setStyle(new NotificationCompat.BigTextStyle().bigText(resolvedBody))
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
                     .setAutoCancel(true)
                     .setContentIntent(pendingOpenIntent);
+
+            if (isPrayerOrIqama) {
+                boolean canFullScreen = true;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    canFullScreen = manager.canUseFullScreenIntent();
+                }
+                if (canFullScreen) {
+                    builder.setFullScreenIntent(pendingOpenIntent, true);
+                }
+            }
 
             manager.notify(notifId, builder.build());
         } catch (Exception ex) {

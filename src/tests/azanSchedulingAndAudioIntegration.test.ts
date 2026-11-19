@@ -212,15 +212,41 @@ function runIntegrationTests() {
       assert.match(rootGradle, /org\.gradle\.daemon/, 'android/build.gradle must include daemon/parallel configuration');
       assert.match(rootGradle, /org\.gradle\.parallel/, 'android/build.gradle must include parallel configuration');
       assert.match(rootGradle, /org\.gradle\.internal\.repository\.max\.retries/, 'android/build.gradle must include retry configuration');
+      assert.match(rootGradle, /printBuildEnvironment/, 'android/build.gradle must register diagnostic task printBuildEnvironment');
+
+      const signingGradle = fs.readFileSync(path.join(rootDir, 'android/signing.gradle'), 'utf8');
+      assert.match(signingGradle, /enableV1Signing\s*=\s*true/, 'signing.gradle must enable V1 APK signing');
+      assert.match(signingGradle, /enableV2Signing\s*=\s*true/, 'signing.gradle must enable V2 APK signing');
+      assert.match(signingGradle, /enableV3Signing\s*=\s*true/, 'signing.gradle must enable V3 APK signing');
+      assert.match(signingGradle, /printSigningEnv/, 'signing.gradle must define printSigningEnv task');
+      assert.match(signingGradle, /KEYSTORE_FILE/, 'signing.gradle must check KEYSTORE_FILE');
+      assert.match(signingGradle, /KEYSTORE_PASSWORD/, 'signing.gradle must check KEYSTORE_PASSWORD');
+      assert.match(signingGradle, /KEY_ALIAS/, 'signing.gradle must check KEY_ALIAS');
+      assert.match(signingGradle, /KEY_PASSWORD/, 'signing.gradle must check KEY_PASSWORD');
+      assert.equal(
+        signingGradle.includes('throw new GradleException'),
+        false,
+        'signing.gradle must allow non-blocking Release builds when keystore passwords are not provided'
+      );
 
       const workflowAndroid = fs.readFileSync(path.join(rootDir, '.github/workflows/android.yml'), 'utf8');
       const workflowApk = fs.readFileSync(path.join(rootDir, '.github/workflows/build-apk.yml'), 'utf8');
+      const workflowBuild = fs.readFileSync(path.join(rootDir, '.github/workflows/build.yml'), 'utf8');
       assert.match(workflowAndroid, /actions\/cache@v4/);
       assert.match(workflowApk, /actions\/cache@v4/);
+      assert.match(workflowBuild, /actions\/cache@v4/);
       assert.match(workflowAndroid, /sleep "\$BACKOFF_SEC"/, 'android.yml must retry on HTTP 429/transient Maven failures');
       assert.match(workflowApk, /sleep "\$BACKOFF_SEC"/, 'build-apk.yml must retry on HTTP 429/transient Maven failures');
+      assert.match(workflowBuild, /sleep "\$BACKOFF_SEC"/, 'build.yml must retry on HTTP 429/transient Maven failures');
       assert.match(workflowAndroid, /org\.gradle\.internal\.repository\.max\.retries=6/);
       assert.match(workflowApk, /org\.gradle\.internal\.repository\.max\.retries=6/);
+      assert.match(workflowBuild, /org\.gradle\.internal\.repository\.max\.retries=6/);
+      assert.match(workflowBuild, /:app:assembleRelease\s+:wear:assembleRelease/, 'build.yml must assemble Release APKs');
+      assert.match(workflowBuild, /:app:bundleRelease/, 'build.yml must support App Bundle (AAB) build');
+      assert.match(workflowBuild, /keytool -genkeypair/, 'build.yml must auto-generate a release keystore when secrets are not set');
+
+      const readmeMd = fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8');
+      assert.match(readmeMd, /actions\/workflows\/build\.yml\/badge\.svg/, 'README.md must include build.yml workflow status badge');
 
       const receiverJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAlarmReceiver.java'),
@@ -230,6 +256,11 @@ function runIntegrationTests() {
         receiverJava,
         /RingerRestoreCoordinator\.handleRestoreTrigger\(\s*context\s*,\s*System\.currentTimeMillis\(\)\s*\)/,
         'AzkarAlarmReceiver.java must pass both Context and Long explicitly'
+      );
+      assert.match(
+        receiverJava,
+        /autoStartAzanAudio/,
+        'AzkarAlarmReceiver fallback notification must pass autoStartAzanAudio to AzanAlertActivity'
       );
 
       const ringerKt = fs.readFileSync(
@@ -261,18 +292,17 @@ function runIntegrationTests() {
       );
 
       const appGradle = fs.readFileSync(path.join(rootDir, 'android/app/build.gradle'), 'utf8');
-      assert.match(appGradle, /enableV1Signing\s*=\s*true/, 'build.gradle must enable V1 APK signing');
-      assert.match(appGradle, /enableV2Signing\s*=\s*true/, 'build.gradle must enable V2 APK signing');
-      assert.match(appGradle, /enableV3Signing\s*=\s*true/, 'build.gradle must enable V3 APK signing');
+      const wearGradle = fs.readFileSync(path.join(rootDir, 'android/wear/build.gradle'), 'utf8');
+      assert.match(appGradle, /apply from:\s*rootProject\.file\('signing\.gradle'\)/, 'app/build.gradle must apply signing.gradle');
+      assert.match(wearGradle, /apply from:\s*rootProject\.file\('signing\.gradle'\)/, 'wear/build.gradle must apply signing.gradle');
       assert.match(appGradle, /enableSplit\s*=\s*false/, 'build.gradle must keep language split disabled in AAB bundles');
       assert.equal(
         appGradle.includes('CI_SIGN_RELEASE_WITH_DEBUG'),
         false,
-        'build.gradle must NEVER fall back to Debug signing for Release artifacts'
+        'app/build.gradle must not rely on CI_SIGN_RELEASE_WITH_DEBUG env hack'
       );
       assert.match(appGradle, /checkReleaseBuilds\s+true/, 'build.gradle must enable checkReleaseBuilds in lint');
       assert.match(appGradle, /abortOnError\s+true/, 'build.gradle must enforce abortOnError true in lint');
-      assert.match(appGradle, /gradle\.taskGraph\.whenReady/, 'build.gradle must reject Release builds lacking official keystore');
 
       const proguardRules = fs.readFileSync(path.join(rootDir, 'android/app/proguard-rules.pro'), 'utf8');
       assert.equal(
@@ -285,20 +315,18 @@ function runIntegrationTests() {
         false,
         'proguard-rules.pro must not force-keep internal androidx.compose classes under R8 fullMode'
       );
+      assert.match(proguardRules, /-keep class com\.google\.android\.gms\.location\.\*\*/, 'proguard-rules.pro must keep Play Services Location classes');
+      assert.match(proguardRules, /-keep class androidx\.media\.\*\*/, 'proguard-rules.pro must keep androidx.media classes');
       assert.match(proguardRules, /-dontwarn org\.codehaus\.mojo\.animal_sniffer\.\*\*/, 'proguard-rules.pro must guard optional annotations under R8 fullMode');
 
       assert.match(workflowApk, /build-and-test-debug:/, 'build-apk.yml must separate Debug job');
       assert.match(workflowApk, /build-and-verify-release:/, 'build-apk.yml must separate Release job');
       assert.match(workflowApk, /secrets\.KEYSTORE_FILE/, 'build-apk.yml must support KEYSTORE_FILE secret');
       assert.match(workflowApk, /secrets\.KEYSTORE_BASE64/, 'build-apk.yml must support KEYSTORE_BASE64 secret');
-      assert.equal(
-        workflowApk.includes('CI_SIGN_RELEASE_WITH_DEBUG'),
-        false,
-        'build-apk.yml must NEVER sign Release with debug key'
-      );
+      assert.match(workflowApk, /keytool -genkeypair/, 'build-apk.yml must support automatic Release keystore generation when secrets are unset');
       assert.match(workflowApk, /:app:testDebugUnitTest\s+:wear:testDebugUnitTest\s+lint\s+:app:assembleDebug\s+:wear:assembleDebug/, 'build-apk.yml Debug job must test, lint, and assemble both :app and :wear');
       assert.match(workflowApk, /:app:assembleRelease\s+:wear:assembleRelease/, 'build-apk.yml Release job must build Release APKs for :app and :wear');
-      assert.match(workflowApk, /keytool -list/, 'build-apk.yml must validate release keystore via keytool');
+      assert.match(workflowApk, /keytool -list/, 'build-apk.yml must validate release keystore when provided');
       assert.match(workflowApk, /zipalign"\s+-c\s+-v\s+4/, 'build-apk.yml must verify 4-byte APK alignment');
       assert.match(workflowApk, /apksigner"\s+verify\s+--verbose\s+--print-certs/, 'build-apk.yml must verify APK certificates');
       assert.match(workflowApk, /Verified using v2 scheme/, 'build-apk.yml must assert V2 scheme on Release APK');
@@ -326,6 +354,19 @@ function runIntegrationTests() {
       assert.match(wearCalc, /calculateQiblaDirection\(/, 'WearPrayerTimesCalculator must port calculateQiblaDirection');
       assert.match(wearCalc, /calculateNightThirds\(/, 'WearPrayerTimesCalculator must port calculateNightThirds');
 
+      const onboardingKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/ui/screens/OnboardingSetupScreen.kt'),
+        'utf8'
+      );
+      assert.match(onboardingKt, /fun OnboardingSetupScreen/, 'Native Android OnboardingSetupScreen composable must exist');
+      assert.match(onboardingKt, /openExactAlarmSettings/, 'OnboardingSetupScreen must guide users to Exact Alarm permission');
+
+      const mainActivityKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/MainActivity.kt'),
+        'utf8'
+      );
+      assert.match(mainActivityKt, /!prefs\.onboardingCompleted/, 'MainActivity must launch OnboardingSetupScreen on first run');
+
       const azanServiceJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAudioService.java'),
         'utf8'
@@ -344,6 +385,11 @@ function runIntegrationTests() {
         azanServiceJava,
         /hasExplicitEnabledPerPrayer/,
         'AzkarAudioService must respect global azanSoundEnabled when no explicit per-prayer override enables sound'
+      );
+      assert.match(
+        azanServiceJava,
+        /setAcceptsDelayedFocusGain\(true\)/,
+        'AzkarAudioService must support delayed AudioFocus acquisition instead of dropping Azan'
       );
 
       const alarmSchedulerJava = fs.readFileSync(

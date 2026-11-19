@@ -104,6 +104,10 @@ class NativePreferences(context: Context) {
         get() = prefs.getString("app_language", "ar") ?: "ar"
         set(value) = prefs.edit().putString("app_language", value).apply()
 
+    var onboardingCompleted: Boolean
+        get() = prefs.getBoolean("onboarding_completed", false)
+        set(value) = prefs.edit().putBoolean("onboarding_completed", value).apply()
+
     // Reminders
     var salawatEnabled: Boolean
         get() = prefs.getBoolean("salawat_enabled", true)
