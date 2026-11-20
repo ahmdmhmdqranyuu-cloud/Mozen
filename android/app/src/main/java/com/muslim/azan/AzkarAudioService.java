@@ -152,7 +152,27 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private boolean currentDuaAfterPrayerEnabled = false;
     private String currentPrayerName = "";
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private MediaPlayer mediaPlayer;
+    private PowerManager.WakeLock wakeLock;
+    private AudioManager audioManager;
+    private AudioFocusRequest audioFocusRequest;
+
+    private final Handler mainHandler =
+            new Handler(Looper.getMainLooper());
+
+    private final Runnable shortToneStopRunnable = () -> {
+        if (mediaPlayer != null) {
+            stopServiceCleanly();
+        }
+    };
+
+    private final Runnable autoDismissOverlayTestRunnable = () -> {
+        if (isOverlayOnlyTest && (mediaPlayer == null)) {
+            removeFloatingOverlaySync();
+            stopServiceCleanly();
+        }
+    };
+
     private final Runnable overlayTickerRunnable = new Runnable() {
         @Override
         public void run() {
@@ -162,23 +182,9 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             }
         }
     };
-    private final Runnable shortToneStopRunnable = () -> {
-        if (mediaPlayer != null) {
-            stopServiceCleanly();
-        }
-    };
-    private final Runnable autoDismissOverlayTestRunnable = () -> {
-        if (isOverlayOnlyTest && (mediaPlayer == null)) {
-            removeFloatingOverlaySync();
-            stopServiceCleanly();
-        }
-    };
 
-    private MediaPlayer mediaPlayer;
-    private PowerManager.WakeLock wakeLock;
-    private AudioManager audioManager;
-    private AudioFocusRequest audioFocusRequest;
-    private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = this::handleAudioFocusChange;
+    private final AudioManager.OnAudioFocusChangeListener
+            audioFocusChangeListener = this::handleAudioFocusChange;
 
     private void handleAudioFocusChange(int focusChange) {
         if (focusChange == AudioManager.AUDIOFOCUS_GAIN && pendingDelayedAudioFocusStart) {
@@ -196,7 +202,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     publishAudioState(true, pendingTrackTitle + " (" + pendingResolvedFileName + ")", pendingVolumeWarning);
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Failed starting deferred AudioFocus playback", e);
+                Log.e(TAG, "Audio focus resume failed", e);
                 stopServiceCleanly();
             }
             return;

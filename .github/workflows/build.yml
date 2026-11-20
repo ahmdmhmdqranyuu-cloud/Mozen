@@ -90,7 +90,11 @@ jobs:
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
             echo "=== Gradle Debug build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
-            if ./gradlew :app:testDebugUnitTest :wear:testDebugUnitTest lint :app:assembleDebug :wear:assembleDebug --stacktrace \
+            EXTRA_FLAGS=""
+            if [ "$ATTEMPT" -gt 1 ]; then
+              EXTRA_FLAGS="--refresh-dependencies"
+            fi
+            if ./gradlew :app:testDebugUnitTest :wear:testDebugUnitTest lint :app:assembleDebug :wear:assembleDebug --stacktrace $EXTRA_FLAGS \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
@@ -238,7 +242,11 @@ jobs:
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
             echo "=== Gradle Release build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
-            if ./gradlew $GRADLE_TASKS --stacktrace \
+            EXTRA_FLAGS=""
+            if [ "$ATTEMPT" -gt 1 ]; then
+              EXTRA_FLAGS="--refresh-dependencies"
+            fi
+            if ./gradlew $GRADLE_TASKS --stacktrace $EXTRA_FLAGS \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
