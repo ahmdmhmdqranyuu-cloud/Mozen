@@ -44,8 +44,8 @@ class AzanAlertActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
-        configureLockScreenDisplay()
         super.onCreate(savedInstanceState)
+        configureLockScreenDisplay()
 
         val title = intent?.getStringExtra("title") ?: "حان الآن موعد الأذان"
         val body = intent?.getStringExtra("body") ?: "الله أكبر • حي على الصلاة، حي على الفلاح"

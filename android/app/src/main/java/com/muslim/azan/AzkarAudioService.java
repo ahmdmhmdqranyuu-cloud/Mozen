@@ -142,11 +142,45 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private volatile String currentAudioTrackId = "";
     private float currentScalarVolume = 1.0f;
 
+    private WindowManager windowManager;
+    private View overlayView;
+    private WindowManager.LayoutParams overlayParams;
+    private boolean overlayExpanded = false;
+    private long overlayCountdownEndMs = 0L;
+    private String overlayPrayerLabel = "الأذان";
+    private boolean isOverlayOnlyTest = false;
+    private boolean currentDuaAfterPrayerEnabled = false;
+    private String currentPrayerName = "";
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable overlayTickerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateOverlayCountdownViews();
+            if (overlayView != null) {
+                mainHandler.postDelayed(this, 1000L);
+            }
+        }
+    };
+    private final Runnable shortToneStopRunnable = () -> {
+        if (mediaPlayer != null) {
+            stopServiceCleanly();
+        }
+    };
+    private final Runnable autoDismissOverlayTestRunnable = () -> {
+        if (isOverlayOnlyTest && (mediaPlayer == null)) {
+            removeFloatingOverlaySync();
+            stopServiceCleanly();
+        }
+    };
+
     private MediaPlayer mediaPlayer;
     private PowerManager.WakeLock wakeLock;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
-    private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
+    private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = this::handleAudioFocusChange;
+
+    private void handleAudioFocusChange(int focusChange) {
         if (focusChange == AudioManager.AUDIOFOCUS_GAIN && pendingDelayedAudioFocusStart) {
             pendingDelayedAudioFocusStart = false;
             try {
@@ -156,6 +190,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                         mediaPlayer.start();
                     }
                     if (pendingShortToneMode) {
+                        mainHandler.removeCallbacks(shortToneStopRunnable);
                         mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
                     }
                     publishAudioState(true, pendingTrackTitle + " (" + pendingResolvedFileName + ")", pendingVolumeWarning);
@@ -216,38 +251,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             default:
                 break;
         }
-    };
-
-    private WindowManager windowManager;
-    private View overlayView;
-    private WindowManager.LayoutParams overlayParams;
-    private boolean overlayExpanded = false;
-    private long overlayCountdownEndMs = 0L;
-    private String overlayPrayerLabel = "الأذان";
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private boolean isOverlayOnlyTest = false;
-    private boolean currentDuaAfterPrayerEnabled = false;
-    private String currentPrayerName = "";
-    private final Runnable overlayTickerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            updateOverlayCountdownViews();
-            if (overlayView != null) {
-                mainHandler.postDelayed(this, 1000L);
-            }
-        }
-    };
-    private final Runnable shortToneStopRunnable = () -> {
-        if (mediaPlayer != null) {
-            stopServiceCleanly();
-        }
-    };
-    private final Runnable autoDismissOverlayTestRunnable = () -> {
-        if (isOverlayOnlyTest && (mediaPlayer == null)) {
-            removeFloatingOverlaySync();
-            stopServiceCleanly();
-        }
-    };
+    }
 
     @Override
     public void onCreate() {
@@ -1210,7 +1214,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                                     .build()
                     )
                     .setAcceptsDelayedFocusGain(true)
-                    .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                    .setOnAudioFocusChangeListener(audioFocusChangeListener, mainHandler)
                     .build();
             return audioManager.requestAudioFocus(audioFocusRequest);
         } else {

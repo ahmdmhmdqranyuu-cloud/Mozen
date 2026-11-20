@@ -250,10 +250,11 @@ jobs:
             echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           else
-            echo "::notice::No repository keystore secrets configured — generating automatic Release PKCS12 keystore so Release APK builds cleanly without manual passwords."
+            echo "::notice::No repository keystore secrets configured — generating ephemeral per-run Release PKCS12 keystore (no credentials stored in repository)."
             CI_KS="$HOME/.android/ci-release.keystore"
-            CI_PASS="MuslimPlusCI2026"
-            CI_ALIAS="muslimplus"
+            CI_PASS="$(openssl rand -hex 24)"
+            echo "::add-mask::$CI_PASS"
+            CI_ALIAS="muslimplus_ci"
             rm -f "$CI_KS"
             keytool -genkeypair -v -noprompt \
               -keystore "$CI_KS" \
