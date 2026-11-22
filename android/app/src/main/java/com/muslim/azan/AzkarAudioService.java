@@ -42,6 +42,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
 import com.muslim.azan.service.AudioFocusStateMachine;
+import com.muslim.azan.service.AzanAudioPolicy;
 import com.muslim.azan.service.FifoAudioQueue;
 import com.muslim.azan.service.NativeAudioPlayerManager;
 import com.muslim.azan.service.VolumeKeyStopPolicy;
@@ -160,18 +161,9 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private final Handler mainHandler =
             new Handler(Looper.getMainLooper());
 
-    private final Runnable shortToneStopRunnable = () -> {
-        if (mediaPlayer != null) {
-            stopServiceCleanly();
-        }
-    };
-
-    private final Runnable autoDismissOverlayTestRunnable = () -> {
-        if (isOverlayOnlyTest && (mediaPlayer == null)) {
-            removeFloatingOverlaySync();
-            stopServiceCleanly();
-        }
-    };
+    private final Runnable shortToneStopRunnable = this::handleShortToneTimeout;
+    private final Runnable autoDismissOverlayTestRunnable = this::handleAutoDismissOverlayTest;
+    private final Runnable delayedFocusFallbackRunnable = this::handleDelayedFocusTimeout;
 
     private final Runnable overlayTickerRunnable = new Runnable() {
         @Override
@@ -186,9 +178,59 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     private final AudioManager.OnAudioFocusChangeListener
             audioFocusChangeListener = this::handleAudioFocusChange;
 
+    private void handleShortToneTimeout() {
+        if (mediaPlayer != null) {
+            stopServiceCleanly();
+        }
+    }
+
+    private void handleAutoDismissOverlayTest() {
+        if (isOverlayOnlyTest && mediaPlayer == null) {
+            removeFloatingOverlaySync();
+            stopServiceCleanly();
+        }
+    }
+
+    private void handleDelayedFocusTimeout() {
+        if (!pendingDelayedAudioFocusStart || mediaPlayer == null) return;
+        pendingDelayedAudioFocusStart = false;
+        Log.w(TAG, "Delayed AudioFocus timeout reached; starting critical alarm playback directly");
+        String warn = mergeWarnings(pendingVolumeWarning, "تأخر التركيز الصوتي — تم تشغيل التنبيه بصيغة منبه (USAGE_ALARM)");
+        try {
+            mediaPlayer.setVolume(currentScalarVolume, currentScalarVolume);
+            if (!mediaPlayer.isPlaying()) {
+                mediaPlayer.start();
+            }
+            if (pendingShortToneMode) {
+                mainHandler.removeCallbacks(shortToneStopRunnable);
+                mainHandler.postDelayed(shortToneStopRunnable, 12_000L);
+            }
+            publishAudioState(true, pendingTrackTitle + " (" + pendingResolvedFileName + ")", warn);
+            AlarmScheduleTracker.saveAudioDiagnostic(
+                    this,
+                    new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                            currentAudioTrackId,
+                            pendingResolvedFileName,
+                            currentSection,
+                            AudioManager.AUDIOFOCUS_REQUEST_DELAYED,
+                            warn,
+                            false,
+                            true,
+                            true,
+                            "",
+                            System.currentTimeMillis()
+                    )
+            );
+        } catch (Exception e) {
+            Log.e(TAG, "Delayed focus fallback start failed", e);
+            stopServiceCleanly();
+        }
+    }
+
     private void handleAudioFocusChange(int focusChange) {
         if (focusChange == AudioManager.AUDIOFOCUS_GAIN && pendingDelayedAudioFocusStart) {
             pendingDelayedAudioFocusStart = false;
+            mainHandler.removeCallbacks(delayedFocusFallbackRunnable);
             try {
                 if (mediaPlayer != null) {
                     mediaPlayer.setVolume(currentScalarVolume, currentScalarVolume);
@@ -846,10 +888,19 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             NativeAudioPlayerManager.INSTANCE.stop();
         } catch (Exception ignored) {}
 
-        String resolvedFileName = resolveAudioFileName(audioTrackId, section);
+        boolean[] usedFallbackFlag = new boolean[1];
+        String[] resolutionWarn = new String[1];
+        String resolvedFileName = resolveVerifiedAudioFileName(audioTrackId, section, usedFallbackFlag, resolutionWarn);
         if (resolvedFileName == null) {
             Log.w(TAG, "No audio file resolved for track: " + audioTrackId);
             String missingErr = "تعذر العثور على الملف الصوتي المحدد";
+            AlarmScheduleTracker.saveAudioDiagnostic(
+                    this,
+                    new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                            audioTrackId, "", section, AudioManager.AUDIOFOCUS_REQUEST_FAILED,
+                            "", usedFallbackFlag[0], false, false, missingErr, System.currentTimeMillis()
+                    )
+            );
             publishAudioState(false, title, missingErr);
             publishTestFailureIfNeeded(missingErr);
             finishWithVisualFallback(title, body, section);
@@ -860,15 +911,30 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         if (audioManager != null && audioManager.getStreamVolume(AudioManager.STREAM_ALARM) == 0) {
             volumeWarning = "تنبيه: مستوى صوت المنبه في الهاتف مضبوط على صفر، ارفع صوت المنبه لسماع الأذان";
         }
+        if (resolutionWarn[0] != null) {
+            volumeWarning = mergeWarnings(volumeWarning, resolutionWarn[0]);
+        }
 
         int focusResult = requestAudioFocusResult();
+        String focusWarning = null;
         if (focusResult == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
-            Log.w(TAG, "Audio focus denied; aborting playback to avoid overlapping audio");
-            String focusErr = "لم يتم منح التركيز الصوتي من النظام — تم إلغاء التشغيل لتجنب تداخل الأصوات";
-            publishAudioState(false, title, focusErr);
-            publishTestFailureIfNeeded(focusErr);
-            finishWithVisualFallback(title, body, section);
-            return;
+            focusWarning = "لم يُمنح التركيز الصوتي من النظام — جارٍ التشغيل بصيغة تنبيه منبه (USAGE_ALARM)";
+            if (AzanAudioPolicy.shouldAbortOnFocusDenied(section, focusResult)) {
+                Log.w(TAG, "Audio focus denied and policy aborted non-critical track");
+                AlarmScheduleTracker.saveAudioDiagnostic(
+                        this,
+                        new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                                audioTrackId, resolvedFileName, section, focusResult,
+                                focusWarning, usedFallbackFlag[0], false, false, focusWarning, System.currentTimeMillis()
+                        )
+                );
+                publishAudioState(false, title, focusWarning);
+                publishTestFailureIfNeeded(focusWarning);
+                finishWithVisualFallback(title, body, section);
+                return;
+            }
+            Log.w(TAG, "Audio focus denied; NOT aborting critical alarm/Azan/Azkar playback (" + section + ")");
+            volumeWarning = mergeWarnings(volumeWarning, focusWarning);
         }
         boolean delayedFocus = (focusResult == AudioManager.AUDIOFOCUS_REQUEST_DELAYED);
         pendingTrackTitle = title != null ? title : "";
@@ -877,7 +943,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         pendingShortToneMode = shortToneMode;
 
         try {
-            float scalarVol = volumePercent <= 0 ? 0.0f : Math.max(0.05f, Math.min(1.0f, volumePercent / 100.0f));
+            float scalarVol = AzanAudioPolicy.computeScalarVolume(volumePercent);
             currentScalarVolume = scalarVol;
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setAudioAttributes(
@@ -955,8 +1021,17 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                 mediaPlayer.prepare();
                 if (delayedFocus) {
                     pendingDelayedAudioFocusStart = true;
+                    mainHandler.removeCallbacks(delayedFocusFallbackRunnable);
+                    mainHandler.postDelayed(delayedFocusFallbackRunnable, 2_500L);
                     Log.d(TAG, "Audio focus delayed; MediaPlayer prepared and waiting for AUDIOFOCUS_GAIN: " + resolvedFileName);
                     publishAudioState(false, title + " (بانتظار التركيز الصوتي)", volumeWarning);
+                    AlarmScheduleTracker.saveAudioDiagnostic(
+                            this,
+                            new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                                    audioTrackId, resolvedFileName, section, focusResult,
+                                    volumeWarning, usedFallbackFlag[0], true, false, "", System.currentTimeMillis()
+                            )
+                    );
                 } else {
                     pendingDelayedAudioFocusStart = false;
                     mediaPlayer.start();
@@ -965,6 +1040,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     }
                     Log.d(TAG, "Audio started playing successfully: " + resolvedFileName);
                     publishAudioState(true, title + " (" + resolvedFileName + ")", volumeWarning);
+                    AlarmScheduleTracker.saveAudioDiagnostic(
+                            this,
+                            new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                                    audioTrackId, resolvedFileName, section, focusResult,
+                                    volumeWarning, usedFallbackFlag[0], true, true, "", System.currentTimeMillis()
+                            )
+                    );
                 }
                 if (currentIsTestAlarm) {
                     AlarmScheduleTracker.BackgroundTestStatus prevTest = AlarmScheduleTracker.loadBackgroundTestStatus(this);
@@ -986,6 +1068,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             } else {
                 Log.e(TAG, "Audio file not found: " + resolvedFileName);
                 String notFoundErr = "لم يتم العثور على الملف الصوتي: " + resolvedFileName;
+                AlarmScheduleTracker.saveAudioDiagnostic(
+                        this,
+                        new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                                audioTrackId, resolvedFileName, section, focusResult,
+                                volumeWarning, usedFallbackFlag[0], false, false, notFoundErr, System.currentTimeMillis()
+                        )
+                );
                 publishAudioState(false, title, notFoundErr);
                 publishTestFailureIfNeeded(notFoundErr);
                 finishWithVisualFallback(title, body, section);
@@ -994,6 +1083,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         } catch (Exception e) {
             Log.e(TAG, "Failed playing audio file: " + resolvedFileName, e);
             String playErr = "تعذر تشغيل الصوت: " + e.getMessage();
+            AlarmScheduleTracker.saveAudioDiagnostic(
+                    this,
+                    new AlarmScheduleTracker.AudioPlaybackDiagnostic(
+                            audioTrackId, resolvedFileName, section, focusResult,
+                            volumeWarning, usedFallbackFlag[0], false, false, playErr, System.currentTimeMillis()
+                    )
+            );
             publishAudioState(false, title, playErr);
             publishTestFailureIfNeeded(playErr);
             finishWithVisualFallback(title, body, section);
@@ -1040,59 +1136,69 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         return false;
     }
 
+    private static String mergeWarnings(String a, String b) {
+        if (a == null || a.isEmpty()) return b;
+        if (b == null || b.isEmpty()) return a;
+        if (a.contains(b)) return a;
+        return a + " • " + b;
+    }
+
+    private boolean audioSourceExists(String fileName) {
+        if (fileName == null || fileName.isEmpty()) return false;
+        if (assetExistsInAudio(fileName)) return true;
+        File f1 = new File(getFilesDir(), "media/audio/" + fileName);
+        if (f1.exists() && f1.length() > 0) return true;
+        File f2 = new File(getFilesDir(), "audio/" + fileName);
+        return f2.exists() && f2.length() > 0;
+    }
+
+    private String resolveVerifiedAudioFileName(
+            String audioTrackId,
+            String section,
+            boolean[] usedFallbackOut,
+            String[] warnOut
+    ) {
+        String candidate = resolveAudioFileName(audioTrackId, section);
+        if (audioSourceExists(candidate)) {
+            return candidate;
+        }
+        String sectionDefault = AzanAudioPolicy.defaultFallbackForSection(section);
+        if (!sectionDefault.equals(candidate) && audioSourceExists(sectionDefault)) {
+            usedFallbackOut[0] = true;
+            warnOut[0] = "تعذر العثور على (" + candidate + ") — تم التشغيل بالبديل المضمون (" + sectionDefault + ")";
+            return sectionDefault;
+        }
+        if (audioSourceExists("makkah.mp3")) {
+            usedFallbackOut[0] = true;
+            warnOut[0] = "تم التحويل للأذان الافتراضي المضمون (makkah.mp3)";
+            return "makkah.mp3";
+        }
+        return null;
+    }
+
     private String resolveAudioFileName(String audioTrackId, String section) {
-        if (audioTrackId != null && !audioTrackId.isEmpty()) {
-            String clean = audioTrackId.trim();
-            if (clean.equals("azkar_morning") || clean.equals("azkar_morning.mp3")) {
-                return "azkar_sabah.mp3";
+        String effectiveId = audioTrackId;
+        if ((effectiveId == null || effectiveId.trim().isEmpty()) && "musaharati".equals(section)) {
+            SharedPreferences sp = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
+            effectiveId = sp.getString("musaharati_audio", "musaharati_1");
+        }
+        String normalized = AzanAudioPolicy.normalizeRequestedTrackName(effectiveId);
+        if (normalized != null) {
+            if (audioSourceExists(normalized)) {
+                return normalized;
             }
-            if (clean.equals("azkar_evening") || clean.equals("azkar_evening.mp3")) {
-                return "azkar_massa.mp3";
-            }
-            if (clean.equals("ibrahim_madani") || clean.equals("ibrahim_madani.mp3")) {
+            if ("ibrahim_madani.mp3".equals(normalized) && audioSourceExists("madinah.mp3")) {
                 return "madinah.mp3";
             }
-            if (clean.equals("duha_surah") || clean.equals("duha_surah.mp3")) {
-                return assetExistsInAudio("duha_surah.mp3") ? "duha_surah.mp3" : "qiyam_first_third.mp3";
+            if ("duha_surah.mp3".equals(normalized) && audioSourceExists("qiyam_first_third.mp3")) {
+                return "qiyam_first_third.mp3";
             }
-            if (clean.equals("dua_after_azan") || clean.equals("dua_after_azan.mp3")) {
-                return assetExistsInAudio("dua_after_azan.mp3") ? "dua_after_azan.mp3" : "salawat_1.mp3";
+            if ("dua_after_azan.mp3".equals(normalized) && audioSourceExists("salawat_1.mp3")) {
+                return "salawat_1.mp3";
             }
-            if (clean.endsWith(".mp3") || clean.endsWith(".wav")) {
-                return clean;
-            }
-            return clean + ".mp3";
+            return normalized;
         }
-
-        if ("prayer_azan".equals(section)) {
-            return "makkah.mp3";
-        } else if ("iqama".equals(section)) {
-            return "iqama_1.mp3";
-        } else if ("prePrayerAlert".equals(section)) {
-            return "pre_prayer_15m.mp3";
-        } else if ("morningAzkar".equals(section)) {
-            return "azkar_sabah.mp3";
-        } else if ("eveningAzkar".equals(section)) {
-            return "azkar_massa.mp3";
-        } else if ("salawat".equals(section)) {
-            return "salawat_1.mp3";
-        } else if ("musaharati".equals(section)) {
-            SharedPreferences sp = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
-            String mTrack = sp.getString("musaharati_audio", "musaharati_1");
-            if (mTrack == null || mTrack.trim().isEmpty()) {
-                return "musaharati_1.mp3";
-            }
-            String cleanM = mTrack.trim();
-            return (cleanM.endsWith(".mp3") || cleanM.endsWith(".wav")) ? cleanM : (cleanM + ".mp3");
-        } else if ("iftar".equals(section)) {
-            return "iftar_cannon.mp3";
-        } else if ("duha_prayer".equals(section)) {
-            return assetExistsInAudio("duha_surah.mp3") ? "duha_surah.mp3" : "qiyam_first_third.mp3";
-        } else if ("dua_after".equals(section)) {
-            return assetExistsInAudio("dua_after_azan.mp3") ? "dua_after_azan.mp3" : "salawat_1.mp3";
-        }
-
-        return "makkah.mp3";
+        return AzanAudioPolicy.defaultFallbackForSection(section);
     }
 
     private Notification buildNotification(String title, String body, String section, String cityName) {
@@ -1248,6 +1354,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
     private void stopAudioAndCleanUp() {
         pendingDelayedAudioFocusStart = false;
+        mainHandler.removeCallbacks(delayedFocusFallbackRunnable);
         if (mediaPlayer != null) {
             try {
                 if (mediaPlayer.isPlaying()) {

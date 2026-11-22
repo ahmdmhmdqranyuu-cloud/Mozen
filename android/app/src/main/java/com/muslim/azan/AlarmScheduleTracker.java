@@ -20,6 +20,7 @@ public final class AlarmScheduleTracker {
     public static final String LEGACY_PREFS = "azan_reminders_prefs";
     public static final String KEY_SCHEDULE_SUMMARY = "last_schedule_summary_json";
     public static final String KEY_BG_TEST_STATUS = "background_test_status_json";
+    public static final String KEY_AUDIO_DIAGNOSTIC = "last_audio_diagnostic_json";
     public static final String ACTION_BG_TEST_STATE_CHANGED = "com.muslim.azan.BG_TEST_STATE_CHANGED";
 
     public enum ScheduleMode {
@@ -475,6 +476,93 @@ public final class AlarmScheduleTracker {
             b.putExtra("statusJson", status.toJson().toString());
             context.sendBroadcast(b);
         } catch (Exception ignored) {}
+    }
+
+    public static final class AudioPlaybackDiagnostic {
+        public final String requestedTrackId;
+        public final String resolvedFileName;
+        public final String section;
+        public final int focusResultCode;
+        public final String focusWarning;
+        public final boolean fallbackUsed;
+        public final boolean preparedOk;
+        public final boolean startedOk;
+        public final String errorReason;
+        public final long recordedAtMs;
+
+        public AudioPlaybackDiagnostic(
+                String requestedTrackId,
+                String resolvedFileName,
+                String section,
+                int focusResultCode,
+                String focusWarning,
+                boolean fallbackUsed,
+                boolean preparedOk,
+                boolean startedOk,
+                String errorReason,
+                long recordedAtMs
+        ) {
+            this.requestedTrackId = requestedTrackId != null ? requestedTrackId : "";
+            this.resolvedFileName = resolvedFileName != null ? resolvedFileName : "";
+            this.section = section != null ? section : "";
+            this.focusResultCode = focusResultCode;
+            this.focusWarning = focusWarning != null ? focusWarning : "";
+            this.fallbackUsed = fallbackUsed;
+            this.preparedOk = preparedOk;
+            this.startedOk = startedOk;
+            this.errorReason = errorReason != null ? errorReason : "";
+            this.recordedAtMs = recordedAtMs;
+        }
+
+        public JSONObject toJson() {
+            JSONObject obj = new JSONObject();
+            try {
+                obj.put("requestedTrackId", requestedTrackId);
+                obj.put("resolvedFileName", resolvedFileName);
+                obj.put("section", section);
+                obj.put("focusResultCode", focusResultCode);
+                obj.put("focusWarning", focusWarning);
+                obj.put("fallbackUsed", fallbackUsed);
+                obj.put("preparedOk", preparedOk);
+                obj.put("startedOk", startedOk);
+                obj.put("errorReason", errorReason);
+                obj.put("recordedAtMs", recordedAtMs);
+            } catch (Exception ignored) {}
+            return obj;
+        }
+
+        public static AudioPlaybackDiagnostic fromJson(String raw) {
+            if (raw == null || raw.trim().isEmpty()) return null;
+            try {
+                JSONObject obj = new JSONObject(raw);
+                return new AudioPlaybackDiagnostic(
+                        obj.optString("requestedTrackId", ""),
+                        obj.optString("resolvedFileName", ""),
+                        obj.optString("section", ""),
+                        obj.optInt("focusResultCode", 0),
+                        obj.optString("focusWarning", ""),
+                        obj.optBoolean("fallbackUsed", false),
+                        obj.optBoolean("preparedOk", false),
+                        obj.optBoolean("startedOk", false),
+                        obj.optString("errorReason", ""),
+                        obj.optLong("recordedAtMs", 0L)
+                );
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
+
+    public static void saveAudioDiagnostic(Context context, AudioPlaybackDiagnostic diag) {
+        if (context == null || diag == null) return;
+        SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
+        rt.edit().putString(KEY_AUDIO_DIAGNOSTIC, diag.toJson().toString()).apply();
+    }
+
+    public static AudioPlaybackDiagnostic loadAudioDiagnostic(Context context) {
+        if (context == null) return null;
+        SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
+        return AudioPlaybackDiagnostic.fromJson(rt.getString(KEY_AUDIO_DIAGNOSTIC, null));
     }
 
     public static BackgroundTestStatus loadBackgroundTestStatus(Context context) {

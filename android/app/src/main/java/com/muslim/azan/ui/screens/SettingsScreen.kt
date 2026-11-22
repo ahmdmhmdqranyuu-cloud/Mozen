@@ -94,6 +94,7 @@ fun SettingsScreen(
     var audioTestWarning by remember { mutableStateOf(AzkarAudioService.lastAudioError) }
     var scheduleOutcomeState by remember { mutableStateOf(AlarmScheduleTracker.loadOutcome(context)) }
     var bgTestStatusState by remember { mutableStateOf(AlarmScheduleTracker.loadBackgroundTestStatus(context)) }
+    var audioDiagState by remember { mutableStateOf(AlarmScheduleTracker.loadAudioDiagnostic(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -104,6 +105,7 @@ fun SettingsScreen(
                 audioTestWarning = AzkarAudioService.lastAudioError
                 scheduleOutcomeState = AlarmScheduleTracker.loadOutcome(context)
                 bgTestStatusState = AlarmScheduleTracker.loadBackgroundTestStatus(context)
+                audioDiagState = AlarmScheduleTracker.loadAudioDiagnostic(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -120,12 +122,14 @@ fun SettingsScreen(
                         isAudioTestingNow = intent.getBooleanExtra("playing", false)
                         activeAudioLabel = intent.getStringExtra("label") ?: ""
                         audioTestWarning = intent.getStringExtra("error")
+                        audioDiagState = AlarmScheduleTracker.loadAudioDiagnostic(context)
                     }
                     AlarmScheduleTracker.ACTION_BG_TEST_STATE_CHANGED -> {
                         val json = intent.getStringExtra("statusJson")
                         bgTestStatusState = AlarmScheduleTracker.BackgroundTestStatus.fromJson(json)
                             ?: AlarmScheduleTracker.loadBackgroundTestStatus(context)
                         scheduleOutcomeState = AlarmScheduleTracker.loadOutcome(context)
+                        audioDiagState = AlarmScheduleTracker.loadAudioDiagnostic(context)
                     }
                 }
             }
@@ -1721,7 +1725,7 @@ fun SettingsScreen(
                     Text("اختبار باقي أصوات التنبيهات والأذكار:", color = MoazenInkEmerald, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     val extraSounds = listOf(
                         Triple("abdulbasit_fajr", "أذان الفجر", "prayer_azan"),
-                        Triple("iqama_1", "صوت الإقامة", "prePrayerAlert"),
+                        Triple("iqama_1", "صوت الإقامة", "iqama"),
                         Triple("pre_prayer_15m", "تنبيه قبل الصلاة", "prePrayerAlert"),
                         Triple("azkar_sabah", "أذكار الصباح", "morningAzkar"),
                         Triple("azkar_massa", "أذكار المساء", "eveningAzkar"),
@@ -1874,6 +1878,34 @@ fun SettingsScreen(
                                             text = "سبب الفشل: ${diagTest.failureReason}",
                                             color = ErrorRed,
                                             fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+                                val diagAudio = audioDiagState
+                                if (diagAudio != null && diagAudio.recordedAtMs > 0L) {
+                                    val statusText = when {
+                                        diagAudio.startedOk -> "بدأ التشغيل الصوتي الفعلي (${diagAudio.resolvedFileName}) ✓"
+                                        diagAudio.preparedOk -> "تم تحضير المشغل بانتظار بدء الصوت (${diagAudio.resolvedFileName})"
+                                        else -> "تعذر بدء الصوت: ${diagAudio.errorReason}"
+                                    }
+                                    Text(
+                                        text = "تشخيص مشغل الصوت: $statusText",
+                                        color = if (diagAudio.startedOk) EmeraldPrimaryDark else if (diagAudio.preparedOk) MoazenGoldDark else ErrorRed,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (diagAudio.fallbackUsed) {
+                                        Text(
+                                            text = "تم استخدام صوت بديل مضمون للقسم (${diagAudio.section})",
+                                            color = MoazenGoldDark,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                    if (diagAudio.focusWarning.isNotBlank()) {
+                                        Text(
+                                            text = diagAudio.focusWarning,
+                                            color = MoazenGoldDark,
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }

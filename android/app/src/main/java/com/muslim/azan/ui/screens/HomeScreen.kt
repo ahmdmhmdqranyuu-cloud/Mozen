@@ -65,7 +65,8 @@ data class GridItem(
     val titleAr: String,
     val subtitleAr: String,
     val icon: ImageVector,
-    val screen: Screen?
+    val screen: Screen?,
+    val iconResId: Int? = null
 )
 
 @Composable
@@ -206,22 +207,25 @@ fun HomeScreen(
     }
 
     val gridItems = listOf(
-        GridItem("القرآن الكريم", "قراءة وتفسير", Icons.Default.MenuBook, Screen.Quran),
-        GridItem("مواقيت الصلاة", "تنبيه وأذكار", Icons.Default.AccessTime, Screen.PrayerTimes),
-        GridItem("الأذكار اليومية", "الصباح والمساء", Icons.Default.AutoStories, Screen.Azkar),
-        GridItem("القبلة", "تحديد الاتجاه", Icons.Default.Explore, Screen.Qibla),
-        GridItem("الأحاديث النبوية", "الجامع الصحيح", Icons.Default.FormatQuote, Screen.Hadith),
-        GridItem("الأدعية", "أدعية قرآنية ونبوية", Icons.Default.VolunteerActivism, Screen.Duas),
-        GridItem("السيرة النبوية", "حياة النبي ﷺ", Icons.Default.HistoryEdu, Screen.Seerah),
-        GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj),
-        GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih),
+        GridItem("القرآن الكريم", "قراءة وتفسير", Icons.Default.MenuBook, Screen.Quran, R.drawable.ic_feat_quran),
+        GridItem("مواقيت الصلاة", "تنبيه وأذكار", Icons.Default.AccessTime, Screen.PrayerTimes, R.drawable.ic_feat_prayer),
+        GridItem("الأذكار اليومية", "الصباح والمساء", Icons.Default.AutoStories, Screen.Azkar, R.drawable.ic_feat_azkar),
+        GridItem("القبلة", "تحديد الاتجاه", Icons.Default.Explore, Screen.Qibla, R.drawable.ic_feat_qibla),
+        GridItem("الأحاديث النبوية", "الجامع الصحيح", Icons.Default.FormatQuote, Screen.Hadith, R.drawable.ic_feat_hadith),
+        GridItem("الأدعية", "أدعية قرآنية ونبوية", Icons.Default.VolunteerActivism, Screen.Duas, R.drawable.ic_feat_dua),
+        GridItem("السيرة النبوية", "حياة النبي ﷺ", Icons.Default.HistoryEdu, Screen.Seerah, R.drawable.ic_feat_seerah),
+        GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj, R.drawable.ic_feat_hajj),
+        GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih, R.drawable.ic_feat_tasbih),
+        GridItem("أسماء الله", "الأسماء الحسنى (99)", Icons.Default.AutoAwesome, Screen.NamesOfAllah, R.drawable.ic_feat_names),
+        GridItem("الرقية والسنن", "التحصين والشفاء", Icons.Default.Shield, Screen.Ruqyah, R.drawable.ic_feat_ruqyah),
+        GridItem("المساجد والعيدين", "المساجد والمناسبات", Icons.Default.LocationCity, Screen.Masajid, R.drawable.ic_feat_recitations),
         GridItem("الزكاة", "حاسبة الزكاة", Icons.Default.Calculate, Screen.Zakat),
-        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets),
-        GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers),
-        GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz),
-        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan),
+        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets, R.drawable.ic_feat_prophets),
+        GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers, R.drawable.ic_feat_wallpapers),
+        GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz, R.drawable.ic_feat_quiz),
+        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan, R.drawable.ic_feat_ramadan),
         GridItem("ملفي الشخصي", "الإحصائيات والختمة", Icons.Default.Person, Screen.Profile),
-        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings)
+        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings, R.drawable.ic_feat_settings)
     )
 
     var isGridExpanded by remember { mutableStateOf(false) }
@@ -516,18 +520,28 @@ fun HomeScreen(
                                         ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(24.dp)
+                                                    .size(26.dp)
                                                     .clip(CircleShape)
                                                     .background(MoazenSubCardBg)
-                                                    .border(1.dp, MoazenCardBorder, CircleShape),
+                                                    .border(1.dp, MoazenCardBorder, CircleShape)
+                                                    .padding(3.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(
-                                                    imageVector = item.icon,
-                                                    contentDescription = item.titleAr,
-                                                    tint = MoazenInkEmerald,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
+                                                if (item.iconResId != null) {
+                                                    Image(
+                                                        painter = painterResource(id = item.iconResId),
+                                                        contentDescription = item.titleAr,
+                                                        contentScale = ContentScale.Fit,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = item.icon,
+                                                        contentDescription = item.titleAr,
+                                                        tint = MoazenInkEmerald,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
@@ -584,18 +598,28 @@ fun HomeScreen(
                                                 ) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .size(24.dp)
+                                                            .size(26.dp)
                                                             .clip(CircleShape)
                                                             .background(MoazenSubCardBg)
-                                                            .border(1.dp, MoazenCardBorder, CircleShape),
+                                                            .border(1.dp, MoazenCardBorder, CircleShape)
+                                                            .padding(3.dp),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Icon(
-                                                            imageVector = item.icon,
-                                                            contentDescription = item.titleAr,
-                                                            tint = MoazenInkEmerald,
-                                                            modifier = Modifier.size(13.dp)
-                                                        )
+                                                        if (item.iconResId != null) {
+                                                            Image(
+                                                                painter = painterResource(id = item.iconResId),
+                                                                contentDescription = item.titleAr,
+                                                                contentScale = ContentScale.Fit,
+                                                                modifier = Modifier.fillMaxSize()
+                                                            )
+                                                        } else {
+                                                            Icon(
+                                                                imageVector = item.icon,
+                                                                contentDescription = item.titleAr,
+                                                                tint = MoazenInkEmerald,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        }
                                                     }
                                                     Spacer(modifier = Modifier.height(2.dp))
                                                     Text(

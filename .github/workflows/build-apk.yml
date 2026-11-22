@@ -284,12 +284,12 @@ jobs:
           ATTEMPT=1
           SUCCESS=false
           while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-            echo "=== Gradle Release APK & AAB build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
+            echo "=== Gradle Release APK build attempt $ATTEMPT/$MAX_ATTEMPTS ==="
             EXTRA_FLAGS=""
             if [ "$ATTEMPT" -gt 1 ]; then
               EXTRA_FLAGS="--refresh-dependencies"
             fi
-            if ./gradlew :printBuildEnvironment :app:printSigningEnv :wear:printSigningEnv :app:assembleRelease :wear:assembleRelease :app:bundleRelease --stacktrace $EXTRA_FLAGS \
+            if ./gradlew :printBuildEnvironment :app:printSigningEnv :wear:printSigningEnv :app:assembleRelease :wear:assembleRelease --stacktrace $EXTRA_FLAGS \
               -Dorg.gradle.internal.repository.max.retries=6 \
               -Dorg.gradle.internal.repository.initial.backoff=2000; then
               SUCCESS=true
@@ -308,7 +308,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Signed Release APKs (aapt2, zipalign, apksigner V2+V3)
+      - name: Verify Signed Release APKs, Required Images & MP3 Assets
         run: |
           APP_RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
           WEAR_RELEASE_APK=$(find android/wear/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
@@ -349,14 +349,17 @@ jobs:
             fi
           done
 
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump resources "$APP_RELEASE_APK" >/tmp/app-resources-release.log
+          python3 android/scripts/verify_release_apk.py "$APP_RELEASE_APK" /tmp/app-resources-release.log
+
           APP_SIZE=$(du -h "$APP_RELEASE_APK" | cut -f1)
           WEAR_SIZE=$(du -h "$WEAR_RELEASE_APK" | cut -f1)
           echo "APP_RELEASE_APK_PATH=$APP_RELEASE_APK" >> "$GITHUB_ENV"
           echo "WEAR_RELEASE_APK_PATH=$WEAR_RELEASE_APK" >> "$GITHUB_ENV"
           {
             echo "### Official Release APK Verification"
-            echo "- Mobile Release APK: \`$(basename "$APP_RELEASE_APK")\` ($APP_SIZE) — R8 minified/shrunk, \`zipalign -c -v 4\` passed, \`apksigner\` V2+V3 verified."
-            echo "- Wear OS Release APK: \`$(basename "$WEAR_RELEASE_APK")\` ($WEAR_SIZE) — R8 minified/shrunk, \`zipalign -c -v 4\` passed, \`apksigner\` V2+V3 verified."
+            echo "- Mobile Release APK: \`$(basename "$APP_RELEASE_APK")\` ($APP_SIZE) — R8 minified, \`zipalign -c -v 4\` passed, \`apksigner\` V2+V3 verified, all images & MP3 assets verified."
+            echo "- Wear OS Release APK: \`$(basename "$WEAR_RELEASE_APK")\` ($WEAR_SIZE) — R8 minified, \`zipalign -c -v 4\` passed, \`apksigner\` V2+V3 verified."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Signed Mobile Release APK Artifact
@@ -371,13 +374,6 @@ jobs:
         with:
           name: MuslimPlus-Wear-Release-APK
           path: android/wear/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-
-      - name: Upload Release App Bundle (AAB) Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MuslimPlus-Release-AAB
-          path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
 
       - name: Publish GitHub Release with Verified Official Release APKs

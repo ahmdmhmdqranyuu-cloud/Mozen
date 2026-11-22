@@ -242,7 +242,12 @@ function runIntegrationTests() {
       assert.match(workflowApk, /org\.gradle\.internal\.repository\.max\.retries=6/);
       assert.match(workflowBuild, /org\.gradle\.internal\.repository\.max\.retries=6/);
       assert.match(workflowBuild, /:app:assembleRelease\s+:wear:assembleRelease/, 'build.yml must assemble Release APKs');
-      assert.match(workflowBuild, /:app:bundleRelease/, 'build.yml must support App Bundle (AAB) build');
+      assert.equal(workflowBuild.includes(':app:bundleRelease'), false, 'build.yml must build Release APKs ONLY (no AAB)');
+      assert.equal(workflowBuild.includes('MuslimPlus-Release-AAB'), false, 'build.yml must not upload AAB artifacts');
+      assert.equal(workflowApk.includes(':app:bundleRelease'), false, 'build-apk.yml must build Release APKs ONLY (no AAB)');
+      assert.equal(workflowApk.includes('MuslimPlus-Release-AAB'), false, 'build-apk.yml must not upload AAB artifacts');
+      assert.match(workflowBuild, /verify_release_apk\.py/, 'build.yml must verify images and MP3 assets in Release APK');
+      assert.match(workflowApk, /verify_release_apk\.py/, 'build-apk.yml must verify images and MP3 assets in Release APK');
       assert.match(workflowBuild, /keytool -genkeypair/, 'build.yml must auto-generate a release keystore when secrets are not set');
 
       const readmeMd = fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8');
@@ -295,7 +300,10 @@ function runIntegrationTests() {
       const wearGradle = fs.readFileSync(path.join(rootDir, 'android/wear/build.gradle'), 'utf8');
       assert.match(appGradle, /apply from:\s*rootProject\.file\('signing\.gradle'\)/, 'app/build.gradle must apply signing.gradle');
       assert.match(wearGradle, /apply from:\s*rootProject\.file\('signing\.gradle'\)/, 'wear/build.gradle must apply signing.gradle');
-      assert.match(appGradle, /enableSplit\s*=\s*false/, 'build.gradle must keep language split disabled in AAB bundles');
+      assert.match(appGradle, /shrinkResources\s+false/, 'app/build.gradle must set shrinkResources false temporarily in Release');
+      assert.match(wearGradle, /shrinkResources\s+false/, 'wear/build.gradle must set shrinkResources false temporarily in Release');
+      const keepXml = fs.readFileSync(path.join(rootDir, 'android/app/src/main/res/raw/keep.xml'), 'utf8');
+      assert.match(keepXml, /tools:keep="@drawable\/\*"/, 'res/raw/keep.xml must keep all @drawable/* resources');
       assert.equal(
         appGradle.includes('CI_SIGN_RELEASE_WITH_DEBUG'),
         false,
@@ -366,10 +374,38 @@ function runIntegrationTests() {
         'utf8'
       );
       assert.match(mainActivityKt, /!prefs\.onboardingCompleted/, 'MainActivity must launch OnboardingSetupScreen on first run');
+      assert.match(mainActivityKt, /NamesOfAllahScreen\(/, 'MainActivity must wire NamesOfAllahScreen');
+      assert.match(mainActivityKt, /RuqyahScreen\(/, 'MainActivity must wire RuqyahScreen');
+      assert.match(mainActivityKt, /MasajidScreen\(/, 'MainActivity must wire MasajidScreen');
 
       const azanServiceJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AzkarAudioService.java'),
         'utf8'
+      );
+      assert.match(
+        azanServiceJava,
+        /shortToneStopRunnable\s*=\s*this::handleShortToneTimeout/,
+        'AzkarAudioService must use method reference for shortToneStopRunnable to avoid forward reference'
+      );
+      assert.match(
+        azanServiceJava,
+        /autoDismissOverlayTestRunnable\s*=\s*this::handleAutoDismissOverlayTest/,
+        'AzkarAudioService must use method reference for autoDismissOverlayTestRunnable to avoid forward reference'
+      );
+      assert.match(
+        azanServiceJava,
+        /AzanAudioPolicy\.shouldAbortOnFocusDenied/,
+        'AzkarAudioService must consult AzanAudioPolicy so critical Azan/alarm playback is not dropped on focus denial'
+      );
+      assert.match(
+        azanServiceJava,
+        /resolveVerifiedAudioFileName/,
+        'AzkarAudioService must verify asset existence with guaranteed section fallback'
+      );
+      assert.match(
+        azanServiceJava,
+        /AlarmScheduleTracker\.saveAudioDiagnostic/,
+        'AzkarAudioService must persist real MediaPlayer diagnostic state'
       );
       assert.match(
         azanServiceJava,
@@ -391,6 +427,52 @@ function runIntegrationTests() {
         /setAcceptsDelayedFocusGain\(true\)/,
         'AzkarAudioService must support delayed AudioFocus acquisition instead of dropping Azan'
       );
+
+      // Verify all Home & Settings drawable resources and required MP3 assets exist on disk
+      const requiredDrawables = [
+        'bg_home_fullscreen.jpg',
+        'bg_settings_fullscreen.png',
+        'img_quran_mushaf.jpg',
+        'img_azkar_tasbih.jpg',
+        'img_hadith_mosque.jpg',
+        'ic_launcher_muslim_plus.png',
+        'ic_feat_quran.png',
+        'ic_feat_prayer.png',
+        'ic_feat_azkar.png',
+        'ic_feat_qibla.png',
+        'ic_feat_names.png',
+        'ic_feat_ruqyah.png',
+        'ic_feat_ramadan.png',
+        'ic_feat_settings.png',
+        'ic_settings_azan.jpg',
+        'ic_settings_azkar.jpg',
+      ];
+      for (const img of requiredDrawables) {
+        const p = path.join(rootDir, 'android/app/src/main/res/drawable-nodpi', img);
+        assert.ok(fs.existsSync(p) && fs.statSync(p).size > 0, `Missing or empty drawable: ${img}`);
+      }
+
+      const requiredMp3s = [
+        'makkah.mp3',
+        'madinah.mp3',
+        'ibrahim_madani.mp3',
+        'abdulbasit_fajr.mp3',
+        'iqama_1.mp3',
+        'pre_prayer_15m.mp3',
+        'azkar_sabah.mp3',
+        'azkar_massa.mp3',
+        'salawat_1.mp3',
+        'salawat_2.mp3',
+        'salawat_3.mp3',
+        'musaharati_1.mp3',
+        'iftar_cannon.mp3',
+        'asmaa_allah_al_husna.mp3',
+        'ruqyah_shariah.mp3',
+      ];
+      for (const mp3 of requiredMp3s) {
+        const p = path.join(rootDir, 'android/app/src/main/assets/audio', mp3);
+        assert.ok(fs.existsSync(p) && fs.statSync(p).size > 0, `Missing or empty MP3: ${mp3}`);
+      }
 
       const alarmSchedulerJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AlarmScheduler.java'),

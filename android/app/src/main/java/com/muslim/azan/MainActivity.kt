@@ -210,6 +210,22 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() }
                                 )
                             }
+                            composable(Screen.NamesOfAllah.route) {
+                                NamesOfAllahScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Ruqyah.route) {
+                                RuqyahScreen(
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(Screen.Masajid.route) {
+                                MasajidScreen(
+                                    prefs = prefs,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                             composable(Screen.Profile.route) {
                                 ProfileScreen(
                                     prefs = prefs,

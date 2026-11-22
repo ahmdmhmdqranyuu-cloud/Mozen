@@ -16,6 +16,9 @@ sealed class Screen(val route: String, val titleAr: String) {
     object Quiz : Screen("quiz", "المسابقات الإسلامية")
     object Hajj : Screen("hajj", "الحج والعمرة")
     object Wallpapers : Screen("wallpapers", "الخلفيات الإسلامية")
+    object NamesOfAllah : Screen("names_of_allah", "أسماء الله الحسنى")
+    object Ruqyah : Screen("ruqyah", "الرقية والسنن")
+    object Masajid : Screen("masajid", "المساجد والمناسبات")
     object Profile : Screen("profile", "الملف الشخصي والإحصائيات")
     object Settings : Screen("settings", "الإعدادات")
     object PrayerSettings : Screen("prayer_settings/{prayerKey}", "إعدادات الصلاة المتقدمة") {

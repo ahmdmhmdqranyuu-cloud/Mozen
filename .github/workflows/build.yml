@@ -12,15 +12,6 @@ on:
       - main
       - master
   workflow_dispatch:
-    inputs:
-      build_aab:
-        description: 'Build Play Store App Bundle (AAB) in addition to Release APKs'
-        required: false
-        default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
 
 permissions:
   contents: write
@@ -123,7 +114,7 @@ jobs:
           if-no-files-found: error
 
   build-release:
-    name: Build & Verify Release APKs + AAB (App + Wear OS)
+    name: Build & Verify Release APKs (App + Wear OS)
     needs: verify-and-debug
     runs-on: ubuntu-latest
 
@@ -228,13 +219,10 @@ jobs:
             echo "SIGNING_MODE_LABEL=Auto-Generated CI Release Keystore" >> "$GITHUB_ENV"
           fi
 
-      - name: Print Build Diagnostics & Build Release APKs + AAB (with HTTP 429 Retry)
+      - name: Print Build Diagnostics & Build Release APKs (with HTTP 429 Retry)
         working-directory: android
         run: |
           GRADLE_TASKS=":printBuildEnvironment :app:printSigningEnv :wear:printSigningEnv :app:assembleRelease :wear:assembleRelease"
-          if [ "${{ inputs.build_aab }}" != "false" ]; then
-            GRADLE_TASKS="$GRADLE_TASKS :app:bundleRelease"
-          fi
 
           MAX_ATTEMPTS=4
           BACKOFF_SEC=15
@@ -265,7 +253,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Signed Release APKs (aapt2, zipalign, apksigner V2+V3)
+      - name: Verify Signed Release APKs, Required Images & MP3 Assets
         run: |
           APP_RELEASE_APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
           WEAR_RELEASE_APK=$(find android/wear/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)
@@ -301,11 +289,14 @@ jobs:
             }
           done
 
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump resources "$APP_RELEASE_APK" >/tmp/app-resources.log
+          python3 android/scripts/verify_release_apk.py "$APP_RELEASE_APK" /tmp/app-resources.log
+
           {
             echo "### Release Build Summary (${SIGNING_MODE_LABEL})"
             echo "- Mobile Release APK: \`$(basename "$APP_RELEASE_APK")\` ($(du -h "$APP_RELEASE_APK" | cut -f1))"
             echo "- Wear OS Release APK: \`$(basename "$WEAR_RELEASE_APK")\` ($(du -h "$WEAR_RELEASE_APK" | cut -f1))"
-            echo "- Verified R8 minification, \`zipalign -c -v 4\`, and \`apksigner\` V2+V3."
+            echo "- Verified R8 minification, \`zipalign -c -v 4\`, \`apksigner\` V2+V3, all drawable images, and all MP3 audio assets."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Mobile Release APK Artifact
@@ -321,11 +312,3 @@ jobs:
           name: MuslimPlus-Wear-Release-APK
           path: android/wear/build/outputs/apk/release/*.apk
           if-no-files-found: error
-
-      - name: Upload Release App Bundle (AAB) Artifact
-        if: inputs.build_aab != 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: MuslimPlus-Release-AAB
-          path: android/app/build/outputs/bundle/release/*.aab
-          if-no-files-found: warn
