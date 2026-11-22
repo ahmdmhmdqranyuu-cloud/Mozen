@@ -2,7 +2,6 @@ package com.muslim.azan.ui.screens
 
 import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,7 +27,6 @@ import com.muslim.azan.ui.components.MoazenWidgetCard
 fun HadithScreen(
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val hadiths = listOf(
         HadithItem(

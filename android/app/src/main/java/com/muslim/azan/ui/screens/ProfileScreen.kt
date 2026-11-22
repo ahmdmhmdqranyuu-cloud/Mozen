@@ -1,7 +1,6 @@
 package com.muslim.azan.ui.screens
 
 import android.content.Context
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,7 +33,6 @@ fun ProfileScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val todayKey = remember {
         SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Date())

@@ -64,6 +64,7 @@ import com.muslim.azan.data.LocationPrecision
 import com.muslim.azan.data.MediaFileManager
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.data.PermissionMonitorNotifier
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.model.CityLocation
 import com.muslim.azan.service.NativeAudioPlayerManager
@@ -79,7 +80,8 @@ import java.util.Locale
 fun SettingsScreen(
     prefs: NativePreferences,
     onBack: () -> Unit,
-    onReopenOnboarding: (() -> Unit)? = null
+    onReopenOnboarding: (() -> Unit)? = null,
+    onLanguageChanged: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -87,6 +89,11 @@ fun SettingsScreen(
 
     var expandedSection by remember { mutableStateOf<Int?>(null) }
     var permissionRefreshTick by remember { mutableIntStateOf(0) }
+    var selectedLanguage by remember { mutableStateOf(prefs.language) }
+    LaunchedEffect(prefs.language) {
+        selectedLanguage = prefs.language
+    }
+    val isEnglish = selectedLanguage == "en"
 
     // Live audio test diagnostics state
     var isAudioTestingNow by remember { mutableStateOf(AzkarAudioService.isPlayingNow) }
@@ -381,6 +388,7 @@ fun SettingsScreen(
             gpsErrorText = "تم رفض إذن الموقع. يرجى السماح بصلاحية الموقع الدقيق أو اختيار مدينتك يدويًا."
             savedGpsBackup = prefs.getLastGpsResult()
         }
+        PermissionMonitorNotifier.evaluateAndSyncNotifications(context.applicationContext, prefs.language)
     }
 
     val micPermLauncher = rememberLauncherForActivityResult(
@@ -398,7 +406,13 @@ fun SettingsScreen(
         expandedSection = if (expandedSection == index) null else index
     }
 
-    BackHandler {
+    BackHandler(
+        enabled = azkarPreviewCategory != null ||
+            showResetConfirmDialog ||
+            showCountryDropdown ||
+            showStateDropdown ||
+            expandedSection != null
+    ) {
         when {
             azkarPreviewCategory != null -> azkarPreviewCategory = null
             showResetConfirmDialog -> showResetConfirmDialog = false
@@ -411,7 +425,6 @@ fun SettingsScreen(
                 }
                 expandedSection = null
             }
-            else -> onBack()
         }
     }
 
@@ -441,8 +454,8 @@ fun SettingsScreen(
                         .padding(bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val settingsPillTitle = remember(prefs.language) {
-                        when (prefs.language) {
+                    val settingsPillTitle = remember(selectedLanguage) {
+                        when (selectedLanguage) {
                             "en" -> "Settings"
                             "fr" -> "Paramètres"
                             "tr" -> "Ayarlar"
@@ -492,8 +505,8 @@ fun SettingsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.ArrowForward,
-                                        contentDescription = "رجوع",
+                                        imageVector = if (isEnglish) Icons.Default.ArrowBack else Icons.Default.ArrowForward,
+                                        contentDescription = if (isEnglish) "Back" else "رجوع",
                                         tint = MoazenInkEmerald,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -545,13 +558,17 @@ fun SettingsScreen(
                         }
                     }
 
-                // Single-screen 10 stacked compact rows when no section is expanded (no scroll needed)
+                // Single-screen 10 stacked rows when no section is expanded + bottom breathing room for green mosque artwork
                 if (expandedSection == null) {
-                    Box(modifier = Modifier.padding(horizontal = 12.dp)) {
-                        CompactSettingsOverviewGrid(
-                            selectedCityName = selectedCityName,
-                            onSelectSection = { sectionIndex -> expandedSection = sectionIndex }
-                        )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.padding(horizontal = 12.dp)) {
+                            CompactSettingsOverviewGrid(
+                                selectedCityName = selectedCityName,
+                                selectedLanguage = selectedLanguage,
+                                onSelectSection = { sectionIndex -> expandedSection = sectionIndex }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(72.dp))
                     }
                 } else {
                     MoazenWidgetCard(
@@ -585,7 +602,7 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (prefs.language == "en") "Back to All Settings" else "العودة لجميع أقسام الإعدادات",
+                                text = if (isEnglish) "Back to All Settings" else "العودة لجميع أقسام الإعدادات",
                                 color = MoazenInkEmerald,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold
@@ -1547,10 +1564,10 @@ fun SettingsScreen(
             }
         }
 
-        // Section 4: Language
+        // Section 4: Language (Arabic RTL / English LTR + Device Locale Detection)
         if (expandedSection == 4) {
             SettingsCollapsibleCard(
-                title = "4. لغة التطبيق والواجهة",
+                title = if (isEnglish) "4. App Language & Layout Direction" else "4. لغة التطبيق والواجهة",
                 icon = Icons.Default.Language,
                 iconResId = R.drawable.ic_settings_language,
                 isExpanded = true,
@@ -1558,14 +1575,102 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 14.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MoazenInkEmerald)
-                            .padding(10.dp)
+                    Text(
+                        text = if (isEnglish)
+                            "Choose your preferred interface language and text direction (RTL / LTR). Quranic verses and authentic Arabic Azkar texts remain preserved in Arabic script."
+                        else
+                            "اختر لغة الواجهة واتجاه العرض (RTL / LTR)، مع الحفاظ على نصوص القرآن الكريم والأذكار والأحاديث بالرسم العربي الأصلي.",
+                        color = MoazenInkMuted,
+                        fontSize = 11.5.sp,
+                        lineHeight = 17.sp
+                    )
+
+                    val languageChoices = remember {
+                        listOf(
+                            Triple("ar", "العربية (RTL)", "اللغة الافتراضية • من اليمين إلى اليسار"),
+                            Triple("en", "English (LTR)", "Left-to-Right Interface & Labels")
+                        )
+                    }
+
+                    languageChoices.forEach { (code, titleText, descText) ->
+                        val isSelectedLang = selectedLanguage == code
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelectedLang) MoazenInkEmerald else Color.White.copy(alpha = 0.85f),
+                            border = BorderStroke(
+                                width = if (isSelectedLang) 1.5.dp else 1.dp,
+                                color = if (isSelectedLang) MoazenGold else MoazenCardBorder
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    prefs.language = code
+                                    selectedLanguage = code
+                                    onLanguageChanged(code)
+                                    Toast.makeText(
+                                        context,
+                                        if (code == "en") "Language switched to English (LTR)" else "تم التبديل إلى العربية (RTL)",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = titleText,
+                                        color = if (isSelectedLang) Color.White else MoazenInkPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = descText,
+                                        color = if (isSelectedLang) Color.White.copy(alpha = 0.85f) else MoazenInkMuted,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                                if (isSelectedLang) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MoazenGold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val sysLang = if (Locale.getDefault().language == "en") "en" else "ar"
+                            prefs.language = sysLang
+                            selectedLanguage = sysLang
+                            onLanguageChanged(sysLang)
+                            Toast.makeText(
+                                context,
+                                if (sysLang == "en") "Detected system language: English" else "تم تطبيق لغة النظام: العربية",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        border = BorderStroke(1.dp, MoazenCardBorder),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("العربية (اللغة الافتراضية)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Translate, contentDescription = null, tint = MoazenInkEmerald, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isEnglish) "Auto-Detect Device Language" else "تطبيق لغة الهاتف تلقائيًا",
+                            color = MoazenInkEmerald,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -2569,22 +2674,43 @@ fun SettingsScreen(
             }
         }
 
-        // Section 8: Privacy Policy
+        // Section 8: Transparent Privacy Policy & Data Disclosure
         if (expandedSection == 8) {
             SettingsCollapsibleCard(
-                title = "8. سياسة الخصوصية",
+                title = if (isEnglish) "8. Privacy Policy & Data Safety" else "8. سياسة الخصوصية وحماية البيانات",
                 icon = Icons.Default.PrivacyTip,
                 iconResId = R.drawable.ic_settings_privacy,
                 isExpanded = true,
                 onToggle = { toggleSection(8) },
                 modifier = Modifier.padding(horizontal = 14.dp)
             ) {
-                Text(
-                    text = "تطبيق مسلم بلس يحترم خصوصيتك بنسبة 100%. جميع مواقيت الصلاة والأذكار والتسبيحات تعمل محليًا دون جمع أي بيانات شخصية أو إرسالها إلى أي خوادم خارجية.",
-                    color = MoazenInkMuted,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isEnglish)
+                            "Muslim Plus operates offline-first with ZERO ads, ZERO ad trackers, ZERO user accounts, and ZERO data selling:"
+                        else
+                            "يعمل تطبيق مسلم بلس بمنهجية العمل المحلي أولًا (Offline-First) دون أي إعلانات أو تتبع إعلاني أو حسابات تسجيل أو بيع للبيانات:",
+                        color = MoazenInkEmerald,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 18.sp
+                    )
+                    Text(
+                        text = if (isEnglish)
+                            "• On-Device Storage: Prayer times, Qibla calculations, Azkar, bookmarks, and settings are computed and stored locally on your device.\n" +
+                                "• Optional Location (GPS / City Search): Your coordinates or search query are sent via HTTPS to OpenStreetMap Nominatim only when you request GPS reverse-geocoding or online city search.\n" +
+                                "• Optional Microphone (Smart Sheikh): Microphone audio is recorded ONLY when you press Record and submitted exclusively if you choose AI recitation feedback.\n" +
+                                "• Optional Media Streams: Quran MP3 streaming (mp3quran.net / everyayah.com) and wallpapers (Wikimedia / Pexels) use HTTPS only when accessed online."
+                        else
+                            "• التخزين المحلي: تُحسب مواقيت الصلاة واتجاه القبلة والأذكار والإشارات المرجعية وتُحفظ محليًا على جهازك.\n" +
+                                "• الموقع الجغرافي الاختياري (GPS والبحث): لا تُرسل إحداثياتك إلا عند طلبك المباشر لتحديد الموقع أو البحث عن مدينة عبر OpenStreetMap (HTTPS) لترجمة اسم المدينة فقط.\n" +
+                                "• الميكروفون الاختياري (معلم القرآن «شيخي»): لا يتم التسجيل إلا عند ضغطك على زر التسميع، ولا يُرسل التسجيل الصوتي للتحليل إلا بمبادرة منك.\n" +
+                                "• المحتوى الاختياري عبر الإنترنت: بث تلاوات المصحف (mp3quran.net / everyayah.com) والخلفيات (Wikimedia / Pexels) يتم عبر اتصال مشفّر HTTPS عند استخدامها.",
+                        color = MoazenInkMuted,
+                        fontSize = 11.5.sp,
+                        lineHeight = 18.sp
+                    )
+                }
             }
         }
 
@@ -2891,24 +3017,41 @@ private data class CompactSettingsTileItem(
 @Composable
 private fun CompactSettingsOverviewGrid(
     selectedCityName: String,
+    selectedLanguage: String,
     onSelectSection: (Int) -> Unit
 ) {
-    val items = remember(selectedCityName) {
-        listOf(
-            CompactSettingsTileItem(1, "الملف الشخصي", "الإحصائيات والختمة", Icons.Default.Person, R.drawable.ic_settings_profile),
-            CompactSettingsTileItem(2, "الأذونات والصلاحيات", "البطارية والتنبيهات", Icons.Default.Security, R.drawable.ic_settings_permissions),
-            CompactSettingsTileItem(3, "تحديد الموقع والوقت", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
-            CompactSettingsTileItem(4, "اختيار اللغة", "العربية", Icons.Default.Language, R.drawable.ic_settings_language),
-            CompactSettingsTileItem(5, "إعدادات الأذان والإقامة", "الأصوات والاختبار", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
-            CompactSettingsTileItem(6, "التحكم في الأذكار", "الصباح والمساء", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
-            CompactSettingsTileItem(7, "إعدادات رمضان والسحور", "المسحراتي والإمساك", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
-            CompactSettingsTileItem(8, "سياسة الخصوصية", "100% أمان محلي", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
-            CompactSettingsTileItem(9, "حول التطبيق", "الإصدار والمصادر", Icons.Default.Info, R.drawable.ic_settings_about),
-            CompactSettingsTileItem(10, "تسجيل الخروج وإعادة الضبط", "التخزين والإعدادات", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
-        )
+    val isEnglish = selectedLanguage == "en"
+    val items = remember(selectedCityName, selectedLanguage) {
+        if (isEnglish) {
+            listOf(
+                CompactSettingsTileItem(1, "Profile & Stats", "Khatma & Tasbih Totals", Icons.Default.Person, R.drawable.ic_settings_profile),
+                CompactSettingsTileItem(2, "App Permissions", "Alarms, Notifications & Battery", Icons.Default.Security, R.drawable.ic_settings_permissions),
+                CompactSettingsTileItem(3, "Location & Time", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
+                CompactSettingsTileItem(4, "Language & RTL/LTR", "English (LTR)", Icons.Default.Language, R.drawable.ic_settings_language),
+                CompactSettingsTileItem(5, "Azan & Iqama Audio", "Muezzins & Audio Tester", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
+                CompactSettingsTileItem(6, "Azkar & Salawat", "Morning, Evening & Salawat", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
+                CompactSettingsTileItem(7, "Ramadan & Suhoor", "Musaharati & Imsak", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
+                CompactSettingsTileItem(8, "Privacy Policy", "Transparent Data Disclosure", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
+                CompactSettingsTileItem(9, "About Muslim Plus", "Version & Trusted Sources", Icons.Default.Info, R.drawable.ic_settings_about),
+                CompactSettingsTileItem(10, "Storage & Reset", "Cache Cleanup & Defaults", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
+            )
+        } else {
+            listOf(
+                CompactSettingsTileItem(1, "الملف الشخصي", "الإحصائيات والختمة", Icons.Default.Person, R.drawable.ic_settings_profile),
+                CompactSettingsTileItem(2, "الأذونات والصلاحيات", "البطارية والتنبيهات", Icons.Default.Security, R.drawable.ic_settings_permissions),
+                CompactSettingsTileItem(3, "تحديد الموقع والوقت", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
+                CompactSettingsTileItem(4, "اختيار اللغة", "العربية (RTL)", Icons.Default.Language, R.drawable.ic_settings_language),
+                CompactSettingsTileItem(5, "إعدادات الأذان والإقامة", "الأصوات والاختبار", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
+                CompactSettingsTileItem(6, "التحكم في الأذكار", "الصباح والمساء", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
+                CompactSettingsTileItem(7, "إعدادات رمضان والسحور", "المسحراتي والإمساك", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
+                CompactSettingsTileItem(8, "سياسة الخصوصية", "إفصاح شفاف دون تتبع", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
+                CompactSettingsTileItem(9, "حول التطبيق", "الإصدار والمصادر", Icons.Default.Info, R.drawable.ic_settings_about),
+                CompactSettingsTileItem(10, "تسجيل الخروج وإعادة الضبط", "التخزين والإعدادات", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
+            )
+        }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items.forEach { item ->
             MoazenWidgetCard(
                 cornerRadius = 12.dp,
@@ -2919,7 +3062,8 @@ private fun CompactSettingsOverviewGrid(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 3.5.dp),
+                        .heightIn(min = 40.dp)
+                        .padding(horizontal = 10.dp, vertical = 5.5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
@@ -3000,7 +3144,7 @@ private fun CompactSettingsOverviewGrid(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ChevronLeft,
+                            imageVector = if (isEnglish) Icons.Default.ChevronRight else Icons.Default.ChevronLeft,
                             contentDescription = null,
                             tint = MoazenInkEmerald,
                             modifier = Modifier.size(13.dp)

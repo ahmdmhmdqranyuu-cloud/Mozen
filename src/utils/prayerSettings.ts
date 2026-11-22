@@ -80,6 +80,7 @@ export function getPrayerConfig(user: UserProfile, prayerKey: PrayerKey): Prayer
       alertMode: obligatory || prayerKey === 'duha' ? 'full_azan' : 'short_tone',
       iqamaVoice: obligatory ? user.iqamaVoice || 'iqama_1' : 'none',
       duaAfterPrayerEnabled: obligatory,
+      didYouPrayEnabled: true,
     };
   }
 
@@ -97,6 +98,7 @@ export function getPrayerConfig(user: UserProfile, prayerKey: PrayerKey): Prayer
     alertMode: (saved.alertMode as PrayerAlertMode) || (obligatory ? 'full_azan' : 'short_tone'),
     iqamaVoice: saved.iqamaVoice || (obligatory ? 'iqama_1' : 'none'),
     duaAfterPrayerEnabled: saved.duaAfterPrayerEnabled ?? obligatory,
+    didYouPrayEnabled: saved.didYouPrayEnabled !== false,
   };
 }
 
@@ -192,6 +194,7 @@ export function applyPrayerConfigToAllUser(
       alertMode: source.alertMode,
       iqamaVoice: source.iqamaVoice,
       duaAfterPrayerEnabled: source.duaAfterPrayerEnabled,
+      didYouPrayEnabled: source.didYouPrayEnabled !== false,
     };
     nextConfigs[key] = updated;
     nextAdj[key] = updated.offsetMinutes;
@@ -216,4 +219,63 @@ export function applyPrayerConfigToAllUser(
     prayerAzanEnabled: nextEnabled,
     prayerAzanVoices: nextVoices,
   };
+}
+
+/**
+ * Computes the trigger timestamp (ms) for the "Have you prayed?" («هل صليت؟») reminder:
+ * - 5 minutes after Iqama if Iqama is active for that prayer
+ * - 5 minutes after the prayer/slot time if Iqama is disabled or not applicable (Sunrise, Duha, silent/vibrate/none)
+ */
+export function computeDidYouPrayTriggerMs(
+  prayerTimestampMs: number,
+  iqamaMinutes: number,
+  hasIqama: boolean
+): number {
+  const safeIqamaMins = hasIqama && Number.isFinite(iqamaMinutes) && iqamaMinutes > 0 ? iqamaMinutes : 0;
+  return prayerTimestampMs + (safeIqamaMins + 5) * 60_000;
+}
+
+const PRAYER_QUESTION_LABELS_AR: Record<PrayerKey, string> = {
+  fajr: 'الفجر',
+  sunrise: 'الشروق',
+  duha: 'الضحى',
+  dhuhr: 'الظهر',
+  asr: 'العصر',
+  maghrib: 'المغرب',
+  isha: 'العشاء',
+};
+
+const PRAYER_QUESTION_LABELS_EN: Record<PrayerKey, string> = {
+  fajr: 'Fajr',
+  sunrise: 'Sunrise',
+  duha: 'Duha',
+  dhuhr: 'Dhuhr',
+  asr: 'Asr',
+  maghrib: 'Maghrib',
+  isha: 'Isha',
+};
+
+export function formatDidYouPrayMessage(
+  prayerKey: PrayerKey,
+  language?: string
+): { title: string; body: string } {
+  if (language === 'en') {
+    const label = PRAYER_QUESTION_LABELS_EN[prayerKey] || 'this prayer';
+    return {
+      title: 'Have you prayed?',
+      body: `Have you prayed ${label}?`,
+    };
+  }
+  const label = PRAYER_QUESTION_LABELS_AR[prayerKey] || 'الصلاة';
+  return {
+    title: 'هل صليت؟',
+    body: `هل صليت ${label}؟`,
+  };
+}
+
+export function didYouPrayDedupKey(date: Date, prayerKey: PrayerKey): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}_${prayerKey}`;
 }

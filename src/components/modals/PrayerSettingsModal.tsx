@@ -768,6 +768,64 @@ export const PrayerSettingsModal: React.FC<PrayerSettingsModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* 5. «هل صليت؟» Post-Prayer Check-in Reminder (5 min after Iqama / time) */}
+          <div className="moazen-widget rounded-2xl p-4 border border-gray-200/80 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BellRing className="w-4 h-4 text-[#104B40] shrink-0" />
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[#172A28]">
+                    {user.language === 'en'
+                      ? 'Prayer Follow-up Reminder ("Have you prayed?")'
+                      : 'تذكير متابعة الصلاة «هل صليت؟»'}
+                  </h4>
+                  <p className="text-[11px] text-gray-500">
+                    {user.language === 'en'
+                      ? 'Gentle notification 5 min after Iqama (or 5 min after prayer time if Iqama is off)'
+                      : 'إشعار تذكيري لطيف بعد 5 دقائق من الإقامة (أو بعد 5 دقائق من الوقت إذا لم توجد إقامة)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setHelpDialog({
+                      title: user.language === 'en' ? 'Have you prayed? Reminder' : 'تذكير «هل صليت؟»',
+                      body:
+                        user.language === 'en'
+                          ? 'Sends one daily notification per enabled prayer 5 minutes after Iqama (or 5 minutes after the prayer time if no Iqama is set). Tapping it opens the Prayer Times page.'
+                          : 'يرسل إشعارًا لطيفًا مرة واحدة يوميًا بعد 5 دقائق من وقت الإقامة (أو بعد 5 دقائق من وقت الصلاة/الضحى/الشروق إذا لم تكن هناك إقامة)، ولا يؤثر على الأذان.',
+                    })
+                  }
+                  className="p-1.5 rounded-full bg-[#F7F6F2] text-[#9E7B34] hover:bg-amber-50 cursor-pointer"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      didYouPrayEnabled: d.didYouPrayEnabled === false,
+                    }))
+                  }
+                  className={`w-12 h-6 rounded-full p-0.5 transition-colors cursor-pointer ${
+                    draft.didYouPrayEnabled !== false ? 'bg-[#104B40]' : 'bg-gray-300'
+                  }`}
+                  aria-label="تفعيل تذكير هل صليت"
+                >
+                  <span
+                    className={`block w-5 h-5 rounded-full bg-white shadow-xs transition-transform ${
+                      draft.didYouPrayEnabled !== false ? '-translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Sticky Bottom Save («موافق») / Back («رجوع») Bar */}

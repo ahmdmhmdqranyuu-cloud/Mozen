@@ -126,7 +126,7 @@ fun MoazenWidgetCard(
         ) {
             if (watermarkAlpha > 0f) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_quran_widget_mosque),
+                    painter = painterResource(id = R.drawable.img_hadith_mosque),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     alpha = watermarkAlpha,

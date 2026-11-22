@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,10 +50,6 @@ fun AzkarScreen(
 
     val isPlayingAudio by NativeAudioPlayerManager.isPlaying.collectAsState()
     val currentAudioTitle by NativeAudioPlayerManager.currentTitle.collectAsState()
-
-    BackHandler {
-        onBack()
-    }
 
     val categories = listOf("أذكار الصباح", "أذكار المساء")
     val items = if (selectedCategoryIndex == 0) NativeDataManager.sampleMorningAzkar else NativeDataManager.sampleEveningAzkar

@@ -31,20 +31,23 @@ import com.muslim.azan.ui.navigation.Screen
 data class NavItem(
     val screen: Screen,
     val icon: ImageVector,
-    val labelAr: String
+    val labelAr: String,
+    val labelEn: String
 )
 
 @Composable
 fun BottomNavBar(
     currentRoute: String,
+    language: String = "ar",
     onNavigate: (Screen) -> Unit
 ) {
+    val isEnglish = language == "en"
     val items = listOf(
-        NavItem(Screen.Home, Icons.Default.Home, "الرئيسية"),
-        NavItem(Screen.PrayerTimes, Icons.Default.AccessTime, "الأوقات"),
-        NavItem(Screen.Quran, Icons.Default.MenuBook, "القرآن"),
-        NavItem(Screen.Azkar, Icons.Default.AutoStories, "الأذكار"),
-        NavItem(Screen.Settings, Icons.Default.Settings, "الإعدادات")
+        NavItem(Screen.Home, Icons.Default.Home, "الرئيسية", "Home"),
+        NavItem(Screen.PrayerTimes, Icons.Default.AccessTime, "الأوقات", "Prayers"),
+        NavItem(Screen.Quran, Icons.Default.MenuBook, "القرآن", "Quran"),
+        NavItem(Screen.Azkar, Icons.Default.AutoStories, "الأذكار", "Azkar"),
+        NavItem(Screen.Settings, Icons.Default.Settings, "الإعدادات", "Settings")
     )
 
     val navShape = RoundedCornerShape(
@@ -88,6 +91,7 @@ fun BottomNavBar(
                 items.forEach { item ->
                     val isSelected = currentRoute == item.screen.route
                     val itemColor = if (isSelected) MoazenInkEmerald else MoazenInkMuted
+                    val label = if (isEnglish) item.labelEn else item.labelAr
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -119,14 +123,14 @@ fun BottomNavBar(
                         ) {
                             Icon(
                                 imageVector = item.icon,
-                                contentDescription = item.labelAr,
+                                contentDescription = label,
                                 tint = if (isSelected) MoazenInkEmerald else MoazenGoldDark,
                                 modifier = Modifier.size(17.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = item.labelAr,
+                            text = label,
                             color = itemColor,
                             fontSize = 10.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold

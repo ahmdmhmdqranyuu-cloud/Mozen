@@ -290,6 +290,11 @@ function runIntegrationTests() {
         false,
         'AndroidManifest.xml must not use restricted USE_EXACT_ALARM permission'
       );
+      assert.equal(
+        manifestXml.includes('REQUEST_IGNORE_BATTERY_OPTIMIZATIONS'),
+        false,
+        'AndroidManifest.xml must not use Google Play restricted REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission'
+      );
       assert.match(
         manifestXml,
         /\.service\.QuranPlaybackService/,
@@ -455,7 +460,6 @@ function runIntegrationTests() {
       const requiredMp3s = [
         'makkah.mp3',
         'madinah.mp3',
-        'ibrahim_madani.mp3',
         'abdulbasit_fajr.mp3',
         'iqama_1.mp3',
         'pre_prayer_15m.mp3',
@@ -473,6 +477,41 @@ function runIntegrationTests() {
         const p = path.join(rootDir, 'android/app/src/main/assets/audio', mp3);
         assert.ok(fs.existsSync(p) && fs.statSync(p).size > 0, `Missing or empty MP3: ${mp3}`);
       }
+      assert.equal(
+        fs.existsSync(path.join(rootDir, 'android/app/src/main/assets/audio/ibrahim_madani.mp3')),
+        false,
+        'Duplicate ibrahim_madani.mp3 should remain removed (aliased to madinah.mp3)'
+      );
+      assert.equal(
+        fs.existsSync(path.join(rootDir, 'android/app/src/main/res/drawable-nodpi/bg_quran_widget_mosque.jpg')),
+        false,
+        'Duplicate bg_quran_widget_mosque.jpg should remain removed (consolidated to img_hadith_mosque.jpg)'
+      );
+
+      const azanPolicyKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/service/AzanAudioPolicy.kt'),
+        'utf8'
+      );
+      assert.match(azanPolicyKt, /normalized\s*==\s*"ibrahim_madani\.mp3"\s*&&\s*"madinah\.mp3"/, 'AzanAudioPolicy must alias ibrahim_madani to madinah.mp3');
+
+      const themeKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/theme/Theme.kt'),
+        'utf8'
+      );
+      assert.match(themeKt, /LocalLayoutDirection\s+provides\s+layoutDirection/, 'AlMoazenTheme must provide LocalLayoutDirection for RTL/LTR');
+
+      const settingsKt = fs.readFileSync(
+        path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/ui/screens/SettingsScreen.kt'),
+        'utf8'
+      );
+      assert.match(settingsKt, /onLanguageChanged/, 'SettingsScreen must expose reactive onLanguageChanged switcher');
+      assert.match(settingsKt, /OpenStreetMap Nominatim/, 'Android Privacy Policy must disclose optional Nominatim lookup');
+
+      const settingsModalTsx = fs.readFileSync(
+        path.join(rootDir, 'src/components/modals/SettingsModal.tsx'),
+        'utf8'
+      );
+      assert.match(settingsModalTsx, /OpenStreetMap Nominatim/, 'Web Privacy Policy must disclose optional Nominatim lookup');
 
       const alarmSchedulerJava = fs.readFileSync(
         path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/AlarmScheduler.java'),

@@ -132,12 +132,8 @@ fun RuqyahScreen(onBack: () -> Unit) {
     val currentTag by NativeAudioPlayerManager.currentTrackTag.collectAsState()
     val isRuqyahAudioPlaying = isPlaying && currentTag == "ruqyah_shariah"
 
-    BackHandler {
-        if (selectedEntry != null) {
-            selectedEntry = null
-        } else {
-            onBack()
-        }
+    BackHandler(enabled = selectedEntry != null) {
+        selectedEntry = null
     }
 
     val categories = remember {

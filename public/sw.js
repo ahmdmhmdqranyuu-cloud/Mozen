@@ -63,10 +63,7 @@ const OFFLINE_ASSETS = [
   // App Backgrounds & Wallpapers
   '/assets/aistudio/________________ae325fdd.jpg',
   '/assets/aistudio/_______________________c271e9db.png',
-  '/assets/images/mosque_header_bg_1792330870635.jpg',
-  '/assets/images/mosque_sunset_header_1792265336563.jpg',
   '/assets/images/open_mushaf_rehal_1792331334829.jpg',
-  '/assets/images/quran_rehal_wood_1792265354181.jpg',
   '/assets/images/tasbih_prayer_beads_1792265378950.jpg',
   '/assets/images/hadith_widget_mosque_1793589264940.jpg',
 ];
@@ -105,6 +102,7 @@ self.addEventListener('activate', (event) => {
 // Offline-First Strategy for static assets, audio, images, and app shell
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
 
   // Intercept and cache Map Tiles (OpenStreetMap, Carto, Stamen, etc.)
   const isMapTile =

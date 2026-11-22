@@ -69,12 +69,14 @@ fun QuranScreen(
     var showSheikhTutor by remember { mutableStateOf(false) }
     var bookmarks by remember { mutableStateOf(prefs.getBookmarks()) }
 
-    BackHandler(enabled = !showSheikhTutor) {
+    BackHandler(
+        enabled = !showSheikhTutor &&
+            (showReciterDialog || showPageJumpDialog || section != QuranHubSection.HUB)
+    ) {
         when {
             showReciterDialog -> showReciterDialog = false
             showPageJumpDialog -> showPageJumpDialog = false
             section != QuranHubSection.HUB -> section = QuranHubSection.HUB
-            else -> onBack()
         }
     }
 

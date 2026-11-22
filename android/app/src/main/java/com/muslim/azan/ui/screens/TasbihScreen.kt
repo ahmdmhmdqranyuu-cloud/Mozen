@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,7 +38,6 @@ fun TasbihScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -160,7 +158,7 @@ fun TasbihScreen(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_quran_widget_mosque),
+                painter = painterResource(id = R.drawable.img_hadith_mosque),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 alpha = 0.09f,

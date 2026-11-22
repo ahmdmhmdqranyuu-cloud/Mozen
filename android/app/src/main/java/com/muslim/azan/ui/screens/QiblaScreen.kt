@@ -2,7 +2,6 @@ package com.muslim.azan.ui.screens
 
 import android.Manifest
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -20,6 +19,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -48,9 +48,10 @@ import kotlin.math.abs
 @Composable
 fun QiblaScreen(
     prefs: NativePreferences,
+    language: String = prefs.language,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
+    val isEnglish = language == "en"
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -124,36 +125,52 @@ fun QiblaScreen(
 
     val animatedRotation by animateFloatAsState(targetValue = -azimuth, label = "compassRotation")
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MuslimPlusCanvasBrush)
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MoazenWidgetCard(
-            cornerRadius = 18.dp,
-            borderColor = MoazenCardBorder,
-            elevation = 3.dp,
-            modifier = Modifier.fillMaxWidth()
+        Image(
+            painter = painterResource(id = R.drawable.bg_home_fullscreen),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            alignment = BiasAlignment(0f, -0.76f),
+            alpha = 0.14f,
+            modifier = Modifier.matchParentSize()
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            MoazenWidgetCard(
+                cornerRadius = 18.dp,
+                borderColor = MoazenCardBorder,
+                elevation = 3.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.Default.ArrowForward,
+                            contentDescription = if (isEnglish) "Back" else "رجوع",
+                            tint = MoazenInkEmerald
+                        )
+                    }
+                    Text(
+                        text = if (isEnglish) "Qibla Compass" else "بوصلة القبلة الشريفة",
+                        color = MoazenInkEmerald,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(
-                    text = "بوصلة القبلة الشريفة",
-                    color = MoazenInkEmerald,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
             }
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -164,7 +181,11 @@ fun QiblaScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = if (isAligned) "أنت تواجه الكعبة المشرفة الآن مباشرةً ✓" else "قم بتدوير الهاتف حتى يتطابق المؤشر الذهبي مع الأعلى",
+                text = if (isAligned) {
+                    if (isEnglish) "You are facing the Holy Kaaba directly ✓" else "أنت تواجه الكعبة المشرفة الآن مباشرةً ✓"
+                } else {
+                    if (isEnglish) "Rotate your phone until the gold pointer aligns with the top" else "قم بتدوير الهاتف حتى يتطابق المؤشر الذهبي مع الأعلى"
+                },
                 color = if (isAligned) MoazenInkEmerald else MoazenInkPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -184,7 +205,7 @@ fun QiblaScreen(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_quran_widget_mosque),
+                painter = painterResource(id = R.drawable.img_hadith_mosque),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 alpha = 0.08f,
@@ -239,7 +260,7 @@ fun QiblaScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "اتجاه القبلة",
+                    text = if (isEnglish) "Qibla Direction" else "اتجاه القبلة",
                     color = MoazenInkMuted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
@@ -327,7 +348,11 @@ fun QiblaScreen(
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isRefreshingGps) "جاري تحديث الموقع الدقيق..." else "تحديث موقعي عبر GPS",
+                        text = if (isRefreshingGps) {
+                            if (isEnglish) "Updating precise GPS location..." else "جاري تحديث الموقع الدقيق..."
+                        } else {
+                            if (isEnglish) "Update My Location via GPS" else "تحديث موقعي عبر GPS"
+                        },
                         color = MoazenInkEmerald,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -335,5 +360,6 @@ fun QiblaScreen(
                 }
             }
         }
+    }
     }
 }

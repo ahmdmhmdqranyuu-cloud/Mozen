@@ -10,6 +10,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.TimeZone;
 
 /**
@@ -36,6 +38,14 @@ public class BootReceiver extends BroadcastReceiver {
         new Thread(() -> {
             try {
                 recalculateAndScheduleAll(appContext);
+                if ("android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED".equals(action)) {
+                    SharedPreferences sp = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                    if (sp.getBoolean("onboarding_completed", false)) {
+                        String lang = sp.getString("app_language", "ar");
+                        com.muslim.azan.data.PermissionMonitorNotifier.INSTANCE
+                                .evaluateAndSyncNotifications(appContext, lang != null ? lang : "ar");
+                    }
+                }
             } finally {
                 if (pendingResult != null) {
                     try {
@@ -123,6 +133,7 @@ public class BootReceiver extends BroadcastReceiver {
             String[] alertModeArr = new String[prayerKeys.length];
             String[] iqamaVoiceArr = new String[prayerKeys.length];
             boolean[] duaAfterArr = new boolean[prayerKeys.length];
+            boolean[] didYouPrayEnabledArr = new boolean[prayerKeys.length];
 
             for (int i = 0; i < prayerKeys.length; i++) {
                 String k = prayerKeys[i];
@@ -141,6 +152,7 @@ public class BootReceiver extends BroadcastReceiver {
                 alertModeArr[i] = (isObligatory || isDuha) ? "full_azan" : "short_tone";
                 iqamaVoiceArr[i] = isObligatory ? "iqama_1" : "none";
                 duaAfterArr[i] = isObligatory;
+                didYouPrayEnabledArr[i] = true;
 
                 String cfgRaw = prefs.getString("prayer_config_" + k, null);
                 if (cfgRaw != null && !cfgRaw.isEmpty()) {
@@ -157,6 +169,7 @@ public class BootReceiver extends BroadcastReceiver {
                         alertModeArr[i] = cfg.optString("alertMode", alertModeArr[i]);
                         iqamaVoiceArr[i] = cfg.optString("iqamaVoice", iqamaVoiceArr[i]);
                         duaAfterArr[i] = cfg.optBoolean("duaAfterPrayerEnabled", duaAfterArr[i]);
+                        didYouPrayEnabledArr[i] = cfg.optBoolean("didYouPrayEnabled", true);
                     } catch (Exception cfgEx) {
                         Log.w(TAG, "Failed parsing prayer_config_" + k + ", using defaults", cfgEx);
                     }
@@ -172,6 +185,7 @@ public class BootReceiver extends BroadcastReceiver {
 
             JSONArray priorityArray = new JSONArray();
             JSONArray salawatArray = new JSONArray();
+            Set<Long> seenDidPrayEpochs = new HashSet<>();
 
             // 1. Schedule full 7 days for daily prayers (including Duha/Sunrise if enabled), pre-prayer alerts, Iqama, Azkar, and Musaharati
             for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
@@ -257,11 +271,12 @@ public class BootReceiver extends BroadcastReceiver {
                         priorityArray.put(azanObj);
                     }
 
-                    // Schedule Iqama alert 10-15 min after Azan when enabled for obligatory prayers
-                    if (isObligatory && soundEnabledArr[pIdx] && iqamaVoiceArr[pIdx] != null
+                    // Schedule Iqama alert 7-15 min after Azan when enabled for obligatory prayers
+                    boolean hasIqamaSlot = isObligatory && soundEnabledArr[pIdx] && iqamaVoiceArr[pIdx] != null
                             && !iqamaVoiceArr[pIdx].isEmpty() && !"none".equals(iqamaVoiceArr[pIdx])
-                            && !"silent".equals(alertModeArr[pIdx]) && !"vibrate_only".equals(alertModeArr[pIdx])) {
-                        int iqamaDelayMins = "maghrib".equals(pKey) ? 7 : 15;
+                            && !"silent".equals(alertModeArr[pIdx]) && !"vibrate_only".equals(alertModeArr[pIdx]);
+                    int iqamaDelayMins = "maghrib".equals(pKey) ? 7 : 15;
+                    if (hasIqamaSlot) {
                         long iqamaEpochMs = prayerEpochMs + iqamaDelayMins * 60 * 1000L;
                         if (iqamaEpochMs > nowMs) {
                             JSONObject iqamaObj = new JSONObject();
@@ -277,6 +292,25 @@ public class BootReceiver extends BroadcastReceiver {
                             iqamaObj.put("alertMode", "full_azan");
                             iqamaObj.put("autoPlay", true);
                             priorityArray.put(iqamaObj);
+                        }
+                    }
+
+                    // Schedule «هل صليت؟» check-in notification (+5m after Iqama if active, else +5m after prayer time)
+                    if (didYouPrayEnabledArr[pIdx]) {
+                        long didPrayEpochMs = prayerEpochMs + (hasIqamaSlot ? (iqamaDelayMins + 5L) : 5L) * 60_000L;
+                        while (seenDidPrayEpochs.contains(didPrayEpochMs)) {
+                            didPrayEpochMs += 1000L;
+                        }
+                        if (didPrayEpochMs > nowMs) {
+                            seenDidPrayEpochs.add(didPrayEpochMs);
+                            JSONObject didPrayObj = new JSONObject();
+                            didPrayObj.put("section", "did_you_pray");
+                            didPrayObj.put("prayerKey", pKey);
+                            didPrayObj.put("prayerName", pName);
+                            didPrayObj.put("cityName", cityName);
+                            didPrayObj.put("autoPlay", false);
+                            didPrayObj.put("triggerEpochMs", didPrayEpochMs);
+                            priorityArray.put(didPrayObj);
                         }
                     }
                 }

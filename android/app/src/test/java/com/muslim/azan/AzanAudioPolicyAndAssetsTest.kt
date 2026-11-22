@@ -13,7 +13,6 @@ class AzanAudioPolicyAndAssetsTest {
     private val packagedAudioAssets = setOf(
         "makkah.mp3",
         "madinah.mp3",
-        "ibrahim_madani.mp3",
         "abdulbasit_fajr.mp3",
         "iqama_1.mp3",
         "iqama_2.mp3",
@@ -44,7 +43,10 @@ class AzanAudioPolicyAndAssetsTest {
         assertEquals("iqama_1.mp3", AzanAudioPolicy.resolveAudioCandidate(null, "iqama", packagedAudioAssets).resolvedFileName)
         assertEquals("iqama_2.mp3", AzanAudioPolicy.resolveAudioCandidate("iqama_2", "iqama", packagedAudioAssets).resolvedFileName)
         assertEquals("makkah.mp3", AzanAudioPolicy.resolveAudioCandidate(null, "prayer_azan", packagedAudioAssets).resolvedFileName)
-        assertEquals("ibrahim_madani.mp3", AzanAudioPolicy.resolveAudioCandidate("ibrahim_madani", "prayer_azan", packagedAudioAssets).resolvedFileName)
+
+        val ibrahimMadaniAlias = AzanAudioPolicy.resolveAudioCandidate("ibrahim_madani", "prayer_azan", packagedAudioAssets)
+        assertEquals("madinah.mp3", ibrahimMadaniAlias.resolvedFileName)
+        assertTrue(ibrahimMadaniAlias.usedFallback)
     }
 
     @Test

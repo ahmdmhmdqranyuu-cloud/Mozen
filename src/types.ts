@@ -20,6 +20,7 @@ export interface PrayerSettingConfig {
   alertMode: PrayerAlertMode;
   iqamaVoice: string;
   duaAfterPrayerEnabled: boolean;
+  didYouPrayEnabled?: boolean;
 }
 
 export interface PrayerTime {

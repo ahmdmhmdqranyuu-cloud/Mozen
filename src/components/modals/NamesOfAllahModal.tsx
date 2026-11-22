@@ -1,46 +1,43 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
-  X,
+  ArrowLeft,
   Search,
   Sparkles,
-  Volume2,
   Share2,
   Copy,
   Check,
-  Menu,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
-  LayoutGrid,
-  List,
   Play,
   Pause,
-  RotateCcw,
-  Square,
-  Music,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { NAMES_OF_ALLAH, NameOfAllah } from '../../data/namesOfAllahData';
 import { shareIslamicText, shareOrDownloadAsImageCard } from '../../utils/shareContent';
-import { soundService } from '../../utils/audioPlayer';
 import { diskAudioPlayerService, DiskPlayerState } from '../../utils/diskAudioPlayerService';
+import { AppLanguage } from '../../utils/i18n';
 
 interface NamesOfAllahModalProps {
   isOpen: boolean;
   onClose: () => void;
+  language?: AppLanguage;
 }
 
 export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
   isOpen,
   onClose,
+  language = 'ar',
 }) => {
+  const isRtl = language === 'ar' || language === 'ur';
+  const isEnglish = !isRtl;
+
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'mercy' | 'power' | 'wisdom'>('all');
   const [selectedName, setSelectedName] = useState<NameOfAllah | null>(null);
-  const [layoutMode, setLayoutMode] = useState<'vertical' | 'grid'>('vertical');
-  const [isIndexOpen, setIsIndexOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [showVolumePopover, setShowVolumePopover] = useState(false);
   const [diskState, setDiskState] = useState<DiskPlayerState>(() =>
     diskAudioPlayerService.getState()
   );
@@ -48,6 +45,16 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
   React.useEffect(() => {
     return diskAudioPlayerService.subscribe(setDiskState);
   }, []);
+
+  React.useEffect(() => {
+    if (!isOpen || !selectedName) return;
+    const handleBack = (e: Event) => {
+      e.preventDefault();
+      setSelectedName(null);
+    };
+    window.addEventListener('moazenBackRequested', handleBack);
+    return () => window.removeEventListener('moazenBackRequested', handleBack);
+  }, [isOpen, selectedName]);
 
   const isAsmaaTrack = diskState.track?.type === 'asmaa_allah';
   const isPlayingAsmaa = isAsmaaTrack && diskState.isPlaying;
@@ -62,39 +69,28 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const filteredNames = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return NAMES_OF_ALLAH;
+    return NAMES_OF_ALLAH.filter(
+      (item) =>
+        item.name.includes(q) ||
+        item.meaning.toLowerCase().includes(q) ||
+        item.transliteration.toLowerCase().includes(q) ||
+        String(item.number) === q ||
+        (item.quranReference && item.quranReference.toLowerCase().includes(q))
+    );
+  }, [search]);
+
   if (!isOpen) return null;
 
-  const filteredNames = NAMES_OF_ALLAH.filter((item) => {
-    const matchesSearch =
-      item.name.includes(search.trim()) ||
-      item.meaning.includes(search.trim()) ||
-      (item.quranReference && item.quranReference.includes(search.trim()));
-
-    if (selectedCategory === 'mercy') {
-      return matchesSearch && (item.meaning.includes('رحم') || item.meaning.includes('غفر') || item.meaning.includes('كرم') || item.meaning.includes('حب') || item.meaning.includes('توب'));
-    }
-    if (selectedCategory === 'power') {
-      return matchesSearch && (item.meaning.includes('قدر') || item.meaning.includes('ملك') || item.meaning.includes('قو') || item.meaning.includes('عز') || item.meaning.includes('قهر'));
-    }
-    if (selectedCategory === 'wisdom') {
-      return matchesSearch && (item.meaning.includes('علم') || item.meaning.includes('حكم') || item.meaning.includes('عدل') || item.meaning.includes('حق') || item.meaning.includes('نور'));
-    }
-    return matchesSearch;
-  });
-
-  const handleSpeakName = (name: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(`يَا ${name}`);
-      utterance.lang = 'ar-SA';
-      utterance.rate = 0.85;
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
   const handleCopy = (item: NameOfAllah) => {
-    navigator.clipboard.writeText(
-      `من أسماء الله الحسنى:\n【${item.name}】\nالمعنى: ${item.meaning}\n${item.quranReference ? `الشاهد القرآني: ${item.quranReference}\n` : ''}— تطبيق مسلم بلس`
+    navigator.clipboard?.writeText(
+      isEnglish
+        ? `99 Names of Allah (${item.number}/99):\n【${item.name} — ${item.transliteration}】\n${item.meaning}\n— Muslim Plus`
+        : `من أسماء الله الحسنى (${item.number}/99):\n【${item.name}】\nالمعنى: ${item.meaning}\n${
+            item.quranReference ? `الشاهد القرآني: ${item.quranReference}\n` : ''
+          }— تطبيق مسلم بلس`
     );
     setCopiedId(item.number);
     setTimeout(() => setCopiedId(null), 2000);
@@ -102,7 +98,9 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
 
   const handleShareText = async (item: NameOfAllah) => {
     await shareIslamicText({
-      title: `من أسماء الله الحسنى: 【${item.name}】`,
+      title: isEnglish
+        ? `Names of Allah: 【${item.name} • ${item.transliteration}】`
+        : `من أسماء الله الحسنى: 【${item.name}】`,
       body: item.meaning,
       source: item.quranReference || 'ولله الأسماء الحسنى فادعوه بها',
     });
@@ -110,31 +108,34 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
 
   const handleShareCard = async (item: NameOfAllah) => {
     await shareOrDownloadAsImageCard({
-      categoryBadge: `أسماء الله الحسنى (${item.number}/99)`,
-      title: `【 ${item.name} 】 جل جلاله`,
+      categoryBadge: isEnglish
+        ? `99 Names of Allah (${item.number}/99)`
+        : `أسماء الله الحسنى (${item.number}/99)`,
+      title: `【 ${item.name} 】 ${item.transliteration}`,
       mainText: item.meaning,
       referenceText: item.quranReference || '﴿وَلِلَّهِ الْأَسْمَاءُ الْحُسْنَىٰ فَادْعُوهُ بِهَا﴾',
     });
   };
 
-  const categories = [
-    { id: 'all' as const, label: `جميع الأسماء (${NAMES_OF_ALLAH.length})` },
-    { id: 'mercy' as const, label: 'أسماء الرحمة والمغفرة' },
-    { id: 'power' as const, label: 'أسماء العزة والقدرة' },
-    { id: 'wisdom' as const, label: 'أسماء العلم والحكمة' },
-  ];
-
   const currentIdx = selectedName
     ? filteredNames.findIndex((n) => n.number === selectedName.number)
     : -1;
 
+  const BackIcon = isRtl ? ArrowRight : ArrowLeft;
+  const progressPercent =
+    asmaaDuration > 0 ? Math.min(100, Math.round((asmaaCurrentTime / asmaaDuration) * 100)) : 0;
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#F7F6F2] flex flex-col overflow-x-hidden select-none animate-fadeIn" dir="rtl">
-      {/* Clean White Header (No Green) */}
-      <div className="bg-white text-[#172A28] px-4 pt-5 pb-3 shadow-sm border-b border-gray-100 shrink-0">
-        <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto w-full mb-2">
+    <div
+      className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none"
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
+      {/* Clean Header matching Muslim Plus */}
+      <div className="bg-[#F6EEDC]/95 backdrop-blur-xs text-[#172A28] px-4 pt-4 pb-3 shadow-xs border-b border-[#D6C18D] shrink-0">
+        <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto w-full">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
+              type="button"
               onClick={() => {
                 if (selectedName) {
                   setSelectedName(null);
@@ -142,502 +143,307 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
                   onClose();
                 }
               }}
-              className="w-10 h-10 rounded-full bg-[#F7F6F2] hover:bg-gray-200 flex items-center justify-center text-[#172A28] transition-colors shrink-0 cursor-pointer"
-              aria-label="رجوع"
+              className="w-9 h-9 rounded-full bg-white/90 border border-[#D6C18D] hover:brightness-95 flex items-center justify-center text-[#104B40] transition-colors shrink-0 cursor-pointer"
+              aria-label={isEnglish ? 'Back' : 'رجوع'}
             >
-              <ArrowRight className="w-5 h-5" />
+              <BackIcon className="w-4 h-4" />
             </button>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold font-cairo text-[#172A28] truncate">
-                {selectedName ? `اسم الله: 【${selectedName.name}】` : 'فهرس أسماء الله الحسنى (99)'}
-              </h2>
-              <p className="text-[11px] text-gray-500 truncate">
+              <h2 className="text-base sm:text-lg font-extrabold font-cairo text-[#104B40] truncate">
                 {selectedName
-                  ? `الاسم رقم ${selectedName.number} من 99 • اضغط للعودة للفهرس`
-                  : 'فهرس رأسي منظم • اضغط على أي اسم لفتح صفحته المستقلة'}
+                  ? isEnglish
+                    ? `${selectedName.transliteration} (${selectedName.name})`
+                    : `اسم الله: 【${selectedName.name}】`
+                  : isEnglish
+                  ? '99 Names of Allah'
+                  : 'أسماء الله الحسنى (99)'}
+              </h2>
+              <p className="text-[11px] text-[#4B5B58] truncate">
+                {selectedName
+                  ? isEnglish
+                    ? `Name #${selectedName.number} of 99 • Tap back for grid`
+                    : `الاسم رقم ${selectedName.number} من 99 • اضغط للعودة للشبكة`
+                  : isEnglish
+                  ? 'Direct 99 Names Grid • Tap any card for full meaning'
+                  : 'شبكة الأسماء الحسنى مباشرة • اضغط على أي اسم لعرض معناه'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {selectedName ? (
-              <button
-                onClick={() => setSelectedName(null)}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-[#104B40] text-white text-xs font-bold cursor-pointer"
-              >
-                <span>الفهرس</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setLayoutMode((m) => (m === 'vertical' ? 'grid' : 'vertical'))}
-                className="moazen-widget flex items-center gap-1 px-2.5 py-2 rounded-xl text-[#172A28] border border-gray-200 text-xs font-bold cursor-pointer"
-                title="تغيير طريقة العرض"
-              >
-                {layoutMode === 'vertical' ? (
-                  <>
-                    <LayoutGrid className="w-4 h-4 text-[#C5A059]" />
-                    <span>شبكة</span>
-                  </>
-                ) : (
-                  <>
-                    <List className="w-4 h-4 text-[#C5A059]" />
-                    <span>فهرس رأسي</span>
-                  </>
-                )}
-              </button>
-            )}
+          {selectedName && (
             <button
-              onClick={() => setIsIndexOpen(true)}
-              className="moazen-widget flex items-center gap-1.5 px-3 py-2 rounded-xl text-[#172A28] border border-gray-200 transition-colors cursor-pointer"
-              aria-label="فهرس أسماء الله الحسنى"
+              type="button"
+              onClick={() => setSelectedName(null)}
+              className="px-3 py-1.5 rounded-xl bg-[#104B40] text-white text-xs font-bold cursor-pointer shrink-0"
             >
-              <Menu className="w-4 h-4 text-[#C5A059]" />
-              <span className="text-xs font-bold">الأبواب</span>
+              {isEnglish ? 'All 99' : 'الشبكة'}
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Search & Category Pills in Index Mode */}
+        {/* Search input directly below header in grid view */}
         {!selectedName && (
-          <>
-            {/* Full Asmaa Allah Audio Player Banner with Complete Controls */}
-            <div className="moazen-widget max-w-2xl mx-auto w-full mb-3 p-3 sm:p-4 rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between gap-3 mb-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform ${
-                      isPlayingAsmaa
-                        ? 'bg-amber-400 text-emerald-950 scale-105 shadow-md ring-2 ring-amber-300'
-                        : 'bg-[#104B40]/10 text-[#104B40] border border-[#104B40]/20'
-                    }`}
-                  >
-                    <Sparkles className={`w-5 h-5 ${isPlayingAsmaa ? 'animate-spin' : ''}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="text-xs sm:text-sm font-black font-cairo text-[#104B40] truncate">
-                        تلاوة ونشيد أسماء الله الحسنى الـ 99
-                      </h4>
-                      <span className="text-[9px] font-bold bg-[#C5A059]/20 text-[#7A591B] px-1.5 py-0.5 rounded-full">
-                        صوت نقي (205 ث)
-                      </span>
-                      {isPlayingAsmaa && (
-                        <span className="text-[9px] font-bold bg-emerald-600/15 text-emerald-800 px-1.5 py-0.5 rounded-full animate-pulse">
-                          يعمل بالخلفية
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-[#4B5B58] font-sans truncate">
-                      «نسألك يا من هو الله الذي لا إله إلا هو الرحمن الرحيم...»
-                    </p>
-                  </div>
-                </div>
-
-                {/* Right controls: Play/Pause/Resume, Restart, Stop */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Play / Pause / Resume */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isPlayingAsmaa) {
-                        diskAudioPlayerService.pause();
-                      } else if (isPausedAsmaa) {
-                        diskAudioPlayerService.resume();
-                      } else {
-                        diskAudioPlayerService.playAsmaaAllah();
-                      }
-                    }}
-                    className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-xs ${
-                      isPlayingAsmaa
-                        ? 'bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black'
-                        : isPausedAsmaa
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-black'
-                        : 'bg-[#104B40] hover:bg-[#0B3D35] text-white font-black'
-                    }`}
-                    title={isPlayingAsmaa ? 'إيقاف مؤقت' : isPausedAsmaa ? 'استئناف' : 'تشغيل'}
-                  >
-                    {isPlayingAsmaa ? (
-                      <>
-                        <Pause className="w-3.5 h-3.5 fill-current" />
-                        <span className="hidden sm:inline">إيقاف مؤقت</span>
-                      </>
-                    ) : isPausedAsmaa ? (
-                      <>
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        <span className="hidden sm:inline">استئناف</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>تشغيل</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* Restart from beginning (visible if track is active or paused) */}
-                  {isAsmaaTrack && (
-                    <button
-                      type="button"
-                      onClick={() => diskAudioPlayerService.restart()}
-                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-[#104B40]/10 hover:bg-[#104B40]/20 text-[#104B40] text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
-                      title="إعادة التشغيل من البداية"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">من البداية</span>
-                    </button>
-                  )}
-
-                  {/* Stop button (visible if active or paused) */}
-                  {isAsmaaTrack && (
-                    <button
-                      type="button"
-                      onClick={() => diskAudioPlayerService.stop()}
-                      className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
-                      title="إيقاف تام"
-                    >
-                      <Square className="w-3.5 h-3.5 fill-current" />
-                      <span className="hidden sm:inline">إيقاف</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Scrubber Progress Slider and Time */}
-              <div className="pt-2 border-t border-white/15">
-                <div className="flex items-center justify-between text-[10px] text-white/80 font-mono font-bold mb-1 px-0.5">
-                  <span>{formatAudioTime(asmaaCurrentTime)}</span>
-                  <span className="text-[10px] text-amber-200/90 font-sans font-medium">
-                    {isPlayingAsmaa
-                      ? 'جاري الاستماع • استمرارية الصوت بالخلفية'
-                      : isPausedAsmaa
-                      ? 'متوقف مؤقتاً'
-                      : 'انقر على تشغيل للاستماع'}
-                  </span>
-                  <span>{formatAudioTime(asmaaDuration)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={Math.floor(asmaaDuration) || 205}
-                  step={1}
-                  value={Math.floor(asmaaCurrentTime)}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (!isAsmaaTrack) {
-                      diskAudioPlayerService.playAsmaaAllah();
-                      setTimeout(() => diskAudioPlayerService.seekTo(val), 150);
-                    } else {
-                      diskAudioPlayerService.seekTo(val);
-                    }
-                  }}
-                  className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                />
-              </div>
-            </div>
-
-            <div className="max-w-2xl mx-auto w-full relative mb-2">
+          <div className="max-w-2xl mx-auto w-full mt-2.5">
+            <div className="relative">
               <input
                 type="text"
-                placeholder="ابحث في فهرس أسماء الله الحسنى أو معانيها..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="moazen-widget w-full pl-9 pr-9 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#C5A059] text-right"
+                placeholder={
+                  isEnglish
+                    ? 'Search by name, transliteration, number or meaning...'
+                    : 'ابحث بالاسم أو المعنى أو الرقم...'
+                }
+                className={`moazen-widget w-full border border-[#D6C18D] rounded-xl py-2 ${
+                  isRtl ? 'pr-9 pl-3' : 'pl-9 pr-3'
+                } text-xs text-[#172A28] placeholder-[#4B5B58]/70 focus:outline-none focus:border-[#C5A059]`}
               />
-              <Search className="w-4 h-4 text-gray-400 absolute right-3 top-2.5 pointer-events-none" />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="absolute left-3 top-2.5 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+              <Search
+                className={`w-4 h-4 text-[#9A7732] absolute ${
+                  isRtl ? 'right-3' : 'left-3'
+                } top-1/2 -translate-y-1/2`}
+              />
             </div>
-
-            <div className="max-w-2xl mx-auto w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap border cursor-pointer transition-all ${
-                    selectedCategory === cat.id
-                      ? 'bg-[#C5A059] text-white border-[#C5A059]'
-                      : 'bg-[#F7F6F2] text-[#172A28] border-gray-200 hover:bg-gray-200'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Collapsible ☰ Index Drawer */}
-      {isIndexOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end animate-fadeIn">
-          <div className="w-full max-w-sm bg-white h-full flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white">
-              <div className="flex items-center gap-2">
-                <Menu className="w-5 h-5 text-[#C5A059]" />
-                <h3 className="font-bold text-base text-[#172A28]">فهرس أسماء الله الحسنى</h3>
-              </div>
-              <button
-                onClick={() => setIsIndexOpen(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3 border-b border-gray-100 space-y-1.5">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setSelectedCategory(cat.id);
-                    setSelectedName(null);
-                    setIsIndexOpen(false);
-                  }}
-                  className={`w-full text-right p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                    selectedCategory === cat.id
-                      ? 'bg-[#C5A059]/10 border-[#C5A059] text-[#172A28]'
-                      : 'bg-white border-gray-100 text-gray-700'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-2">
-              {NAMES_OF_ALLAH.map((item) => (
-                <button
-                  key={item.number}
-                  onClick={() => {
-                    setSelectedName(item);
-                    setIsIndexOpen(false);
-                  }}
-                  className="moazen-widget p-2.5 rounded-xl text-right flex items-center gap-2 cursor-pointer"
-                >
-                  <span className="w-6 h-6 rounded-lg bg-white text-[10px] font-bold text-[#C5A059] flex items-center justify-center shrink-0">
-                    {item.number}
-                  </span>
-                  <span className="text-xs font-bold font-amiri text-[#172A28] truncate">
-                    {item.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VIEW 1: ORGANIZED VERTICAL INDEX (or optional grid) */}
+      {/* Main Scrollable Area: Direct Grid of 99 Names OR Detail Page */}
       {!selectedName ? (
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 max-w-2xl mx-auto w-full space-y-2.5">
-          <div className="moazen-widget rounded-2xl p-3 shadow-xs border border-gray-100 text-center">
-            <p className="text-xs font-bold font-amiri text-[#172A28]">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 max-w-2xl mx-auto w-full space-y-2.5">
+          <div className="moazen-widget rounded-2xl p-2.5 border border-[#D6C18D] text-center">
+            <p className="text-xs font-bold font-amiri text-[#104B40]">
               قال رسول الله ﷺ: «إِنَّ لِلَّهِ تِسْعَةً وَتِسْعِينَ اسْمًا مِائَةً إِلَّا وَاحِدًا، مَنْ أَحْصَاهَا دَخَلَ الْجَنَّةَ»
             </p>
           </div>
 
-          {layoutMode === 'vertical' ? (
-            <div className="space-y-2">
-              {filteredNames.map((item) => (
-                <button
-                  key={item.number}
-                  onClick={() => setSelectedName(item)}
-                  className="moazen-widget w-full text-right p-3.5 rounded-2xl border border-gray-100 hover:border-[#C5A059]/60 shadow-xs transition-all flex items-center justify-between gap-3 cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#104B40] text-[#C5A059] font-bold text-xs flex items-center justify-center shrink-0">
-                      {item.number}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-base font-bold font-amiri text-[#172A28] group-hover:text-[#104B40] transition-colors">
-                        {item.name}
-                      </h3>
-                      <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">
-                        {item.meaning}
-                      </p>
-                    </div>
-                  </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pb-24">
+            {filteredNames.map((item) => (
+              <button
+                key={item.number}
+                type="button"
+                onClick={() => setSelectedName(item)}
+                className="moazen-widget p-3 rounded-2xl border border-[#D6C18D] shadow-xs hover:border-[#C5A059] active:scale-[0.98] transition-all flex flex-col justify-between text-center cursor-pointer group min-h-[106px]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[10px] font-black text-[#104B40] bg-[#C5A059]/20 px-2 py-0.5 rounded-md font-sans border border-[#C5A059]/30">
+                    {item.number}
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#9A7732] truncate max-w-[68%]">
+                    {item.transliteration}
+                  </span>
+                </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSpeakName(item.name);
-                      }}
-                      className="moazen-widget p-2 rounded-xl text-gray-500 hover:text-[#C5A059] transition-colors"
-                      title="استمع للاسم"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </div>
-                    <ChevronLeft className="w-4 h-4 text-gray-400 group-hover:text-[#104B40] transition-colors" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {filteredNames.map((item) => (
-                <button
-                  key={item.number}
-                  onClick={() => setSelectedName(item)}
-                  className="moazen-widget p-3 rounded-2xl border border-gray-100 shadow-xs hover:border-[#C5A059] transition-all text-right flex flex-col justify-between cursor-pointer group min-h-[104px]"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-[10px] font-bold text-[#9A7732] bg-[#C5A059]/15 px-2 py-0.5 rounded-md font-sans">
-                      {item.number}
-                    </span>
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSpeakName(item.name);
-                      }}
-                      className="p-1.5 rounded-full text-gray-400 hover:text-[#C5A059] hover:bg-[#F7F6F2] transition-colors"
-                      title="استمع للاسم"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
+                <div className="my-1.5 text-center">
+                  <h3 className="text-xl font-bold font-amiri text-[#104B40] group-hover:text-[#9A7732] transition-colors">
+                    {item.name}
+                  </h3>
+                </div>
 
-                  <div className="my-1.5 text-center">
-                    <h3 className="text-lg font-bold font-amiri text-[#172A28] group-hover:text-[#C5A059] transition-colors">
-                      {item.name}
-                    </h3>
-                  </div>
-
-                  <p className="text-[10px] text-gray-500 line-clamp-2 leading-tight">
-                    {item.meaning}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
+                <p className="text-[10.5px] text-[#4B5B58] line-clamp-2 leading-snug text-center">
+                  {item.meaning}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
-        /* VIEW 2: INDEPENDENT DEDICATED DETAIL PAGE FOR SELECTED NAME */
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 max-w-2xl mx-auto w-full space-y-4 animate-fadeIn">
-          {/* Top Back Bar */}
-          <div className="moazen-widget rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 max-w-2xl mx-auto w-full space-y-3.5">
+          <div className="moazen-widget rounded-2xl p-2.5 border border-[#D6C18D] shadow-xs flex items-center justify-between">
             <button
+              type="button"
               onClick={() => setSelectedName(null)}
-              className="moazen-widget flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold cursor-pointer transition-colors"
+              className="moazen-widget-sub flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#104B40] text-xs font-bold border border-[#D6C18D] cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
-              <span>العودة إلى فهرس الأسماء الحسنى (99)</span>
+              {isRtl ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              <span>{isEnglish ? 'Back to 99 Names Grid' : 'العودة إلى شبكة الأسماء (99)'}</span>
             </button>
             <span className="text-xs font-bold text-[#9A7732] bg-[#C5A059]/15 px-3 py-1 rounded-full">
-              الاسم {selectedName.number} من 99
+              {isEnglish ? `${selectedName.number} of 99` : `الاسم ${selectedName.number} من 99`}
             </span>
           </div>
 
-          <div className="moazen-widget rounded-3xl p-6 shadow-sm border border-gray-100 space-y-5">
-            <div className="moazen-widget text-center py-6 rounded-2xl border border-[#C5A059]/30 relative">
-              <button
-                onClick={() => handleSpeakName(selectedName.name)}
-                className="absolute left-4 top-4 p-2.5 rounded-xl bg-[#104B40] text-[#C5A059] hover:bg-[#0B3D35] transition-colors cursor-pointer"
-                title="نطق الاسم"
-              >
-                <Volume2 className="w-4 h-4" />
-              </button>
-              <h2 className="text-4xl sm:text-5xl font-bold font-amiri text-[#172A28] mb-2">
+          <div className="moazen-widget rounded-3xl p-5 shadow-sm border border-[#D6C18D] space-y-4">
+            <div className="moazen-widget-sub text-center py-6 rounded-2xl border border-[#C5A059]/40">
+              <h2 className="text-4xl sm:text-5xl font-bold font-amiri text-[#104B40] mb-1.5">
                 {selectedName.name}
               </h2>
-              <span className="text-xs text-[#C5A059] font-bold">جل جلاله وتقدست أسماؤه</span>
+              <p className="text-xs font-bold text-[#9A7732] mb-1">{selectedName.transliteration}</p>
+              <span className="text-[11px] text-[#4B5B58] font-semibold">
+                {isEnglish ? 'Glory be to Allah' : 'جل جلاله وتقدست أسماؤه'}
+              </span>
             </div>
 
-            <div className="space-y-3 text-right">
-              <div className="moazen-widget p-4 rounded-2xl border border-gray-100">
-                <span className="text-xs font-bold text-[#9A7732] block mb-1.5 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#C5A059]" />
-                  المعنى والتدبر الإيماني:
-                </span>
-                <p className="text-sm text-[#172A28] leading-loose font-medium">
-                  {selectedName.meaning}
-                </p>
-              </div>
-
+            <div className="moazen-widget-sub rounded-2xl p-4 border border-[#D6C18D]">
+              <h4 className="text-xs font-bold text-[#9A7732] mb-1.5">
+                {isEnglish ? 'Meaning & Significance' : 'المعنى والبيان'}
+              </h4>
+              <p className="text-sm sm:text-base font-medium text-[#172A28] leading-relaxed">
+                {selectedName.meaning}
+              </p>
               {selectedName.quranReference && (
-                <div className="moazen-widget p-4 rounded-2xl border border-[#C5A059]/30">
-                  <span className="text-xs font-bold text-[#9A7732] block mb-1.5 flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-[#C5A059]" />
-                    الشاهد من القرآن الكريم:
-                  </span>
-                  <p className="text-base font-bold font-amiri text-[#172A28] leading-loose">
-                    {selectedName.quranReference}
-                  </p>
-                </div>
+                <p className="text-xs font-semibold text-[#104B40] mt-2.5 pt-2 border-t border-[#D6C18D]/50">
+                  {selectedName.quranReference}
+                </p>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={() => handleShareCard(selectedName)}
-                className="py-3 px-3 rounded-2xl bg-[#C5A059] hover:bg-[#B08D46] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span>بطاقة (5 خلفيات)</span>
-              </button>
-
-              <button
-                onClick={() => handleShareText(selectedName)}
-                className="py-3 px-3 rounded-2xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>مشاركة النص</span>
-              </button>
-
-              <button
+                type="button"
                 onClick={() => handleCopy(selectedName)}
-                className="moazen-widget py-3 px-3 rounded-2xl text-[#172A28] border border-gray-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="moazen-widget-sub py-2.5 rounded-xl border border-[#D6C18D] text-[#104B40] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {copiedId === selectedName.number ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <span className="text-emerald-700">تم النسخ</span>
-                  </>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
                 ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    <span>نسخ</span>
-                  </>
+                  <Copy className="w-3.5 h-3.5" />
                 )}
+                <span>{copiedId === selectedName.number ? (isEnglish ? 'Copied' : 'تم النسخ') : (isEnglish ? 'Copy' : 'نسخ')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShareText(selectedName)}
+                className="py-2.5 rounded-xl bg-[#104B40] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>{isEnglish ? 'Share' : 'مشاركة'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShareCard(selectedName)}
+                className="py-2.5 rounded-xl bg-[#C5A059] text-[#0E2B22] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>{isEnglish ? 'Card' : 'بطاقة'}</span>
               </button>
             </div>
           </div>
 
-          {/* Prev / Next Navigation */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2.5 pb-2">
             <button
+              type="button"
               disabled={currentIdx <= 0}
-              onClick={() => {
-                if (currentIdx > 0) setSelectedName(filteredNames[currentIdx - 1]);
-              }}
-              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
+              onClick={() => currentIdx > 0 && setSelectedName(filteredNames[currentIdx - 1])}
+              className="moazen-widget flex-1 py-2.5 px-3 rounded-xl border border-[#D6C18D] disabled:opacity-40 text-xs font-bold text-[#104B40] cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4 text-[#C5A059]" />
-              <span>الاسم السابق</span>
+              {isEnglish ? 'Previous' : 'الاسم السابق'}
             </button>
             <button
+              type="button"
               disabled={currentIdx < 0 || currentIdx >= filteredNames.length - 1}
-              onClick={() => {
-                if (currentIdx >= 0 && currentIdx < filteredNames.length - 1) {
-                  setSelectedName(filteredNames[currentIdx + 1]);
-                }
-              }}
-              className="moazen-widget flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-gray-200 text-xs font-bold text-[#172A28] disabled:opacity-40 cursor-pointer"
+              onClick={() =>
+                currentIdx >= 0 &&
+                currentIdx < filteredNames.length - 1 &&
+                setSelectedName(filteredNames[currentIdx + 1])
+              }
+              className="flex-1 py-2.5 px-3 rounded-xl bg-[#104B40] disabled:opacity-40 text-xs font-bold text-white cursor-pointer"
             >
-              <span>الاسم التالي</span>
-              <ChevronLeft className="w-4 h-4 text-[#C5A059]" />
+              {isEnglish ? 'Next' : 'الاسم التالي'}
             </button>
           </div>
         </div>
       )}
+
+      {/* Small Floating Asmaa Allah Audio Button & Volume Pod */}
+      <div
+        className={`absolute bottom-4 ${
+          isRtl ? 'left-4' : 'right-4'
+        } z-30 flex flex-col ${isRtl ? 'items-start' : 'items-end'} gap-2 pointer-events-none`}
+      >
+        {showVolumePopover && (
+          <div className="pointer-events-auto moazen-widget rounded-2xl border border-[#C5A059]/75 px-3 py-2 shadow-[0_8px_24px_rgba(16,75,64,0.2)] flex items-center gap-2.5 bg-[#FBF6E9]/98 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() =>
+                diskAudioPlayerService.setVolume(diskState.volume > 0 ? 0 : 1.0)
+              }
+              className="w-7 h-7 rounded-full bg-[#104B40]/10 hover:bg-[#104B40]/20 text-[#104B40] flex items-center justify-center cursor-pointer"
+              aria-label={isEnglish ? 'Mute or unmute' : 'كتم أو إلغاء كتم الصوت'}
+            >
+              {diskState.volume === 0 ? (
+                <VolumeX className="w-3.5 h-3.5" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round((diskState.volume ?? 1) * 100)}
+              onChange={(e) =>
+                diskAudioPlayerService.setVolume(Number(e.target.value) / 100)
+              }
+              aria-label={isEnglish ? 'Volume' : 'مستوى الصوت'}
+              className="w-24 accent-[#104B40] cursor-pointer h-1.5"
+            />
+            <span className="text-[10px] font-bold text-[#9A7732] tabular-nums w-8 text-center">
+              {Math.round((diskState.volume ?? 1) * 100)}%
+            </span>
+          </div>
+        )}
+
+        <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-[#F8F1DF]/95 backdrop-blur-sm border border-[#C5A059]/85 p-1 shadow-[0_8px_24px_rgba(16,75,64,0.22)]">
+          <button
+            type="button"
+            onClick={() => {
+              if (isPlayingAsmaa) {
+                diskAudioPlayerService.pause();
+              } else if (isPausedAsmaa) {
+                diskAudioPlayerService.resume();
+              } else {
+                diskAudioPlayerService.playAsmaaAllah();
+              }
+            }}
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-[#104B40] to-[#0D3D34] hover:brightness-110 text-white flex items-center justify-center shadow-sm active:scale-95 transition-all cursor-pointer relative"
+            aria-label={
+              isPlayingAsmaa
+                ? isEnglish
+                  ? 'Pause 99 Names audio'
+                  : 'إيقاف مؤقت لأسماء الله الحسنى'
+                : isEnglish
+                ? 'Play 99 Names audio'
+                : 'تشغيل أسماء الله الحسنى'
+            }
+            title={
+              isEnglish
+                ? `99 Names Audio (${formatAudioTime(asmaaCurrentTime)})`
+                : `أسماء الله الحسنى (${formatAudioTime(asmaaCurrentTime)})`
+            }
+          >
+            {isPlayingAsmaa ? (
+              <Pause className="w-4 h-4 fill-white" />
+            ) : (
+              <Play className="w-4 h-4 fill-white translate-x-[0.5px]" />
+            )}
+            {isAsmaaTrack && (
+              <span
+                className="sr-only"
+                data-progress={progressPercent}
+              />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowVolumePopover((v) => !v)}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              showVolumePopover
+                ? 'bg-[#C5A059]/30 text-[#104B40]'
+                : 'bg-[#104B40]/8 text-[#104B40] hover:bg-[#104B40]/15'
+            }`}
+            aria-label={isEnglish ? 'Audio volume' : 'التحكم في الصوت'}
+            title={isEnglish ? 'Volume control' : 'مستوى الصوت'}
+          >
+            {diskState.volume === 0 ? (
+              <VolumeX className="w-3.5 h-3.5" />
+            ) : (
+              <Volume2 className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
-

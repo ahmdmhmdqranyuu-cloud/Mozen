@@ -1,6 +1,5 @@
 package com.muslim.azan.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,7 +29,6 @@ data class SeerahItem(
 fun SeerahScreen(
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val items = listOf(
         SeerahItem(
             "المولد الشريف والنشأة المباركة",

@@ -25,4 +25,7 @@ android/app/*.keystore
 *.apk
 *.aab
 
+# Python cache
+**/__pycache__/
+*.pyc
 

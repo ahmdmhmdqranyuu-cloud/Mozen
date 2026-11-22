@@ -15,8 +15,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -146,63 +148,75 @@ private val NAMES_OF_ALLAH_LIST = listOf(
 )
 
 @Composable
-fun NamesOfAllahScreen(onBack: () -> Unit) {
+fun NamesOfAllahScreen(
+    language: String = "ar",
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
+    val isEnglish = language == "en"
     var selectedName by remember { mutableStateOf<NameOfAllahItem?>(null) }
     var searchQuery by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("all") }
-    var isGridView by remember { mutableStateOf(false) }
 
     val isPlaying by NativeAudioPlayerManager.isPlaying.collectAsState()
+    val isPaused by NativeAudioPlayerManager.isPaused.collectAsState()
     val currentTag by NativeAudioPlayerManager.currentTrackTag.collectAsState()
-    val isAsmaaPlaying = isPlaying && currentTag == "asmaa_allah_al_husna"
+    val volume by NativeAudioPlayerManager.volume.collectAsState()
+    var showVolumeControl by remember { mutableStateOf(false) }
 
-    BackHandler {
-        if (selectedName != null) {
-            selectedName = null
-        } else {
-            onBack()
+    val isAsmaaTrack = currentTag == "asmaa_allah_al_husna"
+    val isAsmaaPlaying = isPlaying && isAsmaaTrack
+    val isAsmaaPaused = isPaused && isAsmaaTrack
+
+    // Only intercept Back when inside a selected Name detail view; let NavHost handle Predictive Back at grid root
+    BackHandler(enabled = selectedName != null) {
+        selectedName = null
+    }
+
+    val filtered = remember(searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) NAMES_OF_ALLAH_LIST
+        else NAMES_OF_ALLAH_LIST.filter { item ->
+            item.name.contains(q) ||
+                item.meaning.contains(q) ||
+                item.transliteration.contains(q, ignoreCase = true) ||
+                item.number.toString() == q
         }
     }
 
-    val filtered = remember(searchQuery, category) {
-        NAMES_OF_ALLAH_LIST.filter { item ->
-            val q = searchQuery.trim()
-            val matchQuery = q.isEmpty() || item.name.contains(q) || item.meaning.contains(q) || item.transliteration.contains(q, ignoreCase = true)
-            if (!matchQuery) return@filter false
-            when (category) {
-                "mercy" -> item.meaning.contains("رحم") || item.meaning.contains("غفر") || item.meaning.contains("كرم") || item.meaning.contains("حب") || item.meaning.contains("توب")
-                "power" -> item.meaning.contains("قدر") || item.meaning.contains("ملك") || item.meaning.contains("قو") || item.meaning.contains("عز") || item.meaning.contains("قهر")
-                "wisdom" -> item.meaning.contains("علم") || item.meaning.contains("حكم") || item.meaning.contains("عدل") || item.meaning.contains("حق") || item.meaning.contains("نور")
-                else -> true
-            }
-        }
-    }
-
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MuslimPlusCanvasBrush)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
         // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 IconButton(
                     onClick = {
                         if (selectedName != null) selectedName = null else onBack()
                     }
                 ) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                    Icon(
+                        imageVector = if (isEnglish) Icons.Default.ArrowBack else Icons.Default.ArrowForward,
+                        contentDescription = if (isEnglish) "Back" else "رجوع",
+                        tint = MoazenInkEmerald
+                    )
                 }
                 Column {
                     Text(
-                        text = selectedName?.let { "اسم الله: ${it.name}" } ?: "أسماء الله الحسنى (99)",
+                        text = selectedName?.let {
+                            if (isEnglish) "${it.transliteration} (${it.name})" else "اسم الله: ${it.name}"
+                        } ?: if (isEnglish) "99 Names of Allah" else "أسماء الله الحسنى (99)",
                         color = MoazenInkEmerald,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -216,90 +230,20 @@ fun NamesOfAllahScreen(onBack: () -> Unit) {
                 }
             }
 
-            if (selectedName == null) {
-                IconButton(onClick = { isGridView = !isGridView }) {
-                    Icon(
-                        imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
-                        contentDescription = "تبديل العرض",
-                        tint = MoazenInkEmerald
-                    )
-                }
-            }
-        }
-
-        // Offline Asmaa Allah Al-Husna Audio Card
-        MoazenWidgetCard(
-            cornerRadius = 16.dp,
-            borderColor = MoazenGold,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+            if (selectedName != null) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MuslimPlusPillEmerald,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { selectedName = null }
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MoazenInkEmerald.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = MoazenInkEmerald)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "تشغيل أسماء الله الحسنى (بدون إنترنت)",
-                            color = MoazenInkEmerald,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isAsmaaPlaying) "جارٍ الاستماع للتسجيل الصوتي الكامل..." else "أنشودة وتلاوة خاشعة للأسماء التسعة والتسعين",
-                            color = MoazenInkMuted,
-                            fontSize = 10.5.sp
-                        )
-                    }
-                }
-                Button(
-                    onClick = {
-                        if (isAsmaaPlaying) {
-                            NativeAudioPlayerManager.stop()
-                        } else {
-                            NativeAudioPlayerManager.playAssetAudio(
-                                context = context,
-                                assetPath = "audio/asmaa_allah_al_husna.mp3",
-                                title = "أسماء الله الحسنى (99)",
-                                subtitle = "تشغيل محلي بدون إنترنت",
-                                trackTag = "asmaa_allah_al_husna"
-                            )
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isAsmaaPlaying) ErrorRed else MuslimPlusPillEmerald
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isAsmaaPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isAsmaaPlaying) "إيقاف" else "تشغيل",
+                        text = if (isEnglish) "All 99" else "الشبكة",
                         color = Color.White,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
@@ -308,108 +252,125 @@ fun NamesOfAllahScreen(onBack: () -> Unit) {
         if (selectedName != null) {
             val item = selectedName!!
             val idx = filtered.indexOfFirst { it.number == item.number }
-            MoazenWidgetCard(
-                cornerRadius = 20.dp,
-                borderColor = MoazenGold,
-                borderWidth = 1.5.dp,
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                MoazenWidgetCard(
+                    cornerRadius = 20.dp,
+                    borderColor = MoazenGold,
+                    borderWidth = 1.5.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "الاسم رقم ${item.number} من 99",
-                        color = MoazenGoldDark,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = item.name,
-                        color = MoazenInkEmerald,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = item.transliteration,
-                        color = MoazenInkMuted,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    MoazenSubWidgetBox(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = item.meaning,
-                            color = MoazenInkPrimary,
-                            fontSize = 15.sp,
-                            lineHeight = 24.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(14.dp)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                cm?.setPrimaryClip(ClipData.newPlainText("NameOfAllah", "【${item.name}】\n${item.meaning}"))
-                                Toast.makeText(context, "تم نسخ الاسم والمعنى", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenGold),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = MoazenInkPrimary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("نسخ", color = MoazenInkPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(
+                            text = if (isEnglish) "Name #${item.number} of 99" else "الاسم رقم ${item.number} من 99",
+                            color = MoazenGoldDark,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = item.name,
+                            color = MoazenInkEmerald,
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = item.transliteration,
+                            color = MoazenInkMuted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        MoazenSubWidgetBox(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = item.meaning,
+                                color = MoazenInkPrimary,
+                                fontSize = 15.sp,
+                                lineHeight = 24.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(14.dp)
+                            )
                         }
-                        Button(
-                            onClick = {
-                                val text = "✦ من أسماء الله الحسنى (${item.number}/99) ✦\n\n【${item.name}】\n${item.meaning}\n\n🕌 عبر تطبيق مسلم بلس"
-                                val share = Intent(Intent.ACTION_SEND).apply {
-                                    putExtra(Intent.EXTRA_TEXT, text)
-                                    type = "text/plain"
-                                }
-                                runCatching { context.startActivity(Intent.createChooser(share, "مشاركة الاسم")) }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
-                            modifier = Modifier.weight(1f)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("مشاركة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Button(
+                                onClick = {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    cm?.setPrimaryClip(ClipData.newPlainText("NameOfAllah", "【${item.name} — ${item.transliteration}】\n${item.meaning}"))
+                                    Toast.makeText(
+                                        context,
+                                        if (isEnglish) "Copied name & meaning" else "تم نسخ الاسم والمعنى",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MoazenGold),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = MoazenInkPrimary, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (isEnglish) "Copy" else "نسخ", color = MoazenInkPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = {
+                                    val text = "✦ ${item.number}/99 ✦\n\n【${item.name} • ${item.transliteration}】\n${item.meaning}\n\n🕌 Muslim Plus"
+                                    val share = Intent(Intent.ACTION_SEND).apply {
+                                        putExtra(Intent.EXTRA_TEXT, text)
+                                        type = "text/plain"
+                                    }
+                                    runCatching { context.startActivity(Intent.createChooser(share, if (isEnglish) "Share Name" else "مشاركة الاسم")) }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (isEnglish) "Share" else "مشاركة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
                         }
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    enabled = idx > 0,
-                    onClick = { if (idx > 0) selectedName = filtered[idx - 1] },
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("الاسم السابق", fontWeight = FontWeight.Bold)
-                }
-                OutlinedButton(
-                    enabled = idx >= 0 && idx < filtered.size - 1,
-                    onClick = { if (idx >= 0 && idx < filtered.size - 1) selectedName = filtered[idx + 1] },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("الاسم التالي", fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        enabled = idx > 0,
+                        onClick = { if (idx > 0) selectedName = filtered[idx - 1] },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (isEnglish) "Previous" else "الاسم السابق", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        enabled = idx >= 0 && idx < filtered.size - 1,
+                        onClick = { if (idx >= 0 && idx < filtered.size - 1) selectedName = filtered[idx + 1] },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (isEnglish) "Next" else "الاسم التالي", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         } else {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("ابحث في الأسماء أو المعاني...", fontSize = 12.sp) },
+                placeholder = {
+                    Text(
+                        if (isEnglish) "Search by name, number or meaning..." else "ابحث بالاسم أو الرقم أو المعنى...",
+                        fontSize = 12.sp
+                    )
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MoazenInkEmerald) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -422,129 +383,166 @@ fun NamesOfAllahScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // Direct Grid View — Zero category tabs, Zero index drawer, Zero mic/speaker buttons beside names
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                contentPadding = PaddingValues(bottom = 92.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                val cats = listOf("all" to "الكل (99)", "mercy" to "الرحمة والمغفرة", "power" to "العظمة والقدرة", "wisdom" to "العلم والحكمة")
-                cats.forEach { (id, label) ->
-                    val active = category == id
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (active) MuslimPlusPillEmerald else MoazenCardStart,
-                        border = BorderStroke(1.dp, if (active) MuslimPlusPillEmerald else MoazenCardBorder),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { category = id }
+                items(filtered, key = { it.number }) { item ->
+                    MoazenWidgetCard(
+                        cornerRadius = 14.dp,
+                        onClick = { selectedName = item }
                     ) {
-                        Text(
-                            text = label,
-                            color = if (active) Color.White else MoazenInkPrimary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 96.dp)
+                                .padding(horizontal = 6.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${item.number}",
+                                color = MoazenGoldDark,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = item.name,
+                                color = MoazenInkEmerald,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = if (isEnglish) item.transliteration else item.meaning,
+                                color = MoazenInkMuted,
+                                fontSize = 9.sp,
+                                lineHeight = 11.5.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        }
+
+        // Compact Floating Audio Pod (Play/Pause + Volume Control) inside the section bottom corner
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 14.dp, bottom = 14.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (showVolumeControl) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MoazenCardStart.copy(alpha = 0.97f),
+                    border = BorderStroke(1.dp, MoazenGold.copy(alpha = 0.8f)),
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                NativeAudioPlayerManager.setVolume(if (volume > 0f) 0f else 1f)
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (volume <= 0.01f) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                contentDescription = if (isEnglish) "Mute" else "كتم",
+                                tint = MoazenInkEmerald,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Slider(
+                            value = volume,
+                            onValueChange = { NativeAudioPlayerManager.setVolume(it) },
+                            valueRange = 0f..1f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MoazenInkEmerald,
+                                activeTrackColor = MoazenInkEmerald,
+                                inactiveTrackColor = MoazenGold.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier.width(108.dp)
                         )
                     }
                 }
             }
 
-            if (isGridView) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
+            Surface(
+                shape = CircleShape,
+                color = MoazenCardStart.copy(alpha = 0.96f),
+                border = BorderStroke(1.2.dp, MoazenGold.copy(alpha = 0.85f)),
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(filtered, key = { it.number }) { item ->
-                        MoazenWidgetCard(
-                            cornerRadius = 14.dp,
-                            onClick = { selectedName = item }
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "${item.number}",
-                                    color = MoazenGoldDark,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = item.name,
-                                    color = MoazenInkEmerald,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = item.meaning,
-                                    color = MoazenInkMuted,
-                                    fontSize = 9.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
+                    Surface(
+                        shape = CircleShape,
+                        color = MuslimPlusPillEmerald,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                when {
+                                    isAsmaaPlaying -> NativeAudioPlayerManager.pause()
+                                    isAsmaaPaused -> NativeAudioPlayerManager.resume()
+                                    else -> NativeAudioPlayerManager.playAssetAudio(
+                                        context = context,
+                                        assetPath = "audio/asmaa_allah_al_husna.mp3",
+                                        title = "أسماء الله الحسنى (99)",
+                                        subtitle = "تشغيل محلي بدون إنترنت",
+                                        trackTag = "asmaa_allah_al_husna"
+                                    )
+                                }
                             }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isAsmaaPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isAsmaaPlaying) {
+                                    if (isEnglish) "Pause" else "إيقاف مؤقت"
+                                } else {
+                                    if (isEnglish) "Play" else "تشغيل"
+                                },
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(filtered, key = { it.number }) { item ->
-                        MoazenWidgetCard(
-                            cornerRadius = 14.dp,
-                            onClick = { selectedName = item },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(MuslimPlusPillEmerald),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "${item.number}",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.name,
-                                        color = MoazenInkEmerald,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    Text(
-                                        text = item.meaning,
-                                        color = MoazenInkPrimary,
-                                        fontSize = 11.5.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MoazenGoldDark)
-                            }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = if (showVolumeControl) MoazenGold.copy(alpha = 0.28f) else MoazenInkEmerald.copy(alpha = 0.08f),
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .clickable { showVolumeControl = !showVolumeControl }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (volume <= 0.01f) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                contentDescription = if (isEnglish) "Volume" else "مستوى الصوت",
+                                tint = MoazenInkEmerald,
+                                modifier = Modifier.size(17.dp)
+                            )
                         }
                     }
                 }

@@ -585,9 +585,24 @@ export async function checkAndNotifyMissingFeaturePermissions(options: {
   autoPlayAzanEnabled: boolean;
   smartAzanScreenEnabled: boolean;
   persistentNotificationEnabled: boolean;
+  locationRequired?: boolean;
+  language?: string;
 }) {
   const perms = await verifyAllPermissionsStatus();
   const ext = getExtendedSetupSettings();
+  const isEn = options.language === 'en';
+
+  const allMonitorKeys: ManagedPermissionKey[] = ['location', 'exact_alarm', 'overlay', 'battery'];
+
+  // CRITICAL: When Notifications permission itself is denied/disabled, never attempt to post or bypass.
+  const webNotifBlocked =
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    Notification.permission !== 'granted';
+  if (!perms.notifications || webNotifBlocked) {
+    allMonitorKeys.forEach((k) => dismissPermissionShadeNotification(k));
+    return;
+  }
 
   let cooldownMap: Record<string, number> = {};
   try {
@@ -606,40 +621,91 @@ export async function checkAndNotifyMissingFeaturePermissions(options: {
     body: string;
   }> = [];
 
-  // 1. Overlay permission: ONLY if Interactive Azan Screen or Smart Full-Screen Widget is enabled
+  const anyPrayerAlertEnabled = Object.values(ext.prayerAlerts).some(Boolean);
+  const needsExactTiming =
+    options.autoPlayAzanEnabled ||
+    options.persistentNotificationEnabled ||
+    ext.persistentNotificationEnabled ||
+    anyPrayerAlertEnabled;
+
+  // 1. Location permission: needed for automatic prayer calculation & Qibla
+  if (options.locationRequired !== false && !perms.location) {
+    missingNeeded.push({
+      key: 'location',
+      title: isEn
+        ? 'Location Permission Needed • Prayer Times & Qibla'
+        : 'مطلوب إذن الموقع • دقة مواقيت الصلاة والقبلة',
+      body: isEn
+        ? 'Allow Location access so prayer times and Qibla direction stay accurate for your city.'
+        : 'لتحديث مواقيت الصلاة واتجاه القبلة تلقائيًا حسب موقعك، اضغط لفتح إعدادات إذن الموقع.',
+    });
+  }
+
+  // 2. Exact Alarms permission: needed for punctual Azan & Iqama scheduling
+  if (needsExactTiming && !perms.exact_alarm) {
+    missingNeeded.push({
+      key: 'exact_alarm',
+      title: isEn
+        ? 'Exact Alarms Needed • On-Time Azan & Reminders'
+        : 'مطلوب إذن المنبهات الدقيقة • دقة وقت الأذان',
+      body: isEn
+        ? 'Allow Alarms & Reminders so Azan triggers right at the exact prayer minute.'
+        : 'لضمان انطلاق الأذان والتنبيهات في ثوانيها الأولى، اضغط لفتح إعدادات المنبهات الدقيقة.',
+    });
+  }
+
+  // 3. Overlay permission: ONLY if Interactive Azan Screen or Smart Full-Screen Widget is enabled
   if (
     (options.smartAzanScreenEnabled || ext.landscapeAzanScreenEnabled) &&
     !perms.overlay
   ) {
     missingNeeded.push({
       key: 'overlay',
-      title: 'مطلوب إذن الظهور فوق التطبيقات • شاشة الأذان التفاعلية',
-      body: 'لتشغيل شاشة الأذان التفاعلية فوق التطبيقات عند حلول وقت الصلاة، اضغط هنا للانتقال مباشرة إلى صفحة الإذن وتفعيله.',
+      title: isEn
+        ? 'Display Over Apps Needed • Interactive Azan Window'
+        : 'مطلوب إذن الظهور فوق التطبيقات • شاشة الأذان التفاعلية',
+      body: isEn
+        ? 'Allow Display over other apps to show the floating Azan screen at prayer time.'
+        : 'لتشغيل شاشة الأذان التفاعلية فوق التطبيقات عند حلول وقت الصلاة، اضغط هنا للانتقال مباشرة إلى صفحة الإذن وتفعيله.',
     });
   }
 
-  // 2. Battery optimization permission: ONLY if Auto-Azan or Persistent Notification or Qiyam/Prayer Alerts are enabled
-  const anyPrayerAlertEnabled = Object.values(ext.prayerAlerts).some(Boolean);
-  if (
-    (options.autoPlayAzanEnabled ||
-      options.persistentNotificationEnabled ||
-      ext.persistentNotificationEnabled ||
-      anyPrayerAlertEnabled) &&
-    !perms.battery
-  ) {
+  // 4. Battery optimization permission: ONLY if Auto-Azan or Persistent Notification or Qiyam/Prayer Alerts are enabled
+  if (needsExactTiming && !perms.battery) {
     missingNeeded.push({
       key: 'battery',
-      title: 'مطلوب استثناء البطارية • استمرار الأذان في الخلفية',
-      body: 'لضمان رفع الأذان والتنبيهات في وقتها دون إيقاف من نظام توفير الطاقة، اضغط هنا لفتح صفحة استثناء البطارية مباشرة.',
+      title: isEn
+        ? 'Battery Unrestricted Needed • Reliable Background Azan'
+        : 'مطلوب استثناء البطارية • استمرار الأذان في الخلفية',
+      body: isEn
+        ? 'Exclude Muslim Plus from battery restrictions so Azan alerts never get delayed.'
+        : 'لضمان رفع الأذان والتنبيهات في وقتها دون إيقاف من نظام توفير الطاقة، اضغط هنا لفتح صفحة استثناء البطارية مباشرة.',
     });
   }
 
-  // Dispatch at most ONE non-intrusive reminder at a time if Notification permission is granted
+  // Clear cooldown & shade notification for any key that is now granted
+  allMonitorKeys.forEach((key) => {
+    if (perms[key]) {
+      dismissPermissionShadeNotification(key);
+      if (cooldownMap[key]) {
+        delete cooldownMap[key];
+      }
+    }
+  });
+
+  // Dispatch at most ONE non-intrusive reminder at a time when cooldown has elapsed
   const candidate = missingNeeded.find(
     (item) => !cooldownMap[item.key] || now - cooldownMap[item.key] > COOLDOWN_MS
   );
 
-  if (!candidate) return;
+  if (!candidate) {
+    try {
+      localStorage.setItem(SHADE_REMINDER_COOLDOWN_KEY, JSON.stringify(cooldownMap));
+    } catch {
+      // ignore
+    }
+    return;
+  }
 
   cooldownMap[candidate.key] = now;
   try {

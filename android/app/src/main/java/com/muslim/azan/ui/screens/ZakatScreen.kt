@@ -1,6 +1,5 @@
 package com.muslim.azan.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,7 +74,6 @@ private fun normalizeAndParseDecimal(raw: String): Double? {
 fun ZakatScreen(
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val prefs = remember { NativePreferences(context) }
     val scope = rememberCoroutineScope()

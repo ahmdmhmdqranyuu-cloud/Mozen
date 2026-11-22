@@ -145,7 +145,7 @@ export const FeatureGrid: React.FC<FeatureGridProps> = React.memo(({ onSelectFea
       className="moazen-widget flex flex-col items-center justify-between py-0.5 px-1 rounded-xl border border-[#D6C18D] hover:shadow-md hover:border-[#C5A059] transition-all active:scale-95 cursor-pointer text-center group min-h-[38px] sm:min-h-[42px]"
       title={item.title}
     >
-      <div className="w-5.5 h-5.5 sm:w-6 sm:h-6 rounded-full bg-[#EDE2C8] border border-[#D6C18D] overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105 shrink-0 p-0.5 shadow-2xs">
+      <div className="w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full bg-gradient-to-b from-[#FFFDF7] to-[#EDE2C8] border border-[#C5A059]/75 shadow-[0_2px_6px_rgba(16,75,64,0.16),inset_0_1px_1px_rgba(255,255,255,0.95)] ring-1 ring-white/75 overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105 shrink-0 p-[2.5px]">
         <img
           src={item.imageSrc}
           alt={item.title}

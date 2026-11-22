@@ -2,7 +2,6 @@ package com.muslim.azan.ui.screens
 
 import android.content.Intent
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,7 +31,6 @@ fun DuasScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val initialFavs = remember { prefs.getFavoriteDuaIds() }
     val initialDuas = remember(initialFavs) {

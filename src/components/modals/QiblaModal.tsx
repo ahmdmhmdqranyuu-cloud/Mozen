@@ -93,7 +93,13 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none animate-fadeIn" dir="rtl">
-      <div className="w-full h-full max-w-md mx-auto flex flex-col overflow-hidden relative">
+      <img
+        src="/assets/aistudio/________________ae325fdd.jpg"
+        alt="خلفية القبلة"
+        decoding="async"
+        className="absolute inset-0 w-full h-full object-cover object-top opacity-[0.14] pointer-events-none select-none z-0"
+      />
+      <div className="relative z-10 w-full h-full max-w-md mx-auto flex flex-col overflow-hidden">
         {/* Unified Muslim Plus Cream-Ivory Header */}
         <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b border-[#D6C18D] shrink-0">
           <div className="flex items-center gap-2.5">
@@ -119,17 +125,17 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
               isOnline
                 ? 'bg-[#F6EEDC] text-[#104B40] border-[#D6C18D]'
-                : 'bg-amber-50 text-amber-900 border-amber-200'
+                : 'bg-[#EDE2C8] text-[#9A7732] border-[#C5A059]/60'
             }`}
           >
             {isOnline ? (
               <>
-                <Wifi className="w-3 h-3 text-emerald-700" />
+                <Wifi className="w-3 h-3 text-[#104B40]" />
                 <span>متصل</span>
               </>
             ) : (
               <>
-                <WifiOff className="w-3 h-3 text-amber-700" />
+                <WifiOff className="w-3 h-3 text-[#9A7732]" />
                 <span>أوفلاين</span>
               </>
             )}
@@ -173,15 +179,15 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
             /* COMPASS VIEW */
             <div className="flex-1 flex flex-col items-center justify-between">
               {/* Top Location and Angle summary */}
-              <div className="moazen-widget w-full rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-gray-700">
-                  <MapPin className="w-4 h-4 text-rose-500" />
+              <div className="moazen-widget w-full rounded-2xl p-3 border border-[#D6C18D] shadow-xs flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-[#172A28]">
+                  <MapPin className="w-4 h-4 text-[#9A7732]" />
                   <span className="font-bold">{city.name} - {city.country}</span>
                 </div>
                 <div className="text-left font-mono">
-                  <span className="text-[11px] text-gray-500">زاوية القبلة: </span>
-                  <strong className="text-sm font-sans text-emerald-800">{targetAngle}°</strong>
-                  <span className="text-[10px] text-gray-400 mr-1">({qiblaInfo.compassDirection})</span>
+                  <span className="text-[11px] text-[#4B5B58]">زاوية القبلة: </span>
+                  <strong className="text-sm font-sans text-[#104B40]">{targetAngle}°</strong>
+                  <span className="text-[10px] text-[#9A7732] mr-1">({qiblaInfo.compassDirection})</span>
                 </div>
               </div>
 
@@ -189,10 +195,10 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               <div className="relative my-4 flex flex-col items-center">
                 {/* Status Indicator Pill */}
                 <div
-                  className={`mb-3 px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  className={`mb-3 px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 border ${
                     isAligned
-                      ? 'bg-emerald-600 text-white shadow-lg animate-bounce'
-                      : 'bg-amber-100 text-amber-900'
+                      ? 'bg-[#104B40] text-white border-[#C5A059] shadow-lg animate-bounce'
+                      : 'moazen-widget text-[#104B40] border-[#D6C18D]'
                   }`}
                 >
                   {isAligned ? (
@@ -206,10 +212,10 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                 </div>
 
                 {/* Compass Outer Ring */}
-                <div className="relative w-64 h-64 rounded-full bg-gradient-to-b from-[#1b4332] to-[#0d2818] p-3 shadow-2xl flex items-center justify-center border-4 border-amber-300/40">
+                <div className="relative w-64 h-64 rounded-full bg-gradient-to-b from-[#104B40] to-[#0D3D34] p-3 shadow-2xl flex items-center justify-center border-4 border-[#D6C18D]/85">
                   {/* Compass Rose dial */}
                   <div
-                    className="relative w-full h-full rounded-full bg-[#132e22] flex items-center justify-center transition-transform duration-300 ease-out"
+                    className="relative w-full h-full rounded-full bg-[#0E2B22] flex items-center justify-center transition-transform duration-300 ease-out"
                     style={{ transform: `rotate(${-currentHeading}deg)` }}
                   >
                     {/* Degree ticks */}
@@ -266,8 +272,8 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
 
                 {/* Current heading text */}
                 <div className="mt-3 text-center">
-                  <span className="text-xs text-gray-500">الاتجاه الحالي للهاتف: </span>
-                  <strong className="text-sm font-sans text-gray-800">{currentHeading}°</strong>
+                  <span className="text-xs text-[#4B5B58]">الاتجاه الحالي للهاتف: </span>
+                  <strong className="text-sm font-sans text-[#104B40]">{currentHeading}°</strong>
                 </div>
 
                 {/* Manual test slider if no sensor available */}
@@ -289,14 +295,14 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               </div>
 
               {/* Bottom Distance & Tips */}
-              <div className="moazen-widget w-full p-3.5 rounded-2xl border border-amber-900/10 text-right space-y-1 mt-auto">
+              <div className="moazen-widget w-full p-3.5 rounded-2xl border border-[#D6C18D] text-right space-y-1 mt-auto">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-gray-600">المسافة إلى المسجد الحرام:</span>
-                  <strong className="text-emerald-900 font-sans">
+                  <span className="text-[#4B5B58]">المسافة إلى المسجد الحرام:</span>
+                  <strong className="text-[#104B40] font-sans">
                     {qiblaInfo.distanceKm.toLocaleString()} كم
                   </strong>
                 </div>
-                <p className="text-[10px] text-gray-500 leading-relaxed mt-1">
+                <p className="text-[10px] text-[#4B5B58] leading-relaxed mt-1">
                   ملاحظة: ضع الهاتف على سطح مستوٍ وأبعده عن المعادن أو الأجهزة المغناطيسية لأعلى دقة.
                 </p>
               </div>
@@ -305,36 +311,36 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
             /* INTERACTIVE QIBLA MAP & GEODESIC TRAJECTORY VIEW */
             <div className="flex-1 flex flex-col space-y-3">
               {/* Honest Offline Notice Banner */}
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2">
-                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div className="moazen-widget-sub p-2.5 rounded-xl border border-[#D6C18D] text-[#172A28] text-xs flex items-start gap-2">
+                <Info className="w-4 h-4 text-[#9A7732] shrink-0 mt-0.5" />
                 <div className="space-y-0.5 text-[11px]">
-                  <span className="font-bold block">
+                  <span className="font-bold text-[#104B40] block">
                     {isOnline
                       ? 'الخريطة متصلة: يتم تخزين المناطق التي تتصفحها تلقائياً للعمل أوفلاين'
                       : 'أنت في وضع عدم الاتصال: يتم عرض الخرائط والبيانات المخزنة مسبقاً'}
                   </span>
-                  <span className="text-amber-800 text-[10px] block">
+                  <span className="text-[#4B5B58] text-[10px] block">
                     * ملاحظة أمانة: المناطق المحفوظة مسبقاً تعمل دون إنترنت، أما تحميل مناطق جديدة حول العالم فيتطلب اتصالاً.
                   </span>
                 </div>
               </div>
 
               {/* Interactive Vector / Tile Offline Map Canvas */}
-              <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border-2 border-emerald-900/20 bg-[#e8e4dc] shadow-inner flex items-center justify-center">
+              <div className="relative w-full h-72 sm:h-80 rounded-2xl overflow-hidden border border-[#D6C18D] bg-[#F6EEDC] shadow-inner flex items-center justify-center">
                 {/* SVG Geodesic Map Overlay with User & Kaaba */}
                 <svg viewBox="0 0 400 300" className="w-full h-full absolute inset-0">
-                  {/* Subtle regional geography lines */}
-                  <rect width="400" height="300" fill="#ede8df" />
+                  {/* Unified creamy regional map background */}
+                  <rect width="400" height="300" fill="#F2EAD4" />
                   <path
                     d="M 50,60 Q 120,40 180,80 T 260,110 T 350,90 L 370,220 Q 280,240 200,210 T 80,230 Z"
-                    fill="#dcd4c3"
-                    stroke="#c8beaa"
+                    fill="#E7DEC4"
+                    stroke="#D6C18D"
                     strokeWidth="1.5"
                   />
                   <path
                     d="M 170,110 Q 230,130 250,190 T 230,260 L 190,260 Q 180,200 160,150 Z"
-                    fill="#cfc5b0"
-                    stroke="#b8ac95"
+                    fill="#DFD3B4"
+                    stroke="#C5A059"
                     strokeWidth="1"
                   />
 
@@ -401,26 +407,26 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                 </svg>
 
                 {/* Floating trajectory info overlay card */}
-                <div className="moazen-widget absolute bottom-2 left-2 right-2 backdrop-blur-xs p-2.5 rounded-xl border border-gray-200 text-xs flex items-center justify-between shadow-xs">
+                <div className="moazen-widget absolute bottom-2 left-2 right-2 backdrop-blur-xs p-2.5 rounded-xl border border-[#D6C18D] text-xs flex items-center justify-between shadow-xs">
                   <div>
-                    <span className="text-[10px] text-gray-500 block">خط المسار المكي المباشر:</span>
-                    <strong className="text-emerald-950 font-black">
+                    <span className="text-[10px] text-[#4B5B58] block">خط المسار المكي المباشر:</span>
+                    <strong className="text-[#104B40] font-black">
                       {city.name} ➔ المسجد الحرام
                     </strong>
                   </div>
                   <div className="text-left font-mono">
-                    <span className="text-emerald-800 font-bold block">{qiblaInfo.distanceKm} كم</span>
-                    <span className="text-[10px] text-gray-500 font-sans">زاوية {targetAngle}°</span>
+                    <span className="text-[#104B40] font-bold block">{qiblaInfo.distanceKm} كم</span>
+                    <span className="text-[10px] text-[#9A7732] font-sans">زاوية {targetAngle}°</span>
                   </div>
                 </div>
               </div>
 
               {/* Offline Map Cache Management Actions */}
-              <div className="moazen-widget p-3 rounded-2xl border border-gray-200/90 shadow-2xs space-y-2">
+              <div className="moazen-widget p-3 rounded-2xl border border-[#D6C18D] shadow-2xs space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div>
-                    <h5 className="font-bold text-gray-900">إدارة التخزين المؤقت للخرائط</h5>
-                    <p className="text-[10px] text-gray-500">
+                    <h5 className="font-bold text-[#104B40]">إدارة التخزين المؤقت للخرائط</h5>
+                    <p className="text-[10px] text-[#4B5B58]">
                       يتم حفظ بلاطات الخرائط في ذاكرة الهاتف لتوفير البيانات والعمل أوفلاين
                     </p>
                   </div>
@@ -428,14 +434,14 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                     type="button"
                     onClick={handleClearTileCache}
                     disabled={clearingCache}
-                    className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-rose-700 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    className="px-2.5 py-1.5 rounded-xl bg-[#EDE2C8] hover:bg-[#D6C18D]/40 border border-[#D6C18D] text-[#104B40] text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{clearingCache ? 'جاري التنظيف...' : 'تنظيف الذاكرة'}</span>
                   </button>
                 </div>
                 {cacheMessage && (
-                  <p className="text-[10px] text-emerald-700 font-bold">{cacheMessage}</p>
+                  <p className="text-[10px] text-[#104B40] font-bold">{cacheMessage}</p>
                 )}
               </div>
             </div>

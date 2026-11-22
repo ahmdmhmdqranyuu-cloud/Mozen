@@ -312,7 +312,8 @@ class NativePreferences(context: Context) {
                 azanVoice = if (isObligatory) defaultVoice else if (isDuha) "duha_surah" else "salawat_1",
                 alertMode = if (isObligatory || isDuha) "full_azan" else "short_tone",
                 iqamaVoice = if (isObligatory) "iqama_1" else "none",
-                duaAfterPrayerEnabled = isObligatory
+                duaAfterPrayerEnabled = isObligatory,
+                didYouPrayEnabled = true
             )
         }
         return try {
@@ -330,7 +331,8 @@ class NativePreferences(context: Context) {
                 azanVoice = o.optString("azanVoice", if (isObligatory) defaultVoice else "salawat_1"),
                 alertMode = o.optString("alertMode", if (isObligatory) "full_azan" else "short_tone"),
                 iqamaVoice = o.optString("iqamaVoice", if (isObligatory) "iqama_1" else "none"),
-                duaAfterPrayerEnabled = o.optBoolean("duaAfterPrayerEnabled", isObligatory)
+                duaAfterPrayerEnabled = o.optBoolean("duaAfterPrayerEnabled", isObligatory),
+                didYouPrayEnabled = o.optBoolean("didYouPrayEnabled", true)
             )
         } catch (_: Exception) {
             com.muslim.azan.model.PrayerSettingConfig(
@@ -356,6 +358,7 @@ class NativePreferences(context: Context) {
             put("alertMode", config.alertMode)
             put("iqamaVoice", config.iqamaVoice)
             put("duaAfterPrayerEnabled", config.duaAfterPrayerEnabled)
+            put("didYouPrayEnabled", config.didYouPrayEnabled)
         }
         prefs.edit().putString("prayer_config_${config.prayerKey}", o.toString()).apply()
     }
@@ -379,7 +382,8 @@ class NativePreferences(context: Context) {
                     azanVoice = resolvedVoice,
                     alertMode = source.alertMode,
                     iqamaVoice = source.iqamaVoice,
-                    duaAfterPrayerEnabled = source.duaAfterPrayerEnabled
+                    duaAfterPrayerEnabled = source.duaAfterPrayerEnabled,
+                    didYouPrayEnabled = source.didYouPrayEnabled
                 )
             )
         }
@@ -971,4 +975,129 @@ class NativePreferences(context: Context) {
     var zakatFitrPerPerson: String
         get() = prefs.getString("zakat_fitr_per_person", "") ?: ""
         set(value) = prefs.edit().putString("zakat_fitr_per_person", value).apply()
+
+    // =========================================================================
+    // Worship Tracker (متتبع العبادات) Persistence — Daily + 7-Day Weekly History
+    // =========================================================================
+    fun getWorshipTargets(): Map<String, Int> {
+        val defaults = linkedMapOf(
+            "five_prayers" to 5,
+            "azkar_sabah_massa" to 2,
+            "quran_reading" to 10,
+            "after_prayer_azkar" to 5,
+            "duha_prayer" to 1,
+            "qiyam_witr" to 1,
+            "charity" to 1,
+            "salawat_prophet" to 100
+        )
+        val raw = prefs.getString("worship_tracker_targets_v1", null) ?: return defaults
+        return runCatching {
+            val o = JSONObject(raw)
+            defaults.mapValues { (k, defVal) -> o.optInt(k, defVal).coerceAtLeast(1) }
+        }.getOrDefault(defaults)
+    }
+
+    fun setWorshipTarget(key: String, target: Int) {
+        val current = getWorshipTargets().toMutableMap()
+        current[key] = target.coerceAtLeast(1)
+        val o = JSONObject()
+        current.forEach { (k, v) -> o.put(k, v) }
+        prefs.edit().putString("worship_tracker_targets_v1", o.toString()).apply()
+    }
+
+    fun getWorshipDayCounts(dateKey: String): Map<String, Int> {
+        val keys = listOf(
+            "five_prayers", "azkar_sabah_massa", "quran_reading", "after_prayer_azkar",
+            "duha_prayer", "qiyam_witr", "charity", "salawat_prophet"
+        )
+        val defaults = keys.associateWith { 0 }
+        val raw = prefs.getString("worship_tracker_days_v1", null) ?: return defaults
+        return runCatching {
+            val root = JSONObject(raw)
+            val dayObj = root.optJSONObject(dateKey) ?: return defaults
+            keys.associateWith { k -> dayObj.optInt(k, 0).coerceAtLeast(0) }
+        }.getOrDefault(defaults)
+    }
+
+    fun setWorshipItemCount(dateKey: String, key: String, count: Int) {
+        val raw = prefs.getString("worship_tracker_days_v1", null)
+        val root = runCatching { if (raw != null) JSONObject(raw) else JSONObject() }.getOrDefault(JSONObject())
+        val dayObj = root.optJSONObject(dateKey) ?: JSONObject()
+        dayObj.put(key, count.coerceAtLeast(0))
+        root.put(dateKey, dayObj)
+
+        // Prune older entries beyond 45 days
+        val dateKeys = mutableListOf<String>()
+        val iter = root.keys()
+        while (iter.hasNext()) dateKeys.add(iter.next())
+        dateKeys.sort()
+        while (dateKeys.size > 45) {
+            root.remove(dateKeys.removeAt(0))
+        }
+        prefs.edit().putString("worship_tracker_days_v1", root.toString()).apply()
+    }
+
+    var worshipReminderEnabled: Boolean
+        get() = prefs.getBoolean("worship_tracker_reminder_enabled", false)
+        set(value) = prefs.edit().putBoolean("worship_tracker_reminder_enabled", value).apply()
+
+    var worshipReminderTime: String
+        get() = prefs.getString("worship_tracker_reminder_time", "20:30") ?: "20:30"
+        set(value) = prefs.edit().putString("worship_tracker_reminder_time", value).apply()
+
+    // =========================================================================
+    // Hajj Rituals Interactive Checklist Persistence (12 Rituals + Reminders)
+    // =========================================================================
+    fun getHajjCompletedRitualIds(): Set<String> {
+        val raw = prefs.getString("hajj_checklist_completed_v1", null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildSet {
+                for (i in 0 until arr.length()) {
+                    val v = arr.optString(i, "")
+                    if (v.isNotBlank()) add(v)
+                }
+            }
+        }.getOrDefault(emptySet())
+    }
+
+    fun setHajjCompletedRitualIds(ids: Set<String>) {
+        val arr = JSONArray()
+        ids.sorted().forEach { arr.put(it) }
+        prefs.edit().putString("hajj_checklist_completed_v1", arr.toString()).apply()
+    }
+
+    fun getHajjRitualReminders(): Map<String, Long> {
+        val raw = prefs.getString("hajj_checklist_reminders_v1", null) ?: return emptyMap()
+        return runCatching {
+            val o = JSONObject(raw)
+            buildMap {
+                val iter = o.keys()
+                while (iter.hasNext()) {
+                    val k = iter.next()
+                    val v = o.optLong(k, 0L)
+                    if (v > 0L) put(k, v)
+                }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun setHajjRitualReminder(ritualId: String, epochMs: Long?) {
+        val map = getHajjRitualReminders().toMutableMap()
+        if (epochMs != null && epochMs > 0L) {
+            map[ritualId] = epochMs
+        } else {
+            map.remove(ritualId)
+        }
+        val o = JSONObject()
+        map.forEach { (k, v) -> o.put(k, v) }
+        prefs.edit().putString("hajj_checklist_reminders_v1", o.toString()).apply()
+    }
+
+    fun resetHajjChecklistAll() {
+        prefs.edit()
+            .remove("hajj_checklist_completed_v1")
+            .remove("hajj_checklist_reminders_v1")
+            .apply()
+    }
 }

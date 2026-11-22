@@ -43,41 +43,41 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       {/* Top Corner Controls: Notifications & Settings + Unboxed Gold Quran Ayah — keeps central painted Mihrab logo, lantern, minaret & mosque dome unobstructed */}
       <div className="relative z-10 flex items-start justify-between">
         {/* Notifications & Settings icon pills (Unified Cream-Ivory Widget Surface) */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={onOpenNotifications}
-            className="moazen-widget relative p-1.5 rounded-full border border-[#D6C18D] text-[#104B40] hover:brightness-98 transition-all shadow-sm cursor-pointer active:scale-95"
+            className="moazen-widget relative p-1 rounded-full border border-[#D6C18D] text-[#104B40] hover:brightness-98 transition-all shadow-sm cursor-pointer active:scale-95"
             title="التنبيهات والإشعارات"
           >
-            <Bell className="w-3.5 h-3.5" />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-rose-500 rounded-full border border-[#F6EEDC] animate-pulse" />
+            <Bell className="w-3 h-3" />
+            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-rose-500 rounded-full border border-[#F6EEDC] animate-pulse" />
           </button>
 
           <button
             type="button"
             onClick={onOpenSettings}
-            className="moazen-widget p-1.5 rounded-full border border-[#D6C18D] text-[#104B40] hover:brightness-98 transition-all shadow-sm cursor-pointer active:scale-95"
+            className="moazen-widget p-1 rounded-full border border-[#D6C18D] text-[#104B40] hover:brightness-98 transition-all shadow-sm cursor-pointer active:scale-95"
             title={t.settingsTitle}
           >
-            <Settings className="w-3.5 h-3.5" />
+            <Settings className="w-3 h-3" />
           </button>
         </div>
 
         {/* Unboxed Quran Ayah directly over sky/arch in Warm Gold */}
         <div className="text-right px-1 py-0 bg-transparent border-0 shadow-none">
-          <p className="text-[11px] font-bold text-[#F5D77F] tracking-wide font-quran leading-tight [text-shadow:0_1px_6px_rgba(12,35,29,0.78)]">
+          <p className="text-[10px] font-bold text-[#F5D77F] tracking-wide font-quran leading-tight [text-shadow:0_1px_6px_rgba(12,35,29,0.78)]">
             {t.ayahHeader}
           </p>
-          <span className="text-[9px] font-semibold text-[#F5D77F]/95 block mt-0 font-sans leading-tight [text-shadow:0_1px_5px_rgba(12,35,29,0.78)]">
+          <span className="text-[8.5px] font-semibold text-[#F5D77F]/95 block mt-0 font-sans leading-tight [text-shadow:0_1px_5px_rgba(12,35,29,0.78)]">
             {t.ayahSource}
           </span>
         </div>
       </div>
 
-      {/* Preserve the painted Mihrab arch, "مسلم بلس" logo, tagline, lantern, minaret & golden/green mosque horizon above PrayerCard */}
+      {/* Reduced ~38% upper dome/logo height while keeping Mihrab arch, logo & green mosque horizon cleanly framed above PrayerCard */}
       {leaveDomeClear ? (
-        <div className="h-[clamp(165px,26.2dvh,236px)] w-full pointer-events-none" />
+        <div className="h-[clamp(72px,11.5dvh,112px)] w-full pointer-events-none" />
       ) : (
         <div className="relative z-10 flex flex-col items-center mt-1 mb-1 select-none">
           <h1 className="text-base sm:text-lg font-black tracking-wide font-cairo leading-tight text-[#104B40] drop-shadow-xs">

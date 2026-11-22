@@ -28,7 +28,7 @@ public class AlarmScheduler {
     private static final String ACTION = "com.muslim.azan.ACTION_TRIGGER_REMINDER";
     private static final String PREFS = "azan_reminders_prefs";
     private static final String SCHEDULE_KEY = "active_schedule_json";
-    private static final int MAX_CONCURRENT_ALARMS = 250;
+    private static final int MAX_CONCURRENT_ALARMS = 320;
 
     /**
      * Schedules a genuine one-shot background test alarm after [delaySeconds] seconds
@@ -186,6 +186,83 @@ public class AlarmScheduler {
         AlarmScheduleTracker.BackgroundTestStatus status =
                 scheduleBackgroundTestAlarmDetailed(context, audioTrackId, cityName, delaySeconds);
         return "failed".equals(status.state) ? -1L : status.triggerAtMs;
+    }
+
+    /**
+     * Schedules a dedicated gentle one-shot custom reminder notification (used by Hajj checklist or Worship tracker).
+     * Completely isolated from Azan/Iqama schedule JSON so it never disrupts prayer schedules.
+     */
+    public static boolean scheduleSingleCustomReminder(
+            Context context,
+            String reminderId,
+            String title,
+            String body,
+            long triggerEpochMs
+    ) {
+        if (context == null || reminderId == null || reminderId.trim().isEmpty()) return false;
+        long nowMs = System.currentTimeMillis();
+        if (triggerEpochMs <= nowMs + 2000L) return false;
+
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return false;
+
+        try {
+            Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+            intent.setAction(ACTION);
+            intent.setData(Uri.parse("almoazen://custom_reminder/" + Uri.encode(reminderId)));
+            intent.putExtra("section", "custom_reminder");
+            intent.putExtra("reminderId", reminderId);
+            intent.putExtra("title", title != null ? title : "تذكير مسلم بلس");
+            intent.putExtra("body", body != null ? body : "");
+            intent.putExtra("autoPlay", false);
+
+            int requestCode = ("custom_" + reminderId).hashCode();
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            boolean canExact = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                canExact = alarmManager.canScheduleExactAlarms();
+            }
+
+            if (canExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerEpochMs, pendingIntent);
+            } else {
+                scheduleInexactWhileIdle(alarmManager, triggerEpochMs, pendingIntent);
+            }
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed scheduling custom reminder: " + reminderId, e);
+            return false;
+        }
+    }
+
+    public static void cancelSingleCustomReminder(Context context, String reminderId) {
+        if (context == null || reminderId == null || reminderId.trim().isEmpty()) return;
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
+        try {
+            Intent intent = new Intent(context, AzkarAlarmReceiver.class);
+            intent.setAction(ACTION);
+            intent.setData(Uri.parse("almoazen://custom_reminder/" + Uri.encode(reminderId)));
+            int requestCode = ("custom_" + reminderId).hashCode();
+            PendingIntent pi = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+            );
+            if (pi != null) {
+                alarmManager.cancel(pi);
+                pi.cancel();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed cancelling custom reminder: " + reminderId, e);
+        }
     }
 
     public static synchronized AlarmScheduleTracker.ScheduleOutcome rescheduleFromJson(Context context, String jsonArrayString) {

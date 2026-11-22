@@ -194,6 +194,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [currentLang, setCurrentLang] = useState<AppLanguage>(
     () => user.language || getSavedLanguage()
   );
+  useEffect(() => {
+    const resolved = user.language || getSavedLanguage();
+    if (resolved !== currentLang) {
+      setCurrentLang(resolved);
+    }
+  }, [user.language, isOpen]);
   const [dstMode, setDstMode] = useState<DstMode>(
     () => user.dstMode || getSavedDstMode()
   );
@@ -931,10 +937,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 !activeWidgetId ? 'justify-between py-0.5 sm:py-1.5' : 'justify-start py-2.5 sm:py-4'
               }`}
             >
-              {/* VIEW MODE 1: MAIN SETTINGS OVERVIEW (All 10 creamy-ivory glass widgets stacked vertically in 1 screen without scrolling) */}
+              {/* VIEW MODE 1: MAIN SETTINGS OVERVIEW (All 10 creamy-ivory glass widgets with slightly taller rows + bottom clearance showing the green mosque art) */}
               {!activeWidgetId ? (
-                <div className="animate-fadeIn max-w-2xl mx-auto w-full my-auto">
-                  <div className="flex flex-col gap-[3px] sm:gap-1">
+                <div className="animate-fadeIn max-w-2xl mx-auto w-full mt-1.5 mb-auto pb-[clamp(64px,11dvh,104px)]">
+                  <div className="flex flex-col gap-[4.5px] sm:gap-[5px]">
                     {widgetsList.map((sec) => (
                       <div
                         key={sec.id}
@@ -942,7 +948,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           setActiveWidgetId(sec.id);
                           setExpandedGroup(null);
                         }}
-                        className="moazen-widget rounded-xl px-2.5 py-[3px] sm:px-3 sm:py-1 border border-[#D6C18D] flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group hover:border-[#C5A059]"
+                        className="moazen-widget rounded-xl px-2.5 py-[5.5px] sm:px-3 sm:py-[6.5px] min-h-[38px] sm:min-h-[41px] border border-[#D6C18D] flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group hover:border-[#C5A059]"
                       >
                         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                           {/* Framed Square Icon filled 100% edge-to-edge */}
@@ -3493,15 +3499,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'privacy_terms' && (
                         <div className="p-3.5 bg-[#FAF4E4]/75 border-t border-[#D6C18D]/50 space-y-2">
-                          <p className="text-xs text-gray-600 leading-relaxed">
-                            خصوصيتك أمانة: يعمل تطبيق مسلم بلس محلياً بالكامل (Offline-First)
-                            على جهازك، ولا يقوم بجمع أو مشاركة أو بيع أي بيانات شخصية أو إحداثيات
-                            موقعك الجغرافي مع أي خوادم خارجية. جميع حسابات المواقيت واتجاه القبلة
-                            والأذكار تتم داخل هاتفك دون تتبع.
+                          <p className="text-xs text-gray-700 leading-relaxed font-semibold">
+                            يعمل تطبيق مسلم بلس بمنهجية العمل المحلي أولاً (Offline-First) بدون حسابات
+                            تسجيل أو إعلانات أو شبكات تتبع أو بيع للبيانات:
+                          </p>
+                          <p className="text-[11px] text-gray-600 leading-relaxed">
+                            • تُحسب مواقيت الصلاة واتجاه القبلة والأذكار والتسبيحات وتُحفظ محلياً داخل جهازك.
+                            <br />• الموقع الجغرافي (GPS أو البحث عن مدينة): يُرسل فقط عند طلبك عبر HTTPS إلى OpenStreetMap Nominatim لتحويل الإحداثيات إلى اسم مدينة.
+                            <br />• معلم القرآن «شيخي» والميكروفون: لا يُسجّل ولا يُرفع الصوت إلا عند ضغطك على زر التسميع للمراجعة القرآنية.
+                            <br />• البث والخلفيات: التلاوات (mp3quran.net / everyayah.com) والخلفيات (Wikimedia / Pexels) تُحمّل عبر HTTPS عند استخدامها أونلاين فقط.
                           </p>
                           <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs font-bold text-[#104B40] flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-[#104B40]" />
-                            <span>100% بدون تتبع أو إعلانات مزعجة</span>
+                            <span>خالٍ تماماً من الإعلانات وأدوات التتبع</span>
                           </div>
                         </div>
                       )}

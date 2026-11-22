@@ -1,6 +1,5 @@
 package com.muslim.azan.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,7 +34,6 @@ data class QuizQuestion(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuizScreen(onBack: () -> Unit) {
-    BackHandler { onBack() }
     val questions = remember {
         listOf(
             QuizQuestion(

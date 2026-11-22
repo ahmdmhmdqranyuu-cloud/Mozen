@@ -43,6 +43,7 @@ import com.muslim.azan.AzkarAudioService
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
+import com.muslim.azan.data.PermissionMonitorNotifier
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.model.CityLocation
 import com.muslim.azan.theme.*
@@ -158,12 +159,14 @@ fun OnboardingSetupScreen(
         } else {
             gpsFeedback = "تم رفض صلاحية الموقع؛ يمكنك اختيار مدينتك من البحث أدناه"
         }
+        PermissionMonitorNotifier.evaluateAndSyncNotifications(context.applicationContext, prefs.language)
     }
 
     val notifLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { _ ->
         permissionTick++
+        PermissionMonitorNotifier.evaluateAndSyncNotifications(context.applicationContext, prefs.language)
     }
 
     BackHandler(enabled = step > 0) {

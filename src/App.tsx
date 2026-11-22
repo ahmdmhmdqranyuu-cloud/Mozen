@@ -5,12 +5,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, BellRing, Sparkles, X, Moon } from 'lucide-react';
+import { MotionConfig } from 'framer-motion';
 import { Header } from './components/Header';
 import { PrayerCard } from './components/PrayerCard';
 import { FeatureGrid, FeatureKey } from './components/FeatureGrid';
 import { FeaturedQuranBanner } from './components/FeaturedQuranBanner';
 import { DailyCards } from './components/DailyCards';
 import { IslamicEventsBar } from './components/IslamicEventsBar';
+import { MuslimPlusBrandWidget } from './components/MuslimPlusBrandWidget';
+import { MotionModalPresence, MotionDialogPresence } from './components/common/MotionModalShell';
 import { BottomNav, TabKey } from './components/BottomNav';
 import { FloatingRecitationPlayer } from './components/FloatingRecitationPlayer';
 import { FloatingDiskPlayer } from './components/FloatingDiskPlayer';
@@ -67,6 +70,10 @@ import {
   getPrayerConfig,
   savePrayerConfigToUser,
   applyPrayerConfigToAllUser,
+  isObligatoryPrayer,
+  computeDidYouPrayTriggerMs,
+  formatDidYouPrayMessage,
+  didYouPrayDedupKey,
 } from './utils/prayerSettings';
 import { getSavedLanguage, applyDocumentDirection, getTranslation, AppLanguage } from './utils/i18n';
 import { userStatsTracker } from './utils/userStatsTracker';
@@ -449,6 +456,7 @@ export default function App() {
   const lastTriggeredCannonRef = useRef<string>('');
   const lastTriggeredDuhaQiyamRef = useRef<string>('');
   const lastPersistentSyncMinuteRef = useRef<number>(-1);
+  const didYouPrayFiredRef = useRef<Set<string>>(new Set());
 
   // Sync to local storage
   useEffect(() => {
@@ -717,6 +725,67 @@ export default function App() {
         }
       }
 
+      // 3b. Check «هل صليت؟» post-prayer check-in reminder (+5m after Iqama if active, or +5m after prayer time)
+      const checkInNowMs = now.getTime();
+      let storedDidPraySet: Record<string, boolean> = {};
+      try {
+        storedDidPraySet = JSON.parse(localStorage.getItem('moazen_did_you_pray_fired_v1') || '{}') || {};
+      } catch {
+        storedDidPraySet = {};
+      }
+      for (const item of calculated) {
+        const pCfg = getPrayerConfig(currentUser, item.key);
+        if (pCfg.didYouPrayEnabled === false) continue;
+        const obligatory = isObligatoryPrayer(item.key);
+        const iqamaVoiceId = pCfg.iqamaVoice || currentUser.iqamaVoice || (obligatory ? 'iqama_1' : 'none');
+        const hasIqama =
+          obligatory &&
+          pCfg.soundEnabled &&
+          Boolean(iqamaVoiceId) &&
+          iqamaVoiceId !== 'none' &&
+          pCfg.alertMode !== 'silent' &&
+          pCfg.alertMode !== 'vibrate_only';
+        const iqamaMins = intervals[item.key] ?? (item.key === 'maghrib' ? 7 : 15);
+        const triggerMs = computeDidYouPrayTriggerMs(item.timestamp.getTime(), iqamaMins, hasIqama);
+        if (checkInNowMs >= triggerMs && checkInNowMs < triggerMs + 120_000) {
+          const dedup = didYouPrayDedupKey(now, item.key);
+          if (!didYouPrayFiredRef.current.has(dedup) && !storedDidPraySet[dedup]) {
+            didYouPrayFiredRef.current.add(dedup);
+            storedDidPraySet[dedup] = true;
+            const keys = Object.keys(storedDidPraySet);
+            if (keys.length > 35) {
+              for (const k of keys.slice(0, keys.length - 35)) {
+                delete storedDidPraySet[k];
+              }
+            }
+            try {
+              localStorage.setItem('moazen_did_you_pray_fired_v1', JSON.stringify(storedDidPraySet));
+            } catch {
+              // ignore
+            }
+            if ('Notification' in window && Notification.permission === 'granted') {
+              try {
+                const msg = formatDidYouPrayMessage(item.key, currentUser.language);
+                const notif = new Notification(msg.title, {
+                  body: msg.body,
+                  icon: '/assets/icons/prayer.png?v=2',
+                  tag: `did_you_pray_${dedup}`,
+                });
+                notif.onclick = () => {
+                  try {
+                    window.focus?.();
+                  } catch {}
+                  setPrayerOpen(true);
+                  notif.close();
+                };
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      }
+
       // 4. Sync Persistent Prayer Notification & check missing feature permissions once per minute
       const nowMinute = now.getHours() * 60 + now.getMinutes();
       if (lastPersistentSyncMinuteRef.current !== nowMinute) {
@@ -736,6 +805,7 @@ export default function App() {
             autoPlayAzanEnabled: currentUser.autoPlayAzan !== false,
             smartAzanScreenEnabled: isSmartAzanWidgetEnabled(),
             persistentNotificationEnabled: extSetup.persistentNotificationEnabled,
+            language: currentUser.language,
           }).catch(() => {});
         }
       }
@@ -743,7 +813,26 @@ export default function App() {
 
     checkPrayerTimes();
     const interval = setInterval(checkPrayerTimes, 1000);
-    return () => clearInterval(interval);
+    const syncPermissionsOnResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (reminderScheduler.getSettings().hasCompletedFirstTimeSetup) {
+        const currentUser = userRef.current;
+        const extSetup = getExtendedSetupSettings();
+        checkAndNotifyMissingFeaturePermissions({
+          autoPlayAzanEnabled: currentUser.autoPlayAzan !== false,
+          smartAzanScreenEnabled: isSmartAzanWidgetEnabled(),
+          persistentNotificationEnabled: extSetup.persistentNotificationEnabled,
+          language: currentUser.language,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('focus', syncPermissionsOnResume);
+    document.addEventListener('visibilitychange', syncPermissionsOnResume);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', syncPermissionsOnResume);
+      document.removeEventListener('visibilitychange', syncPermissionsOnResume);
+    };
   }, []);
 
   // Feature grid item selection (memoized for React.memo FeatureGrid)
@@ -1057,6 +1146,7 @@ export default function App() {
     quranOpen;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="h-[100dvh] bg-[#0E2B22] text-[#172A28] flex flex-col w-full relative overflow-hidden">
       {/* Real-Time Live Azan Notification Banner */}
       {activeAzanBanner && (
@@ -1135,7 +1225,7 @@ export default function App() {
             src="/assets/aistudio/________________ae325fdd.jpg"
             alt="خلفية الصفحة الرئيسية"
             decoding="async"
-            className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none z-0"
+            className="absolute inset-0 w-full h-full object-cover object-[50%_15%] pointer-events-none select-none z-0"
           />
 
           <div className="relative z-10 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-between pt-[env(safe-area-inset-top,0px)] pb-[calc(54px+env(safe-area-inset-bottom,0px))]">
@@ -1151,6 +1241,8 @@ export default function App() {
                     onOpenSettings={handleOpenSettingsFromHome}
                     onOpenProfile={handleOpenProfileFromHome}
                   />
+
+                  <MuslimPlusBrandWidget language={user.language} />
 
                   <PrayerCard
                     city={user.city}
@@ -1197,8 +1289,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Islamic Events Bar anchored cleanly above BottomNav */}
-            <div className="mt-0.5 mb-0.5 px-1 sm:px-2.5 shrink-0">
+            {/* Islamic Events Bar */}
+            <div className="mt-0.5 mb-1.5 px-1 sm:px-2.5 shrink-0">
               <IslamicEventsBar
                 language={user.language}
                 onOpenEvents={() => {
@@ -1220,283 +1312,332 @@ export default function App() {
       />
 
       {/* Complete 604-Page Madinah Mushaf Modal */}
-      <QuranModal
-        isOpen={quranOpen}
-        onClose={() => {
-          setQuranOpen(false);
-          setQuranInitialTab('surah');
-          if (activeTab === 'quran') setActiveTab('home');
-        }}
-        initialPage={quranInitialPage}
-        initialTab={quranInitialTab}
-        user={user}
-        onUpdateLastReadPage={handleUpdateLastReadPage}
-      />
+      <MotionModalPresence isOpen={quranOpen} modalKey="quran-modal">
+        <QuranModal
+          isOpen={quranOpen}
+          onClose={() => {
+            setQuranOpen(false);
+            setQuranInitialTab('surah');
+            if (activeTab === 'quran') setActiveTab('home');
+          }}
+          initialPage={quranInitialPage}
+          initialTab={quranInitialTab}
+          user={user}
+          onUpdateLastReadPage={handleUpdateLastReadPage}
+        />
+      </MotionModalPresence>
 
-      <AzkarModal
-        isOpen={azkarOpen}
-        onClose={() => setAzkarOpen(false)}
-        onIncrementTotalTasbih={handleIncrementTasbih}
-      />
+      <MotionModalPresence isOpen={azkarOpen} modalKey="azkar-modal">
+        <AzkarModal
+          isOpen={azkarOpen}
+          onClose={() => setAzkarOpen(false)}
+          onIncrementTotalTasbih={handleIncrementTasbih}
+        />
+      </MotionModalPresence>
 
-      <PrayerModal
-        isOpen={prayerOpen}
-        onClose={() => {
-          setPrayerOpen(false);
-          if (activeTab === 'prayer') setActiveTab('home');
-        }}
-        city={user.city}
-        user={user}
-        onTogglePrayerToday={handleTogglePrayerToday}
-        onOpenPrayerSettings={(key) => setPrayerSettingsKey(key)}
-        onOpenLocationSettings={() => {
-          setPrayerOpen(false);
-          setActiveTab('settings');
-          setSettingsOpen(true);
-        }}
-      />
+      <MotionModalPresence isOpen={prayerOpen} modalKey="prayer-modal">
+        <PrayerModal
+          isOpen={prayerOpen}
+          onClose={() => {
+            setPrayerOpen(false);
+            if (activeTab === 'prayer') setActiveTab('home');
+          }}
+          city={user.city}
+          user={user}
+          onTogglePrayerToday={handleTogglePrayerToday}
+          onOpenPrayerSettings={(key) => setPrayerSettingsKey(key)}
+          onOpenLocationSettings={() => {
+            setPrayerOpen(false);
+            setActiveTab('settings');
+            setSettingsOpen(true);
+          }}
+        />
+      </MotionModalPresence>
 
-      <PrayerSettingsModal
-        isOpen={prayerSettingsKey !== null}
-        initialPrayerKey={prayerSettingsKey || 'fajr'}
-        user={user}
-        onClose={() => setPrayerSettingsKey(null)}
-        onSaveConfig={(cfg) => {
-          setUser((prev) => savePrayerConfigToUser(prev, cfg));
-        }}
-        onApplyToAllPrayers={(cfg) => {
-          setUser((prev) => applyPrayerConfigToAllUser(prev, cfg));
-        }}
-      />
+      <MotionModalPresence isOpen={prayerSettingsKey !== null} modalKey="prayer-settings-modal" zIndexClass="z-[55]">
+        <PrayerSettingsModal
+          isOpen={prayerSettingsKey !== null}
+          initialPrayerKey={prayerSettingsKey || 'fajr'}
+          user={user}
+          onClose={() => setPrayerSettingsKey(null)}
+          onSaveConfig={(cfg) => {
+            setUser((prev) => savePrayerConfigToUser(prev, cfg));
+          }}
+          onApplyToAllPrayers={(cfg) => {
+            setUser((prev) => applyPrayerConfigToAllUser(prev, cfg));
+          }}
+        />
+      </MotionModalPresence>
 
-      <QiblaModal
-        isOpen={qiblaOpen}
-        onClose={() => {
-          setQiblaOpen(false);
-          if (activeTab === 'qibla') setActiveTab('home');
-        }}
-        city={user.city}
-      />
+      <MotionModalPresence isOpen={qiblaOpen} modalKey="qibla-modal">
+        <QiblaModal
+          isOpen={qiblaOpen}
+          onClose={() => {
+            setQiblaOpen(false);
+            if (activeTab === 'qibla') setActiveTab('home');
+          }}
+          city={user.city}
+        />
+      </MotionModalPresence>
 
-      <HadithModal
-        isOpen={hadithOpen}
-        onClose={() => setHadithOpen(false)}
-      />
+      <MotionModalPresence isOpen={hadithOpen} modalKey="hadith-modal">
+        <HadithModal
+          isOpen={hadithOpen}
+          onClose={() => setHadithOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <SeerahModal
-        isOpen={seerahOpen}
-        onClose={() => setSeerahOpen(false)}
-      />
+      <MotionModalPresence isOpen={seerahOpen} modalKey="seerah-modal">
+        <SeerahModal
+          isOpen={seerahOpen}
+          onClose={() => setSeerahOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <HajjModal
-        isOpen={hajjOpen}
-        onClose={() => setHajjOpen(false)}
-      />
+      <MotionModalPresence isOpen={hajjOpen} modalKey="hajj-modal">
+        <HajjModal
+          isOpen={hajjOpen}
+          language={user.language}
+          onClose={() => setHajjOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <MasajidModal
-        isOpen={masajidOpen}
-        onClose={() => setMasajidOpen(false)}
-      />
+      <MotionModalPresence isOpen={masajidOpen} modalKey="masajid-modal">
+        <MasajidModal
+          isOpen={masajidOpen}
+          onClose={() => setMasajidOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <DuaModal
-        isOpen={duaOpen}
-        onClose={() => setDuaOpen(false)}
-      />
+      <MotionModalPresence isOpen={duaOpen} modalKey="dua-modal">
+        <DuaModal
+          isOpen={duaOpen}
+          onClose={() => setDuaOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <MoreModal
-        isOpen={moreOpen}
-        onClose={() => {
-          setMoreOpen(false);
-          if (activeTab === 'more') setActiveTab('home');
-        }}
-        defaultSubTab={moreSubTab}
-      />
+      <MotionModalPresence isOpen={moreOpen} modalKey="more-modal">
+        <MoreModal
+          isOpen={moreOpen}
+          onClose={() => {
+            setMoreOpen(false);
+            if (activeTab === 'more') setActiveTab('home');
+          }}
+          defaultSubTab={moreSubTab}
+        />
+      </MotionModalPresence>
 
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => {
-          setSettingsOpen(false);
-          if (activeTab === 'settings') setActiveTab('home');
-        }}
-        user={user}
-        onUpdateCity={(newCity) => {
-          savePersistentLocation(newCity);
-          setUser((prev) => ({ ...prev, city: newCity }));
-        }}
-        onUpdateCalculationMethod={(methodId) =>
-          setUser((prev) => ({ ...prev, calculationMethod: methodId }))
-        }
-        onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
-        onUpdateFajrAzanVoice={(voice) => setUser((prev) => ({ ...prev, fajrAzanVoice: voice }))}
-        onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
-        onToggleSoundEnabled={(en) => setUser((prev) => ({ ...prev, soundEnabled: en }))}
-        onUpdateUser={setUser}
-        onOpenPrayerSettings={(key) => {
-          setSettingsOpen(false);
-          setActiveTab('home');
-          setPrayerSettingsKey(key);
-        }}
-        onOpenFirstTimeSetup={() => {
-          setSettingsOpen(false);
-          if (activeTab === 'settings') setActiveTab('home');
-          setFirstTimeSetupOpen(true);
-        }}
-        onLogoutReset={() => {
-          soundService.stopAudio();
-          resetFirstRunPermissionsState();
-          resetAllFirstTimeOnboardingFlags();
-          reminderScheduler.setCompletedFirstTimeSetup(false);
-          setSettingsOpen(false);
-          setActiveTab('home');
-          setFirstRunPermissionsOpen(false);
-          setFirstTimeSetupOpen(true);
-        }}
-        onTriggerTestSmartAzanWidget={() => {
-          setSettingsOpen(false);
-          if (activeTab === 'settings') setActiveTab('home');
-          const nowMs = Date.now();
-          const iqamaDuration = (user.iqamaIntervals || DEFAULT_IQAMA_MINUTES).dhuhr || 15;
-          setSmartAzanSession({
-            prayerKey: 'dhuhr',
-            prayerName: 'الظهر',
-            azanTimeStr: new Date().toLocaleTimeString('ar-EG', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-            }),
-            cityName: user.city.name,
-            iqamaDurationMinutes: iqamaDuration,
-            startedAtMs: nowMs,
-            iqamaTargetMs: nowMs + iqamaDuration * 60 * 1000,
-          });
-          setSmartAzanMinimized(false);
-          setSmartAzanAudioPlaying(true);
-          soundService.playAzan(user.azanVoice || 'makkah', false, () => {
-            setSmartAzanAudioPlaying(false);
-          });
-        }}
-      />
+      <MotionModalPresence isOpen={settingsOpen} modalKey="settings-modal">
+        <SettingsModal
+          isOpen={settingsOpen}
+          onClose={() => {
+            setSettingsOpen(false);
+            if (activeTab === 'settings') setActiveTab('home');
+          }}
+          user={user}
+          onUpdateCity={(newCity) => {
+            savePersistentLocation(newCity);
+            setUser((prev) => ({ ...prev, city: newCity }));
+          }}
+          onUpdateCalculationMethod={(methodId) =>
+            setUser((prev) => ({ ...prev, calculationMethod: methodId }))
+          }
+          onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
+          onUpdateFajrAzanVoice={(voice) => setUser((prev) => ({ ...prev, fajrAzanVoice: voice }))}
+          onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
+          onToggleSoundEnabled={(en) => setUser((prev) => ({ ...prev, soundEnabled: en }))}
+          onUpdateUser={setUser}
+          onOpenPrayerSettings={(key) => {
+            setSettingsOpen(false);
+            setActiveTab('home');
+            setPrayerSettingsKey(key);
+          }}
+          onOpenFirstTimeSetup={() => {
+            setSettingsOpen(false);
+            if (activeTab === 'settings') setActiveTab('home');
+            setFirstTimeSetupOpen(true);
+          }}
+          onLogoutReset={() => {
+            soundService.stopAudio();
+            resetFirstRunPermissionsState();
+            resetAllFirstTimeOnboardingFlags();
+            reminderScheduler.setCompletedFirstTimeSetup(false);
+            setSettingsOpen(false);
+            setActiveTab('home');
+            setFirstRunPermissionsOpen(false);
+            setFirstTimeSetupOpen(true);
+          }}
+          onTriggerTestSmartAzanWidget={() => {
+            setSettingsOpen(false);
+            if (activeTab === 'settings') setActiveTab('home');
+            const nowMs = Date.now();
+            const iqamaDuration = (user.iqamaIntervals || DEFAULT_IQAMA_MINUTES).dhuhr || 15;
+            setSmartAzanSession({
+              prayerKey: 'dhuhr',
+              prayerName: 'الظهر',
+              azanTimeStr: new Date().toLocaleTimeString('ar-EG', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              }),
+              cityName: user.city.name,
+              iqamaDurationMinutes: iqamaDuration,
+              startedAtMs: nowMs,
+              iqamaTargetMs: nowMs + iqamaDuration * 60 * 1000,
+            });
+            setSmartAzanMinimized(false);
+            setSmartAzanAudioPlaying(true);
+            soundService.playAzan(user.azanVoice || 'makkah', false, () => {
+              setSmartAzanAudioPlaying(false);
+            });
+          }}
+        />
+      </MotionModalPresence>
 
-      <RamadanModal
-        isOpen={ramadanOpen}
-        onClose={() => {
-          setRamadanOpen(false);
-          if (activeTab === 'ramadan') setActiveTab('home');
-        }}
-        user={user}
-        onUpdateFastingTracker={handleUpdateFastingTracker}
-        onOpenQuranReader={handleOpenReaderAt}
-      />
+      <MotionModalPresence isOpen={ramadanOpen} modalKey="ramadan-modal">
+        <RamadanModal
+          isOpen={ramadanOpen}
+          onClose={() => {
+            setRamadanOpen(false);
+            if (activeTab === 'ramadan') setActiveTab('home');
+          }}
+          user={user}
+          onUpdateFastingTracker={handleUpdateFastingTracker}
+          onOpenQuranReader={handleOpenReaderAt}
+        />
+      </MotionModalPresence>
 
+      <MotionModalPresence isOpen={profileOpen} modalKey="profile-modal">
+        <ProfileModal
+          isOpen={profileOpen}
+          onClose={() => {
+            setProfileOpen(false);
+            if (activeTab === 'profile') setActiveTab('home');
+          }}
+          user={user}
+          onUpdateUserName={(name) => setUser((prev) => ({ ...prev, name }))}
+          onOpenQuranReader={() => {
+            setProfileOpen(false);
+            handleOpenReaderAt(1, 1, user.lastReadPage || 1);
+          }}
+        />
+      </MotionModalPresence>
 
-      <ProfileModal
-        isOpen={profileOpen}
-        onClose={() => {
-          setProfileOpen(false);
-          if (activeTab === 'profile') setActiveTab('home');
-        }}
-        user={user}
-        onUpdateUserName={(name) => setUser((prev) => ({ ...prev, name }))}
-        onOpenQuranReader={() => {
-          setProfileOpen(false);
-          handleOpenReaderAt(1, 1, user.lastReadPage || 1);
-        }}
-      />
+      <MotionModalPresence isOpen={notificationsOpen} modalKey="notifications-modal">
+        <NotificationsModal
+          isOpen={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <NotificationsModal
-        isOpen={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
+      <MotionModalPresence isOpen={ruqyahOpen} modalKey="ruqyah-modal">
+        <RuqyahModal
+          isOpen={ruqyahOpen}
+          onClose={() => setRuqyahOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <RuqyahModal
-        isOpen={ruqyahOpen}
-        onClose={() => setRuqyahOpen(false)}
-      />
+      <MotionModalPresence isOpen={quizOpen} modalKey="quiz-modal">
+        <QuizModal
+          isOpen={quizOpen}
+          onClose={() => setQuizOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <QuizModal
-        isOpen={quizOpen}
-        onClose={() => setQuizOpen(false)}
-      />
+      {/* Newly Added Section Modals */}
+      <MotionModalPresence isOpen={tasbihOpen} modalKey="tasbih-modal">
+        <TasbihModal
+          isOpen={tasbihOpen}
+          onClose={() => setTasbihOpen(false)}
+          totalTasbihCount={user.totalTasbihCount}
+          onIncrementTotalTasbih={handleIncrementTasbih}
+        />
+      </MotionModalPresence>
 
-      {/* 8 Newly Added Section Modals */}
-      <TasbihModal
-        isOpen={tasbihOpen}
-        onClose={() => setTasbihOpen(false)}
-        totalTasbihCount={user.totalTasbihCount}
-        onIncrementTotalTasbih={handleIncrementTasbih}
-      />
+      <MotionModalPresence isOpen={namesOpen} modalKey="names-modal">
+        <NamesOfAllahModal
+          isOpen={namesOpen}
+          language={user.language}
+          onClose={() => setNamesOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <NamesOfAllahModal
-        isOpen={namesOpen}
-        onClose={() => setNamesOpen(false)}
-      />
+      <MotionModalPresence isOpen={recitationsOpen} modalKey="recitations-modal">
+        <RecitationsModal
+          isOpen={recitationsOpen}
+          onClose={() => setRecitationsOpen(false)}
+          onOpenSurahPage={(surahNum) => {
+            setRecitationsOpen(false);
+            handleOpenReaderAt(surahNum, 1);
+          }}
+        />
+      </MotionModalPresence>
 
-      <RecitationsModal
-        isOpen={recitationsOpen}
-        onClose={() => setRecitationsOpen(false)}
-        onOpenSurahPage={(surahNum) => {
-          setRecitationsOpen(false);
-          handleOpenReaderAt(surahNum, 1);
-        }}
-      />
+      <MotionModalPresence isOpen={wallpapersOpen} modalKey="wallpapers-modal">
+        <WallpapersModal
+          isOpen={wallpapersOpen}
+          onClose={() => setWallpapersOpen(false)}
+        />
+      </MotionModalPresence>
 
-      <WallpapersModal
-        isOpen={wallpapersOpen}
-        onClose={() => setWallpapersOpen(false)}
-      />
-
-      <ProphetsModal
-        isOpen={prophetsOpen}
-        onClose={() => setProphetsOpen(false)}
-      />
+      <MotionModalPresence isOpen={prophetsOpen} modalKey="prophets-modal">
+        <ProphetsModal
+          isOpen={prophetsOpen}
+          onClose={() => setProphetsOpen(false)}
+        />
+      </MotionModalPresence>
 
       {/* First-Time 4-Page Full-Screen Setup Wizard */}
-      <FirstTimeSetupModal
-        isOpen={firstTimeSetupOpen}
-        onComplete={() => {
-          markFirstRunPermissionsSeen();
-          reminderScheduler.setCompletedFirstTimeSetup(true);
-          setFirstTimeSetupOpen(false);
-        }}
-        user={user}
-        onUpdateCity={(newCity) =>
-          setUser((prev) => ({
-            ...prev,
-            city: newCity,
-            calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
-          }))
-        }
-        onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
-        onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
-        onUpdateDstMode={(mode) => setUser((prev) => ({ ...prev, dstMode: mode }))}
-        onUpdateLanguage={(lang) => setUser((prev) => ({ ...prev, language: lang }))}
-        onUpdateUser={setUser}
-      />
+      <MotionModalPresence isOpen={firstTimeSetupOpen} modalKey="first-time-setup" zIndexClass="z-[100]">
+        <FirstTimeSetupModal
+          isOpen={firstTimeSetupOpen}
+          onComplete={() => {
+            markFirstRunPermissionsSeen();
+            reminderScheduler.setCompletedFirstTimeSetup(true);
+            setFirstTimeSetupOpen(false);
+          }}
+          user={user}
+          onUpdateCity={(newCity) =>
+            setUser((prev) => ({
+              ...prev,
+              city: newCity,
+              calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
+            }))
+          }
+          onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
+          onToggleAutoPlayAzan={(en) => setUser((prev) => ({ ...prev, autoPlayAzan: en }))}
+          onUpdateDstMode={(mode) => setUser((prev) => ({ ...prev, dstMode: mode }))}
+          onUpdateLanguage={(lang) => setUser((prev) => ({ ...prev, language: lang }))}
+          onUpdateUser={setUser}
+        />
+      </MotionModalPresence>
 
       {/* Dedicated Permissions Management Modal (Opened from Notification Shade reminders or Settings) */}
-      <PermissionsModal
-        isOpen={firstRunPermissionsOpen}
-        isFirstRunWelcome={false}
-        focusedPermissionKey={focusedPermissionKey}
-        onClose={() => {
-          markFirstRunPermissionsSeen();
-          setFocusedPermissionKey(null);
-          setFirstRunPermissionsOpen(false);
-        }}
-        onCompleteFirstRun={() => {
-          markFirstRunPermissionsSeen();
-          setFocusedPermissionKey(null);
-          setFirstRunPermissionsOpen(false);
-        }}
-        onUpdateCity={(newCity) => {
-          savePersistentLocation(newCity);
-          setUser((prev) => ({
-            ...prev,
-            city: newCity,
-            calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
-          }));
-        }}
-      />
+      <MotionModalPresence isOpen={firstRunPermissionsOpen} modalKey="permissions-modal" zIndexClass="z-[90]">
+        <PermissionsModal
+          isOpen={firstRunPermissionsOpen}
+          isFirstRunWelcome={false}
+          focusedPermissionKey={focusedPermissionKey}
+          onClose={() => {
+            markFirstRunPermissionsSeen();
+            setFocusedPermissionKey(null);
+            setFirstRunPermissionsOpen(false);
+          }}
+          onCompleteFirstRun={() => {
+            markFirstRunPermissionsSeen();
+            setFocusedPermissionKey(null);
+            setFirstRunPermissionsOpen(false);
+          }}
+          onUpdateCity={(newCity) => {
+            savePersistentLocation(newCity);
+            setUser((prev) => ({
+              ...prev,
+              city: newCity,
+              calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
+            }));
+          }}
+        />
+      </MotionModalPresence>
 
       {/* 10-Minute Pre-Prayer Floating Alert Banner with Live Countdown */}
       {approachingAlert && approachingSecondsLeft > 0 && (
@@ -1582,50 +1723,59 @@ export default function App() {
       <FloatingDiskPlayer />
 
       {/* Home Exit Confirmation Dialog */}
-      {exitConfirmOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn" dir="rtl">
-          <div className="moazen-widget w-full max-w-sm rounded-3xl p-5 border-2 border-[#C5A059]/60 shadow-2xl space-y-4">
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#104B40] font-cairo">
-                الخروج من تطبيق مسلم بلس
-              </h3>
-              <p className="text-xs text-[#4B5B58] font-semibold">
-                هل تريد الخروج من تطبيق مسلم بلس؟
-              </p>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setExitConfirmOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold cursor-pointer transition-colors"
-              >
-                البقاء في التطبيق
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setExitConfirmOpen(false);
-                  try {
-                    const winBridge = window as unknown as {
-                      AndroidPrayerBridge?: { finishApp?: () => void };
-                    };
-                    if (typeof winBridge.AndroidPrayerBridge?.finishApp === 'function') {
-                      winBridge.AndroidPrayerBridge.finishApp();
-                    } else {
-                      window.history.back();
-                    }
-                  } catch {
-                    // ignore
+      <MotionDialogPresence
+        isOpen={exitConfirmOpen}
+        dialogKey="exit-confirm-dialog"
+        zIndexClass="z-[100]"
+        onBackdropClick={() => setExitConfirmOpen(false)}
+      >
+        <div
+          className="moazen-widget w-full rounded-3xl p-5 border-2 border-[#C5A059]/60 shadow-2xl space-y-4"
+          dir={user.language === 'en' ? 'ltr' : 'rtl'}
+        >
+          <div className="text-center space-y-1.5">
+            <h3 className="text-base font-black text-[#104B40] font-cairo">
+              {user.language === 'en' ? 'Exit Muslim Plus' : 'الخروج من تطبيق مسلم بلس'}
+            </h3>
+            <p className="text-xs text-[#4B5B58] font-semibold">
+              {user.language === 'en'
+                ? 'Do you want to exit Muslim Plus?'
+                : 'هل تريد الخروج من تطبيق مسلم بلس؟'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setExitConfirmOpen(false)}
+              className="flex-1 py-2.5 rounded-xl bg-[#104B40] hover:bg-[#0B3D35] text-white text-xs font-bold cursor-pointer transition-colors"
+            >
+              {user.language === 'en' ? 'Stay in App' : 'البقاء في التطبيق'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExitConfirmOpen(false);
+                try {
+                  const winBridge = window as unknown as {
+                    AndroidPrayerBridge?: { finishApp?: () => void };
+                  };
+                  if (typeof winBridge.AndroidPrayerBridge?.finishApp === 'function') {
+                    winBridge.AndroidPrayerBridge.finishApp();
+                  } else {
+                    window.history.back();
                   }
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
-              >
-                نعم، خروج
-              </button>
-            </div>
+                } catch {
+                  // ignore
+                }
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer transition-colors"
+            >
+              {user.language === 'en' ? 'Yes, Exit' : 'نعم، خروج'}
+            </button>
           </div>
         </div>
-      )}
+      </MotionDialogPresence>
     </div>
+    </MotionConfig>
   );
 }

@@ -45,6 +45,9 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
     private var playlistSubtitle: String = ""
     private var activeContext: Context? = null
 
+    private val _volume = MutableStateFlow(1.0f)
+    val volume: StateFlow<Float> = _volume.asStateFlow()
+
     private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         val playing = runCatching { mediaPlayer?.isPlaying == true }.getOrDefault(false)
         when (focusMachine.onFocusChange(focusChange, playing, isPriorityAzanBlocked())) {
@@ -64,12 +67,14 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 }
             }
             AudioFocusStateMachine.FocusAction.DUCK_VOLUME -> {
-                runCatching { mediaPlayer?.setVolume(0.25f, 0.25f) }
+                val duck = (_volume.value * 0.25f).coerceIn(0.05f, 0.25f)
+                runCatching { mediaPlayer?.setVolume(duck, duck) }
             }
             AudioFocusStateMachine.FocusAction.RESUME_AFTER_TRANSIENT -> {
+                val vol = _volume.value
                 runCatching {
                     mediaPlayer?.let { p ->
-                        p.setVolume(1.0f, 1.0f)
+                        p.setVolume(vol, vol)
                         if (!p.isPlaying && !isPriorityAzanBlocked()) {
                             p.start()
                             _isPlaying.value = true
@@ -80,7 +85,8 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 }
             }
             AudioFocusStateMachine.FocusAction.RESTORE_VOLUME_ONLY -> {
-                runCatching { mediaPlayer?.setVolume(1.0f, 1.0f) }
+                val vol = _volume.value
+                runCatching { mediaPlayer?.setVolume(vol, vol) }
             }
             AudioFocusStateMachine.FocusAction.NONE -> Unit
         }
@@ -228,6 +234,8 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 player.setOnCompletionListener(this)
                 player.setOnErrorListener(this)
                 player.prepare()
+                val vol = _volume.value
+                player.setVolume(vol, vol)
                 player.start()
                 mediaPlayer = player
 
@@ -284,6 +292,8 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                 setOnCompletionListener(this@NativeAudioPlayerManager)
                 setOnErrorListener(this@NativeAudioPlayerManager)
                 prepare()
+                val vol = _volume.value
+                setVolume(vol, vol)
                 start()
             }
             mediaPlayer = player
@@ -390,6 +400,8 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                             mp.playbackParams = mp.playbackParams.setSpeed(currentSpeed)
                         }
                     }
+                    val vol = _volume.value
+                    mp.setVolume(vol, vol)
                     mp.start()
                     _currentTitle.value = playlistTitle
                     _currentSubtitle.value = playlistSubtitle
@@ -422,6 +434,14 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
                     }
                 }
             }
+        }
+    }
+
+    fun setVolume(vol: Float) {
+        val clamped = vol.coerceIn(0f, 1f)
+        _volume.value = clamped
+        mediaPlayer?.let { mp ->
+            runCatching { mp.setVolume(clamped, clamped) }
         }
     }
 

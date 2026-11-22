@@ -1,6 +1,5 @@
 package com.muslim.azan.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,7 +32,6 @@ fun RamadanScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     val todayKey = remember {
         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())

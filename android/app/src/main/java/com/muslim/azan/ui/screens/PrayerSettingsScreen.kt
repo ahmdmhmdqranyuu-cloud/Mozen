@@ -128,14 +128,13 @@ fun PrayerSettingsScreen(
     var helpDialogBody by remember { mutableStateOf<String?>(null) }
     var showApplyAllDialog by remember { mutableStateOf(false) }
 
-    BackHandler {
+    BackHandler(enabled = helpDialogTitle != null || showApplyAllDialog) {
         when {
             helpDialogTitle != null -> {
                 helpDialogTitle = null
                 helpDialogBody = null
             }
             showApplyAllDialog -> showApplyAllDialog = false
-            else -> onBack()
         }
     }
 
@@ -678,6 +677,26 @@ fun PrayerSettingsScreen(
                         }
                     }
                 }
+            }
+
+            // 11. «هل صليت؟» Post-Prayer Check-in Reminder Switch
+            item {
+                PrayerSettingSwitchCard(
+                    title = "تذكير «هل صليت؟» بعد ${draft.arabicName}",
+                    subtitle = if (draft.didYouPrayEnabled) {
+                        "مفعّل — إشعار لطيف بعد الإقامة بـ 5 دقائق (أو بعد الموعد بـ 5 دقائق)"
+                    } else {
+                        "متوقف لهذه الصلاة"
+                    },
+                    checked = draft.didYouPrayEnabled,
+                    onCheckedChange = { draft = draft.copy(didYouPrayEnabled = it) },
+                    onHelpClick = {
+                        openHelp(
+                            "تذكير «هل صليت؟»",
+                            "يرسل إشعارًا لطيفًا بعد 5 دقائق من الإقامة (أو بعد 5 دقائق من الموعد عند عدم وجود إقامة) دون التأثير على الأذان أو الإقامة."
+                        )
+                    }
+                )
             }
 
             item { Spacer(modifier = Modifier.height(8.dp)) }

@@ -3,7 +3,6 @@ package com.muslim.azan.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -70,7 +69,6 @@ fun MasajidScreen(
     prefs: NativePreferences,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
     var activeTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }

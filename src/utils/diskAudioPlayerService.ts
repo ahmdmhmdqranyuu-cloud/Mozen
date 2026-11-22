@@ -25,6 +25,7 @@ export interface DiskPlayerState {
   duration: number;
   isExpanded: boolean;
   playbackRate: number;
+  volume: number;
 }
 
 type Listener = (state: DiskPlayerState) => void;
@@ -47,7 +48,7 @@ export const ASMAA_ALLAH_TRACK: DiskAudioTrack = {
   artworkUrl: '/assets/settings_icons/icon_profile.jpg',
 };
 
-const ASMAA_FALLBACK_URL = '/assets/aistudio/Hisham_Abbas_-_Asmaa_Allah_Al_Hosna__Lyrics_______________-__________________________48k__73f3bd99.mp3';
+const ASMAA_FALLBACK_URL = '/audio/asmaa_allah_al_husna.mp3';
 
 import { audioPriorityCoordinator } from './audioPriorityCoordinator';
 
@@ -65,6 +66,7 @@ class DiskAudioPlayerService {
     duration: 0,
     isExpanded: false,
     playbackRate: 1.0,
+    volume: 1.0,
   };
 
   constructor() {
@@ -169,6 +171,7 @@ class DiskAudioPlayerService {
       const audio = new Audio(urlToUse);
       audio.preload = 'auto';
       audio.playbackRate = this.state.playbackRate;
+      audio.volume = Math.max(0, Math.min(1, this.state.volume));
       this.audio = audio;
 
       audio.onloadedmetadata = () => {
@@ -335,6 +338,14 @@ class DiskAudioPlayerService {
       this.audio.playbackRate = rate;
     }
     this.updateState({ playbackRate: rate });
+  }
+
+  public setVolume(volume: number): void {
+    const clamped = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+    if (this.audio) {
+      this.audio.volume = clamped;
+    }
+    this.updateState({ volume: clamped });
   }
 
   public stop(): void {

@@ -230,14 +230,13 @@ fun WallpapersScreen(
 
     val filteredOnline = catalog
 
-    BackHandler {
+    BackHandler(enabled = previewingWallpaper != null || previewingSavedRecord != null || showingSavedTab) {
         when {
             previewingWallpaper != null || previewingSavedRecord != null -> {
                 previewingWallpaper = null
                 previewingSavedRecord = null
             }
             showingSavedTab -> showingSavedTab = false
-            else -> onBack()
         }
     }
 

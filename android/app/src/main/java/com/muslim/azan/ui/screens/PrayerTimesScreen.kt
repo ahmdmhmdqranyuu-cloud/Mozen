@@ -117,12 +117,8 @@ fun PrayerTimesScreen(
 
     var showCalcMethodDialog by remember { mutableStateOf(false) }
 
-    BackHandler {
-        if (showCalcMethodDialog) {
-            showCalcMethodDialog = false
-        } else {
-            onBack()
-        }
+    BackHandler(enabled = showCalcMethodDialog) {
+        showCalcMethodDialog = false
     }
 
     fun triggerGpsDetection() {

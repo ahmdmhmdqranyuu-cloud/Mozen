@@ -211,17 +211,9 @@ object SystemPermissionHelper {
     fun openBatteryOptimizationSettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:" + context.packageName)
-                }
-                startActivitySafely(context, intent)
+                startActivitySafely(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 return
-            } catch (_: Exception) {
-                try {
-                    startActivitySafely(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    return
-                } catch (_: Exception) {}
-            }
+            } catch (_: Exception) {}
         }
         openAppDetailsSettings(context)
     }

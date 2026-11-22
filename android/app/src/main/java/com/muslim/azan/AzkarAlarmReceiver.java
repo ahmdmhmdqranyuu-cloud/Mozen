@@ -1,5 +1,6 @@
 package com.muslim.azan;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -7,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.Build;
@@ -14,6 +16,13 @@ import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
+
+import org.json.JSONObject;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * Triggered by Android AlarmManager even when the app is completely closed or screen is locked.
@@ -34,6 +43,20 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
         }
 
         String section = intent.getStringExtra("section");
+        if ("custom_reminder".equals(section)) {
+            postPoliteCustomReminderNotification(
+                    context,
+                    intent.getStringExtra("reminderId"),
+                    intent.getStringExtra("title"),
+                    intent.getStringExtra("body")
+            );
+            return;
+        }
+        if ("did_you_pray".equals(section)) {
+            postDidYouPrayReminderNotification(context, intent.getStringExtra("prayerKey"));
+            return;
+        }
+
         String prayerKey = intent.getStringExtra("prayerKey");
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
@@ -288,6 +311,175 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             manager.notify(notifId, builder.build());
         } catch (Exception ex) {
             Log.e(TAG, "Failed posting fallback notification", ex);
+        }
+    }
+
+    private void postPoliteCustomReminderNotification(
+            Context context,
+            String reminderId,
+            String title,
+            String body
+    ) {
+        if (context == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+        }
+        try {
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return;
+
+            String channelId = "muslim_plus_gentle_reminders";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (manager.getNotificationChannel(channelId) == null) {
+                    NotificationChannel channel = new NotificationChannel(
+                            channelId,
+                            "تذكيرات العبادات والمناسك",
+                            NotificationManager.IMPORTANCE_DEFAULT
+                    );
+                    channel.setDescription("تذكيرات لطيفة اختيارية لمتتبع العبادات وقائمة مناسك الحج");
+                    manager.createNotificationChannel(channel);
+                }
+            }
+
+            Intent openIntent = new Intent(context, MainActivity.class);
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pi = PendingIntent.getActivity(
+                    context,
+                    7500 + Math.abs((reminderId != null ? reminderId : "custom").hashCode() % 400),
+                    openIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            String resolvedTitle = (title != null && !title.isEmpty()) ? title : "تذكير مسلم بلس";
+            String resolvedBody = (body != null && !body.isEmpty()) ? body : "حان موعد التذكير الذي حددته";
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_notification_muslim_plus)
+                    .setContentTitle(resolvedTitle)
+                    .setContentText(resolvedBody)
+                    .setStyle(new NotificationCompat.BigTextStyle().bigText(resolvedBody))
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .setContentIntent(pi);
+
+            int notifId = 7600 + Math.abs((reminderId != null ? reminderId : "custom").hashCode() % 400);
+            manager.notify(notifId, builder.build());
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed posting custom reminder notification", ex);
+        }
+    }
+
+    private void postDidYouPrayReminderNotification(Context context, String prayerKey) {
+        if (context == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+        }
+        String key = (prayerKey != null && !prayerKey.isEmpty()) ? prayerKey : "fajr";
+        SharedPreferences prefs = context.getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
+
+        // Respect live per-prayer toggle
+        String cfgRaw = prefs.getString("prayer_config_" + key, null);
+        if (cfgRaw != null && !cfgRaw.isEmpty()) {
+            try {
+                JSONObject cfg = new JSONObject(cfgRaw);
+                if (!cfg.optBoolean("didYouPrayEnabled", true)) {
+                    return;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Daily once-per-day per-prayer deduplication
+        String dateStr = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        String dedupPrefKey = "did_pray_reminded_" + dateStr + "_" + key;
+        if (prefs.getBoolean(dedupPrefKey, false)) {
+            return;
+        }
+        prefs.edit().putBoolean(dedupPrefKey, true).apply();
+
+        String lang = prefs.getString("app_language", "ar");
+        boolean isEnglish = "en".equals(lang);
+
+        String title;
+        String body;
+        if (isEnglish) {
+            title = "Have you prayed?";
+            String enName;
+            switch (key) {
+                case "fajr": enName = "Fajr"; break;
+                case "sunrise": enName = "Sunrise"; break;
+                case "duha": enName = "Duha"; break;
+                case "dhuhr": enName = "Dhuhr"; break;
+                case "asr": enName = "Asr"; break;
+                case "maghrib": enName = "Maghrib"; break;
+                case "isha": enName = "Isha"; break;
+                default: enName = "this prayer"; break;
+            }
+            body = "Have you prayed " + enName + "?";
+        } else {
+            title = "هل صليت؟";
+            String arName;
+            switch (key) {
+                case "fajr": arName = "الفجر"; break;
+                case "sunrise": arName = "الشروق"; break;
+                case "duha": arName = "الضحى"; break;
+                case "dhuhr": arName = "الظهر"; break;
+                case "asr": arName = "العصر"; break;
+                case "maghrib": arName = "المغرب"; break;
+                case "isha": arName = "العشاء"; break;
+                default: arName = "الصلاة"; break;
+            }
+            body = "هل صليت " + arName + "؟";
+        }
+
+        try {
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return;
+
+            String channelId = "muslim_plus_prayer_checkin";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (manager.getNotificationChannel(channelId) == null) {
+                    NotificationChannel channel = new NotificationChannel(
+                            channelId,
+                            isEnglish ? "Prayer Check-in Reminders" : "تذكير «هل صليت؟»",
+                            NotificationManager.IMPORTANCE_DEFAULT
+                    );
+                    channel.setDescription(
+                            isEnglish
+                                    ? "Gentle post-prayer check-in reminders"
+                                    : "تذكير لطيف للتحقق من أداء الصلاة في وقتها"
+                    );
+                    manager.createNotificationChannel(channel);
+                }
+            }
+
+            Intent openIntent = new Intent(context, MainActivity.class);
+            openIntent.putExtra("open_route", "prayer_times");
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pi = PendingIntent.getActivity(
+                    context,
+                    8100 + Math.abs(key.hashCode() % 50),
+                    openIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_notification_muslim_plus)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .setContentIntent(pi);
+
+            int notifId = 8200 + Math.abs(key.hashCode() % 50);
+            manager.notify(notifId, builder.build());
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed posting did-you-pray notification", ex);
         }
     }
 }

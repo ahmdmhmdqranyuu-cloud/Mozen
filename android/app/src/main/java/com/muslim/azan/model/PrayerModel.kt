@@ -51,7 +51,8 @@ data class PrayerSettingConfig(
     val azanVoice: String = "makkah",
     val alertMode: String = "full_azan", // full_azan | short_tone | vibrate_only | silent
     val iqamaVoice: String = "iqama_1",
-    val duaAfterPrayerEnabled: Boolean = true
+    val duaAfterPrayerEnabled: Boolean = true,
+    val didYouPrayEnabled: Boolean = true
 )
 
 data class OnlineWallpaperItem(

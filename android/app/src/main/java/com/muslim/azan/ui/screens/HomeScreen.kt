@@ -53,7 +53,9 @@ import com.muslim.azan.data.DailyIslamicContent
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
+import androidx.compose.ui.draw.shadow
 import com.muslim.azan.ui.components.MoazenWidgetCard
+import androidx.compose.ui.BiasAlignment
 import com.muslim.azan.ui.navigation.Screen
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -66,15 +68,19 @@ data class GridItem(
     val subtitleAr: String,
     val icon: ImageVector,
     val screen: Screen?,
-    val iconResId: Int? = null
+    val iconResId: Int? = null,
+    val titleEn: String = titleAr,
+    val subtitleEn: String = subtitleAr
 )
 
 @Composable
 fun HomeScreen(
     prefs: NativePreferences,
+    language: String = prefs.language,
     onNavigate: (Screen) -> Unit,
     onOpenPrayerSettings: (String) -> Unit = {}
 ) {
+    val isEnglish = language == "en"
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var refreshTick by remember { mutableIntStateOf(0) }
@@ -191,14 +197,25 @@ fun HomeScreen(
     val remS = remainingTotalSeconds % 60
     val countdownText = String.format(Locale.US, "%02d : %02d : %02d", remS, remM, remH)
 
-    val calcMethodLabel = remember(prefs.calculationMethod) {
-        when (prefs.calculationMethod) {
-            "egypt" -> "الهيئة المصرية للمساحة"
-            "mwl" -> "رابطة العالم الإسلامي"
-            "isna" -> "الجمعية الإسلامية بأمريكا"
-            "karachi" -> "جامعة كراتشي"
-            "dubai" -> "توقيت الخليج / دبي"
-            else -> "توقيت أم القرى"
+    val calcMethodLabel = remember(prefs.calculationMethod, isEnglish) {
+        if (isEnglish) {
+            when (prefs.calculationMethod) {
+                "egypt" -> "Egyptian Survey Authority"
+                "mwl" -> "Muslim World League"
+                "isna" -> "ISNA (North America)"
+                "karachi" -> "Univ. of Islamic Sciences, Karachi"
+                "dubai" -> "Gulf / Dubai Standard"
+                else -> "Umm Al-Qura, Makkah"
+            }
+        } else {
+            when (prefs.calculationMethod) {
+                "egypt" -> "الهيئة المصرية للمساحة"
+                "mwl" -> "رابطة العالم الإسلامي"
+                "isna" -> "الجمعية الإسلامية بأمريكا"
+                "karachi" -> "جامعة كراتشي"
+                "dubai" -> "توقيت الخليج / دبي"
+                else -> "توقيت أم القرى"
+            }
         }
     }
 
@@ -207,25 +224,25 @@ fun HomeScreen(
     }
 
     val gridItems = listOf(
-        GridItem("القرآن الكريم", "قراءة وتفسير", Icons.Default.MenuBook, Screen.Quran, R.drawable.ic_feat_quran),
-        GridItem("مواقيت الصلاة", "تنبيه وأذكار", Icons.Default.AccessTime, Screen.PrayerTimes, R.drawable.ic_feat_prayer),
-        GridItem("الأذكار اليومية", "الصباح والمساء", Icons.Default.AutoStories, Screen.Azkar, R.drawable.ic_feat_azkar),
-        GridItem("القبلة", "تحديد الاتجاه", Icons.Default.Explore, Screen.Qibla, R.drawable.ic_feat_qibla),
-        GridItem("الأحاديث النبوية", "الجامع الصحيح", Icons.Default.FormatQuote, Screen.Hadith, R.drawable.ic_feat_hadith),
-        GridItem("الأدعية", "أدعية قرآنية ونبوية", Icons.Default.VolunteerActivism, Screen.Duas, R.drawable.ic_feat_dua),
-        GridItem("السيرة النبوية", "حياة النبي ﷺ", Icons.Default.HistoryEdu, Screen.Seerah, R.drawable.ic_feat_seerah),
-        GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj, R.drawable.ic_feat_hajj),
-        GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih, R.drawable.ic_feat_tasbih),
-        GridItem("أسماء الله", "الأسماء الحسنى (99)", Icons.Default.AutoAwesome, Screen.NamesOfAllah, R.drawable.ic_feat_names),
-        GridItem("الرقية والسنن", "التحصين والشفاء", Icons.Default.Shield, Screen.Ruqyah, R.drawable.ic_feat_ruqyah),
-        GridItem("المساجد والعيدين", "المساجد والمناسبات", Icons.Default.LocationCity, Screen.Masajid, R.drawable.ic_feat_recitations),
-        GridItem("الزكاة", "حاسبة الزكاة", Icons.Default.Calculate, Screen.Zakat),
-        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets, R.drawable.ic_feat_prophets),
-        GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers, R.drawable.ic_feat_wallpapers),
-        GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz, R.drawable.ic_feat_quiz),
-        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan, R.drawable.ic_feat_ramadan),
-        GridItem("ملفي الشخصي", "الإحصائيات والختمة", Icons.Default.Person, Screen.Profile),
-        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings, R.drawable.ic_feat_settings)
+        GridItem("القرآن الكريم", "قراءة وتفسير", Icons.Default.MenuBook, Screen.Quran, R.drawable.ic_feat_quran, "Holy Quran", "Read & Tafseer"),
+        GridItem("مواقيت الصلاة", "تنبيه وأذكار", Icons.Default.AccessTime, Screen.PrayerTimes, R.drawable.ic_feat_prayer, "Prayer Times", "Alerts & Azan"),
+        GridItem("الأذكار اليومية", "الصباح والمساء", Icons.Default.AutoStories, Screen.Azkar, R.drawable.ic_feat_azkar, "Daily Azkar", "Morning & Evening"),
+        GridItem("القبلة", "تحديد الاتجاه", Icons.Default.Explore, Screen.Qibla, R.drawable.ic_feat_qibla, "Qibla", "Compass Direction"),
+        GridItem("الأحاديث النبوية", "الجامع الصحيح", Icons.Default.FormatQuote, Screen.Hadith, R.drawable.ic_feat_hadith, "Hadith", "Sahih Collections"),
+        GridItem("الأدعية", "أدعية قرآنية ونبوية", Icons.Default.VolunteerActivism, Screen.Duas, R.drawable.ic_feat_dua, "Duas", "Quran & Sunnah"),
+        GridItem("السيرة النبوية", "حياة النبي ﷺ", Icons.Default.HistoryEdu, Screen.Seerah, R.drawable.ic_feat_seerah, "Seerah", "Prophetic Biography"),
+        GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj, R.drawable.ic_feat_hajj, "Hajj & Umrah", "Rituals & Duas"),
+        GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih, R.drawable.ic_feat_tasbih, "Tasbih", "Digital Counter"),
+        GridItem("أسماء الله", "الأسماء الحسنى (99)", Icons.Default.AutoAwesome, Screen.NamesOfAllah, R.drawable.ic_feat_names, "99 Names", "Asma ul-Husna"),
+        GridItem("الرقية والسنن", "التحصين والشفاء", Icons.Default.Shield, Screen.Ruqyah, R.drawable.ic_feat_ruqyah, "Ruqyah", "Healing & Sunnah"),
+        GridItem("المساجد والعيدين", "المساجد والمناسبات", Icons.Default.LocationCity, Screen.Masajid, R.drawable.ic_feat_recitations, "Masajid", "Mosques & Events"),
+        GridItem("الزكاة", "حاسبة الزكاة", Icons.Default.Calculate, Screen.Zakat, null, "Zakat", "Calculator"),
+        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets, R.drawable.ic_feat_prophets, "Prophets", "Stories & Lessons"),
+        GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers, R.drawable.ic_feat_wallpapers, "Wallpapers", "HD Backgrounds"),
+        GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz, R.drawable.ic_feat_quiz, "Islamic Quiz", "Test Knowledge"),
+        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan, R.drawable.ic_feat_ramadan, "Ramadan", "Fasting & Qiyam"),
+        GridItem("ملفي الشخصي", "الإحصائيات والختمة", Icons.Default.Person, Screen.Profile, null, "My Profile", "Stats & Khatma"),
+        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings, R.drawable.ic_feat_settings, "Settings", "Customize App")
     )
 
     var isGridExpanded by remember { mutableStateOf(false) }
@@ -246,18 +263,18 @@ fun HomeScreen(
                     painter = painterResource(id = R.drawable.bg_home_fullscreen),
                     contentDescription = "خلفية مسلم بلس",
                     contentScale = ContentScale.Crop,
-                    alignment = Alignment.TopCenter,
+                    alignment = BiasAlignment(0f, -0.76f),
                     modifier = Modifier.matchParentSize()
                 )
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 4.dp),
+                        .padding(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Transparent Top Header & Prayer Times Card anchored cleanly beneath the upper Dome & green mosque horizon
-                    val mosqueClearSpacer = (viewportMinHeight * 0.305f - 70.dp).coerceIn(145.dp, 224.dp)
+                    // Balanced Upper Mosque & Logo Region leaving space for the Muslim Plus brand widget + PrayerCard
+                    val mosqueClearSpacer = (viewportMinHeight * 0.15f - 44.dp).coerceIn(58.dp, 98.dp)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -265,7 +282,7 @@ fun HomeScreen(
                             .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 0.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                    // Top Corner Row: Unboxed Warm Gold Verse + Cream-Ivory Action Icons — leaves central mosque dome completely clear
+                    // Top Corner Row: Compact Warm Gold Verse + Cream-Ivory Action Icons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -273,12 +290,12 @@ fun HomeScreen(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.Start,
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
                         ) {
                             Text(
                                 text = "وَما تَوْفِيقِي إِلَّا بِاللَّهِ",
                                 color = Color(0xFFF5D77F),
-                                fontSize = 14.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 style = TextStyle(
                                     shadow = Shadow(
@@ -291,7 +308,7 @@ fun HomeScreen(
                             Text(
                                 text = "سورة هود - 88",
                                 color = Color(0xFFF5D77F).copy(alpha = 0.92f),
-                                fontSize = 10.5.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 style = TextStyle(
                                     shadow = Shadow(
@@ -303,14 +320,14 @@ fun HomeScreen(
                             )
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Surface(
                                 shape = CircleShape,
                                 color = MoazenCardStart.copy(alpha = 0.95f),
-                                border = BorderStroke(1.2.dp, MoazenCardBorder),
+                                border = BorderStroke(1.1.dp, MoazenCardBorder),
                                 shadowElevation = 3.dp,
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(31.dp)
                                     .clip(CircleShape)
                                     .clickable { onNavigate(Screen.Settings) }
                             ) {
@@ -319,17 +336,17 @@ fun HomeScreen(
                                         imageVector = Icons.Default.Settings,
                                         contentDescription = "الإعدادات",
                                         tint = MoazenInkEmerald,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
                             Surface(
                                 shape = CircleShape,
                                 color = MoazenCardStart.copy(alpha = 0.95f),
-                                border = BorderStroke(1.2.dp, MoazenCardBorder),
+                                border = BorderStroke(1.1.dp, MoazenCardBorder),
                                 shadowElevation = 3.dp,
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(31.dp)
                                     .clip(CircleShape)
                                     .clickable { onNavigate(Screen.PrayerTimes) }
                             ) {
@@ -338,15 +355,83 @@ fun HomeScreen(
                                         imageVector = Icons.Default.Notifications,
                                         contentDescription = "التنبيهات والمواقيت",
                                         tint = MoazenInkEmerald,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Lower PrayerCard cleanly below the green-domed mosque, minaret & trees horizon
+                    // Lift brand widget & PrayerCard cleanly upward while keeping mosque arch & dome horizon clear
                     Spacer(modifier = Modifier.height(mosqueClearSpacer))
+
+                    // Creamy Muslim Plus Brand Widget above PrayerCard (switches AR/EN automatically, no foreign background)
+                    MoazenWidgetCard(
+                        cornerRadius = 15.dp,
+                        borderColor = MoazenCardBorder,
+                        elevation = 3.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 3.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(MoazenInkEmerald, MuslimPlusPillEmerald)
+                                            )
+                                        )
+                                        .border(1.dp, MoazenGold.copy(alpha = 0.8f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NightsStay,
+                                        contentDescription = null,
+                                        tint = Color(0xFFF5D77F),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        text = if (isEnglish || (language != "ar" && language != "ur")) "Muslim Plus" else "مسلم بلس",
+                                        color = MoazenInkEmerald,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "✦",
+                                        color = MoazenGold,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Text(
+                                text = if (isEnglish) "Azan • Quran • Azkar" else "المؤذن • القرآن • الأذكار",
+                                color = MoazenGoldDark,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
 
                     // Unified Ivory-Cream Prayer Times Card (#F6EEDC -> #EDE2C8, #D6C18D border)
                     MoazenWidgetCard(
@@ -424,15 +509,25 @@ fun HomeScreen(
                                             verticalArrangement = Arrangement.spacedBy(1.5.dp),
                                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp)
                                         ) {
+                                            val nextPrayerDisplay = if (isEnglish) {
+                                                when (nextPrayerName) {
+                                                    "الفجر" -> "Fajr"
+                                                    "الظهر" -> "Dhuhr"
+                                                    "العصر" -> "Asr"
+                                                    "المغرب" -> "Maghrib"
+                                                    "العشاء" -> "Isha"
+                                                    else -> nextPrayerName
+                                                }
+                                            } else nextPrayerName
                                             Text(
-                                                text = nextPrayerName,
+                                                text = nextPrayerDisplay,
                                                 color = MoazenInkEmerald,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
                                             Text(
-                                                text = "متبقي للصلاة",
+                                                text = if (isEnglish) "Remaining Time" else "متبقي للصلاة",
                                                 color = MoazenGoldDark,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.SemiBold,
@@ -456,13 +551,13 @@ fun HomeScreen(
 
                                     // 7 Prayer Columns (Fajr, Sunrise, Duha, Dhuhr, Asr, Maghrib, Isha)
                                     val miniWidgets = listOf(
-                                        Triple("fajr", "الفجر", prayers.fajrMinutes),
-                                        Triple("sunrise", "الشروق", prayers.sunriseMinutes),
-                                        Triple("duha", "الضحى", prayers.duhaMinutes),
-                                        Triple("dhuhr", "الظهر", prayers.dhuhrMinutes),
-                                        Triple("asr", "العصر", prayers.asrMinutes),
-                                        Triple("maghrib", "المغرب", prayers.maghribMinutes),
-                                        Triple("isha", "العشاء", prayers.ishaMinutes)
+                                        Triple("fajr", if (isEnglish) "Fajr" else "الفجر", prayers.fajrMinutes),
+                                        Triple("sunrise", if (isEnglish) "Sunrise" else "الشروق", prayers.sunriseMinutes),
+                                        Triple("duha", if (isEnglish) "Duha" else "الضحى", prayers.duhaMinutes),
+                                        Triple("dhuhr", if (isEnglish) "Dhuhr" else "الظهر", prayers.dhuhrMinutes),
+                                        Triple("asr", if (isEnglish) "Asr" else "العصر", prayers.asrMinutes),
+                                        Triple("maghrib", if (isEnglish) "Maghrib" else "المغرب", prayers.maghribMinutes),
+                                        Triple("isha", if (isEnglish) "Isha" else "العشاء", prayers.ishaMinutes)
                                     )
 
                                     Row(
@@ -470,10 +565,18 @@ fun HomeScreen(
                                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         miniWidgets.forEach { (key, label, mins) ->
+                                            val arMatch = when (key) {
+                                                "fajr" -> "الفجر"
+                                                "dhuhr" -> "الظهر"
+                                                "asr" -> "العصر"
+                                                "maghrib" -> "المغرب"
+                                                "isha" -> "العشاء"
+                                                else -> ""
+                                            }
                                             DailyPrayerMiniChip(
                                                 name = label,
                                                 time = PrayerTimeCalculator.formatMinutesToHHmm(mins),
-                                                isNext = nextPrayerName == label,
+                                                isNext = nextPrayerName == arMatch,
                                                 isDuha = key == "duha",
                                                 labelFontSize = labelFontSize,
                                                 timeFontSize = timeFontSize,
@@ -520,11 +623,16 @@ fun HomeScreen(
                                         ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(26.dp)
+                                                    .size(28.dp)
+                                                    .shadow(2.5.dp, CircleShape, clip = false)
                                                     .clip(CircleShape)
-                                                    .background(MoazenSubCardBg)
-                                                    .border(1.dp, MoazenCardBorder, CircleShape)
-                                                    .padding(3.dp),
+                                                    .background(
+                                                        Brush.verticalGradient(
+                                                            colors = listOf(Color(0xFFFFFDF8), MoazenSubCardBg)
+                                                        )
+                                                    )
+                                                    .border(1.1.dp, MoazenGold.copy(alpha = 0.72f), CircleShape)
+                                                    .padding(2.5.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (item.iconResId != null) {
@@ -545,7 +653,7 @@ fun HomeScreen(
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = item.titleAr,
+                                                text = if (isEnglish) item.titleEn else item.titleAr,
                                                 color = MoazenInkEmerald,
                                                 fontSize = 9.5.sp,
                                                 fontWeight = FontWeight.Bold,
@@ -554,7 +662,7 @@ fun HomeScreen(
                                                 textAlign = TextAlign.Center
                                             )
                                             Text(
-                                                text = item.subtitleAr,
+                                                text = if (isEnglish) item.subtitleEn else item.subtitleAr,
                                                 color = MoazenInkMuted,
                                                 fontSize = 7.5.sp,
                                                 maxLines = 1,
@@ -598,11 +706,16 @@ fun HomeScreen(
                                                 ) {
                                                     Box(
                                                         modifier = Modifier
-                                                            .size(26.dp)
+                                                            .size(28.dp)
+                                                            .shadow(2.5.dp, CircleShape, clip = false)
                                                             .clip(CircleShape)
-                                                            .background(MoazenSubCardBg)
-                                                            .border(1.dp, MoazenCardBorder, CircleShape)
-                                                            .padding(3.dp),
+                                                            .background(
+                                                                Brush.verticalGradient(
+                                                                    colors = listOf(Color(0xFFFFFDF8), MoazenSubCardBg)
+                                                                )
+                                                            )
+                                                            .border(1.1.dp, MoazenGold.copy(alpha = 0.72f), CircleShape)
+                                                            .padding(2.5.dp),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         if (item.iconResId != null) {
@@ -623,7 +736,7 @@ fun HomeScreen(
                                                     }
                                                     Spacer(modifier = Modifier.height(2.dp))
                                                     Text(
-                                                        text = item.titleAr,
+                                                        text = if (isEnglish) item.titleEn else item.titleAr,
                                                         color = MoazenInkEmerald,
                                                         fontSize = 9.5.sp,
                                                         fontWeight = FontWeight.Bold,
@@ -632,7 +745,7 @@ fun HomeScreen(
                                                         textAlign = TextAlign.Center
                                                     )
                                                     Text(
-                                                        text = item.subtitleAr,
+                                                        text = if (isEnglish) item.subtitleEn else item.subtitleAr,
                                                         color = MoazenInkMuted,
                                                         fontSize = 7.5.sp,
                                                         maxLines = 1,
@@ -750,14 +863,14 @@ fun HomeScreen(
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
-                                            text = "آية اليوم • القرآن الكريم",
+                                            text = if (isEnglish) "Verse of the Day • Holy Quran" else "آية اليوم • القرآن الكريم",
                                             color = MoazenInkEmerald,
                                             fontSize = 12.5.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
-                                            text = "• صفحة ${dailySnapshot.ayah.pageNumber} من 604",
+                                            text = if (isEnglish) "• Page ${dailySnapshot.ayah.pageNumber} / 604" else "• صفحة ${dailySnapshot.ayah.pageNumber} من 604",
                                             color = MoazenInkMuted,
                                             fontSize = 9.5.sp
                                         )
@@ -795,14 +908,14 @@ fun HomeScreen(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             ) {
                                                 Text(
-                                                    text = "متابعة القراءة",
+                                                    text = if (isEnglish) "Continue Reading" else "متابعة القراءة",
                                                     color = Color.White,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Spacer(modifier = Modifier.width(3.dp))
                                                 Icon(
-                                                    imageVector = Icons.Default.ChevronLeft,
+                                                    imageVector = if (isEnglish) Icons.Default.ChevronRight else Icons.Default.ChevronLeft,
                                                     contentDescription = null,
                                                     tint = Color.White,
                                                     modifier = Modifier.size(12.dp)
@@ -821,7 +934,7 @@ fun HomeScreen(
                                                 }
                                         ) {
                                             Text(
-                                                text = "معلم القرآن AI",
+                                                text = if (isEnglish) "Quran Tutor" else "معلم القرآن AI",
                                                 color = MoazenInkEmerald,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
