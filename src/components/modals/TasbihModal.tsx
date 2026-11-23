@@ -19,6 +19,7 @@ interface TasbihModalProps {
   onClose: () => void;
   totalTasbihCount: number;
   onIncrementTotalTasbih: (amount: number) => void;
+  tasbihSoundConfig?: { enabled: boolean; volumePercent: number };
 }
 
 interface ZikrPreset {
@@ -84,6 +85,7 @@ export const TasbihModal: React.FC<TasbihModalProps> = ({
   onClose,
   totalTasbihCount,
   onIncrementTotalTasbih,
+  tasbihSoundConfig,
 }) => {
   const [presets, setPresets] = useState<ZikrPreset[]>(DEFAULT_PRESETS);
   const [selectedZikrId, setSelectedZikrId] = useState<string>('subhanallah');
@@ -91,13 +93,22 @@ export const TasbihModal: React.FC<TasbihModalProps> = ({
   const [selectedTarget, setSelectedTarget] = useState<number>(33);
   const [customZikrText, setCustomZikrText] = useState<string>('');
   const [isAddingCustom, setIsAddingCustom] = useState<boolean>(false);
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(
+    () => tasbihSoundConfig?.enabled ?? true
+  );
   const [vibrateEnabled, setVibrateEnabled] = useState<boolean>(true);
   const [completedRounds, setCompletedRounds] = useState<number>(0);
+
+  React.useEffect(() => {
+    if (typeof tasbihSoundConfig?.enabled === 'boolean') {
+      setSoundEnabled(tasbihSoundConfig.enabled);
+    }
+  }, [tasbihSoundConfig?.enabled]);
 
   if (!isOpen) return null;
 
   const currentPreset = presets.find((p) => p.id === selectedZikrId) || presets[0];
+  const tasbihVolume = tasbihSoundConfig?.volumePercent ?? 85;
 
   const handleTap = () => {
     const nextCount = count + 1;
@@ -105,7 +116,7 @@ export const TasbihModal: React.FC<TasbihModalProps> = ({
     onIncrementTotalTasbih(1);
 
     if (soundEnabled) {
-      soundService.playTasbihClick();
+      soundService.playTasbihClick(tasbihVolume);
     }
 
     if (vibrateEnabled && navigator.vibrate) {
@@ -116,7 +127,7 @@ export const TasbihModal: React.FC<TasbihModalProps> = ({
     if (selectedTarget > 0 && nextCount % selectedTarget === 0) {
       setCompletedRounds((r) => r + 1);
       if (soundEnabled) {
-        soundService.playSuccessCelebration();
+        soundService.playSuccessCelebration(tasbihVolume);
       }
       if (vibrateEnabled && navigator.vibrate) {
         navigator.vibrate([60, 50, 60]);

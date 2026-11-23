@@ -32,10 +32,14 @@ interface PrayerCardProps {
 const SHORT_METHOD_NAMES: Record<string, string> = {
   egypt: 'الهيئة المصرية للمساحة',
   makkah: 'أم القرى',
+  umm_al_qura: 'أم القرى',
   mwl: 'رابطة العالم الإسلامي',
+  dubai: 'دبي والإمارات',
+  uoif: 'فرنسا UOIF',
   karachi: 'كراتشي',
   isna: 'ISNA',
   kuwait: 'الكويت',
+  qatar: 'قطر',
   diyanet: 'تركيا',
 };
 

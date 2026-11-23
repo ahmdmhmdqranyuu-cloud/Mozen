@@ -676,7 +676,7 @@ fun WorshipTrackerWidget(
                                         context,
                                         "worship_daily_checkin",
                                         if (isEnglish) "Daily Worship Tracker" else "تذكير متتبع العبادات",
-                                        if (isEnglish) "Check your daily worship acts in Muslim Plus." else "راجع أورادك اليومية في متتبع العبادات بتطبيق مسلم بلس.",
+                                        if (isEnglish) "Check your daily worship acts in Rafeeq Al-Muslim." else "راجع أورادك اليومية في متتبع العبادات بتطبيق رفيق المسلم.",
                                         cal.timeInMillis
                                     )
                                 } else {

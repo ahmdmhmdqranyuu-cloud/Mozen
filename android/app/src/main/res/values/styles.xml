@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="android:windowBackground">#09241C</item>
+        <item name="android:windowBackground">@color/rafeeq_cream_bg</item>
+        <item name="android:colorBackground">@color/rafeeq_cream_bg</item>
+        <item name="android:statusBarColor">@color/rafeeq_cream_bg</item>
+        <item name="android:navigationBarColor">@color/rafeeq_cream_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.Rafeeq.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/rafeeq_cream_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground_rafeeq</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/rafeeq_icon_bg</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 </resources>

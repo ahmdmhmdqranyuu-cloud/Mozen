@@ -93,12 +93,6 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none animate-fadeIn" dir="rtl">
-      <img
-        src="/assets/aistudio/________________ae325fdd.jpg"
-        alt="خلفية القبلة"
-        decoding="async"
-        className="absolute inset-0 w-full h-full object-cover object-top opacity-[0.14] pointer-events-none select-none z-0"
-      />
       <div className="relative z-10 w-full h-full max-w-md mx-auto flex flex-col overflow-hidden">
         {/* Unified Muslim Plus Cream-Ivory Header */}
         <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b border-[#D6C18D] shrink-0">
@@ -211,11 +205,11 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                   )}
                 </div>
 
-                {/* Compass Outer Ring */}
-                <div className="relative w-64 h-64 rounded-full bg-gradient-to-b from-[#104B40] to-[#0D3D34] p-3 shadow-2xl flex items-center justify-center border-4 border-[#D6C18D]/85">
+                {/* Compass Outer Ring — Warm Cream + 3D Beveled Metallic Gold */}
+                <div className="relative w-64 h-64 rounded-full p-3 shadow-[0_14px_30px_rgba(122,92,31,0.22),inset_0_2px_4px_rgba(255,255,255,0.85)] flex items-center justify-center bg-gradient-to-br from-[#EFE2BD] via-[#FAF1D8] to-[#DFC486] border-[3px] border-[#C59B3F]">
                   {/* Compass Rose dial */}
                   <div
-                    className="relative w-full h-full rounded-full bg-[#0E2B22] flex items-center justify-center transition-transform duration-300 ease-out"
+                    className="relative w-full h-full rounded-full bg-[radial-gradient(circle_at_center,#FFFDF7_0%,#FBF4E0_64%,#EDE0BE_100%)] border border-[#D4B36A] shadow-[inset_0_2px_10px_rgba(138,104,35,0.16)] flex items-center justify-center transition-transform duration-300 ease-out"
                     style={{ transform: `rotate(${-currentHeading}deg)` }}
                   >
                     {/* Degree ticks */}
@@ -233,19 +227,19 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                             y1={100 - r1 * Math.cos(rad)}
                             x2={100 + r2 * Math.sin(rad)}
                             y2={100 - r2 * Math.cos(rad)}
-                            stroke={isMajor ? '#f59e0b' : '#34d399'}
-                            strokeWidth={isMajor ? '2' : '1'}
-                            opacity={isMajor ? 0.9 : 0.4}
+                            stroke={isMajor ? '#9A7324' : '#104B40'}
+                            strokeWidth={isMajor ? '2.2' : '1'}
+                            opacity={isMajor ? 0.95 : 0.45}
                           />
                         );
                       })}
                     </svg>
 
                     {/* Cardinal directions */}
-                    <span className="absolute top-3 font-bold text-rose-500 text-sm">N (شمال)</span>
-                    <span className="absolute bottom-3 font-bold text-white text-xs">S (جنوب)</span>
-                    <span className="absolute right-3 font-bold text-white text-xs">E (شرق)</span>
-                    <span className="absolute left-3 font-bold text-white text-xs">W (غرب)</span>
+                    <span className="absolute top-3 font-extrabold text-rose-700 text-xs">N (شمال)</span>
+                    <span className="absolute bottom-3 font-bold text-[#104B40] text-xs">S (جنوب)</span>
+                    <span className="absolute right-3 font-bold text-[#104B40] text-xs">E (شرق)</span>
+                    <span className="absolute left-3 font-bold text-[#104B40] text-xs">W (غرب)</span>
 
                     {/* Kaaba Marker at exact targetAngle */}
                     <div
@@ -253,19 +247,19 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                       style={{ transform: `rotate(${targetAngle}deg)` }}
                     >
                       <div className="mt-1 flex flex-col items-center">
-                        <div className="w-7 h-7 bg-black border-2 border-amber-400 rounded-sm shadow-md flex flex-col items-center justify-center">
-                          <div className="w-full h-1 bg-amber-400 my-0.5" />
-                          <div className="w-2 h-2.5 bg-amber-300 rounded-xs" />
+                        <div className="w-7 h-7 bg-[#172A28] border-2 border-[#C59B3F] rounded-sm shadow-md flex flex-col items-center justify-center">
+                          <div className="w-full h-1 bg-[#E5C15C] my-0.5" />
+                          <div className="w-2 h-2.5 bg-[#E5C15C] rounded-xs" />
                         </div>
-                        <span className="text-[9px] font-extrabold text-amber-300 mt-0.5 drop-shadow">
+                        <span className="text-[9px] font-extrabold text-[#104B40] bg-[#FFFDF7]/90 px-1 rounded mt-0.5 shadow-2xs">
                           الكعبة
                         </span>
                       </div>
                     </div>
 
                     {/* Center Pivot Point */}
-                    <div className="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400/50 flex items-center justify-center">
-                      <div className="w-4 h-4 rounded-full bg-amber-400 shadow-md" />
+                    <div className="w-12 h-12 rounded-full bg-[#C59B3F]/20 border border-[#C59B3F]/75 flex items-center justify-center shadow-inner">
+                      <div className="w-4 h-4 rounded-full bg-[#104B40] border-2 border-[#E5C15C] shadow-md" />
                     </div>
                   </div>
                 </div>

@@ -9,9 +9,16 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,14 +26,25 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
@@ -45,6 +63,7 @@ import com.muslim.azan.ui.components.FloatingAudioBar
 import com.muslim.azan.ui.navigation.Screen
 import com.muslim.azan.ui.screens.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -53,9 +72,16 @@ class MainActivity : ComponentActivity() {
     private val pendingRouteState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
         )
         super.onCreate(savedInstanceState)
         prefs = NativePreferences(this)
@@ -73,9 +99,27 @@ class MainActivity : ComponentActivity() {
         setContent {
             var appLanguage by remember { mutableStateOf(prefs.language) }
             val layoutDirection = if (appLanguage == "en") LayoutDirection.Ltr else LayoutDirection.Rtl
+            val reduceMotion = remember {
+                try {
+                    Settings.Global.getFloat(
+                        contentResolver,
+                        Settings.Global.ANIMATOR_DURATION_SCALE,
+                        1f
+                    ) <= 0f
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            var showAnimatedSplash by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) {
+                delay(if (reduceMotion) 180L else 1300L)
+                showAnimatedSplash = false
+            }
+
             AlMoazenTheme(layoutDirection = layoutDirection) {
                 var showOnboarding by remember { mutableStateOf(!prefs.onboardingCompleted) }
 
+                Box(modifier = Modifier.fillMaxSize()) {
                 if (showOnboarding) {
                     OnboardingSetupScreen(
                         prefs = prefs,
@@ -147,17 +191,6 @@ class MainActivity : ComponentActivity() {
                             .then(if (isFullBleedTopRoute) Modifier else Modifier.statusBarsPadding())
                             .background(MuslimPlusCanvasBrush)
                     ) {
-                    val reduceMotion = remember {
-                        try {
-                            Settings.Global.getFloat(
-                                contentResolver,
-                                Settings.Global.ANIMATOR_DURATION_SCALE,
-                                1f
-                            ) <= 0f
-                        } catch (_: Exception) {
-                            false
-                        }
-                    }
                     val dirFactor = if (layoutDirection == LayoutDirection.Rtl) -1 else 1
                     NavHost(
                         navController = navController,
@@ -344,7 +377,7 @@ class MainActivity : ComponentActivity() {
                                 containerColor = MoazenCardEnd,
                                 title = {
                                     Text(
-                                        text = if (appLanguage == "en") "Exit Muslim Plus" else "الخروج من تطبيق مسلم بلس",
+                                        text = if (appLanguage == "en") "Exit Rafeeq Al-Muslim" else "الخروج من تطبيق رفيق المسلم",
                                         color = MoazenInkEmerald,
                                         fontSize = 17.sp,
                                         fontWeight = FontWeight.Bold
@@ -353,9 +386,9 @@ class MainActivity : ComponentActivity() {
                                 text = {
                                     Text(
                                         text = if (appLanguage == "en")
-                                            "Exit Muslim Plus? Scheduled Azan and background reminders will continue working as configured."
+                                            "Exit Rafeeq Al-Muslim? Scheduled Azan and background reminders will continue working as configured."
                                         else
-                                            "هل تريد الخروج من تطبيق مسلم بلس؟ سيستمر أي صوت أو أذان مجدول في العمل وفق إعداداتك.",
+                                            "هل تريد الخروج من تطبيق رفيق المسلم؟ سيستمر أي صوت أو أذان مجدول في العمل وفق إعداداتك.",
                                         color = MoazenInkMuted,
                                         fontSize = 13.sp,
                                         lineHeight = 20.sp
@@ -389,6 +422,19 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                }
+
+                    AnimatedVisibility(
+                        visible = showAnimatedSplash,
+                        enter = EnterTransition.None,
+                        exit = fadeOut(animationSpec = tween(durationMillis = if (reduceMotion) 120 else 480)) +
+                            scaleOut(targetScale = 1.04f, animationSpec = tween(durationMillis = if (reduceMotion) 120 else 480))
+                    ) {
+                        RafeeqSplashIntroOverlay(
+                            isEnglish = appLanguage == "en",
+                            reduceMotion = reduceMotion
+                        )
+                    }
                 }
             }
         }
@@ -433,5 +479,117 @@ class MainActivity : ComponentActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+}
+
+@Composable
+private fun RafeeqSplashIntroOverlay(
+    isEnglish: Boolean,
+    reduceMotion: Boolean
+) {
+    var appeared by remember { mutableStateOf(reduceMotion) }
+    LaunchedEffect(Unit) {
+        appeared = true
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "rafeeqSplashPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.62f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowAlpha"
+    )
+    val entryAlpha by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = tween(durationMillis = if (reduceMotion) 80 else 420),
+        label = "entryAlpha"
+    )
+    val entryScale by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0.9f,
+        animationSpec = tween(durationMillis = if (reduceMotion) 80 else 460, easing = FastOutSlowInEasing),
+        label = "entryScale"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFFFDF8EA), Color(0xFFFBF4DF), Color(0xFFF3E7C9))
+                )
+            )
+            .alpha(entryAlpha),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(216.dp)
+                .scale(if (reduceMotion) 1f else pulseScale)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFD8AF52).copy(alpha = if (reduceMotion) 0.35f else glowAlpha),
+                            Color(0xFFD8AF52).copy(alpha = 0.08f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = RoundedCornerShape(48.dp)
+                )
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier
+                .padding(24.dp)
+                .scale(entryScale * if (reduceMotion) 1f else pulseScale)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(30.dp),
+                shadowElevation = 14.dp,
+                color = Color(0xFFFAF1D4),
+                modifier = Modifier
+                    .size(134.dp)
+                    .border(2.5.dp, RafeeqGoldBevelBrush, RoundedCornerShape(30.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_rafeeq_app_icon),
+                    contentDescription = if (isEnglish) "Rafeeq Al-Muslim" else "رفيق المسلم",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(30.dp))
+                )
+            }
+
+            Text(
+                text = if (isEnglish) "Rafeeq Al-Muslim" else "رفيق المسلم",
+                color = MoazenInkEmerald,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Text(
+                text = if (isEnglish)
+                    "Your Islamic Companion in the Path of Faith"
+                else
+                    "مؤذنك الإسلامي .. رفيقك في طريق الإيمان",
+                color = MoazenGoldDark,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }

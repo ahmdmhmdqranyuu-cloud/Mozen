@@ -306,7 +306,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         super.onCreate();
         createNotificationChannels();
 
-        Notification initialNotification = buildNotification("مسلم بلس", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
+        Notification initialNotification = buildNotification("رفيق المسلم", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
         startForegroundCompat(initialNotification);
 
         PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -453,7 +453,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             } else if ("dua_after".equals(section)) {
                 title = "الدعاء القصير بعد الأذان";
             } else {
-                title = "مسلم بلس";
+                title = "رفيق المسلم";
             }
         }
 
@@ -467,6 +467,10 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
 
         SharedPreferences prefs = getSharedPreferences("azan_reminders_prefs", Context.MODE_PRIVATE);
         boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
+        boolean fajrSoundEnabled = prefs.getBoolean("fajr_sound_enabled", azanSoundEnabled);
+        boolean azkarSoundEnabled = prefs.getBoolean("azkar_sound_enabled", true);
+        boolean iqamaEnabled = prefs.getBoolean("iqama_enabled", true);
+        boolean prePrayerAlertEnabled = prefs.getBoolean("pre_prayer_alert_enabled", true);
 
         if (silentDuringPrayer && !isTestAlarm && ("prayer_azan".equals(section) || "prePrayerAlert".equals(section))) {
             int durationMin = iqamaDurationMinutes > 0 ? iqamaDurationMinutes : 15;
@@ -481,12 +485,29 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             if (cfgRaw != null && !cfgRaw.isEmpty()) {
                 try {
                     org.json.JSONObject cfgObj = new org.json.JSONObject(cfgRaw);
-                    hasExplicitEnabledPerPrayer = cfgObj.optBoolean("soundEnabled", azanSoundEnabled);
+                    hasExplicitEnabledPerPrayer = cfgObj.optBoolean(
+                            "soundEnabled",
+                            "fajr".equals(incomingPrayerKey) ? fajrSoundEnabled : azanSoundEnabled
+                    );
                 } catch (Exception ignored) {}
             }
         }
-        // Explicit user sound tests ALWAYS play even when the scheduled Azan mute switch is off
-        boolean shouldPlayAudio = isTestAlarm || (autoPlay && modePlaysSound && (!"prayer_azan".equals(section) || azanSoundEnabled || hasExplicitEnabledPerPrayer));
+        boolean sectionGlobalAllowed = true;
+        if ("prayer_azan".equals(section)) {
+            if ("fajr".equals(incomingPrayerKey)) {
+                sectionGlobalAllowed = fajrSoundEnabled || hasExplicitEnabledPerPrayer;
+            } else {
+                sectionGlobalAllowed = azanSoundEnabled || hasExplicitEnabledPerPrayer;
+            }
+        } else if ("morningAzkar".equals(section) || "eveningAzkar".equals(section)) {
+            sectionGlobalAllowed = azkarSoundEnabled;
+        } else if ("iqama".equals(section)) {
+            sectionGlobalAllowed = iqamaEnabled;
+        } else if ("prePrayerAlert".equals(section)) {
+            sectionGlobalAllowed = prePrayerAlertEnabled;
+        }
+        // Explicit user sound tests ALWAYS play even when a scheduled mute switch is off
+        boolean shouldPlayAudio = isTestAlarm || (autoPlay && modePlaysSound && sectionGlobalAllowed);
 
         if (shouldPlayAudio) {
             Notification notification = buildNotification(title, body, section, cityName);
@@ -621,7 +642,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             bubbleTextCol.setOrientation(LinearLayout.VERTICAL);
 
             TextView bubbleBrand = new TextView(this);
-            bubbleBrand.setText("مسلم بلس • اضغط للفتح");
+            bubbleBrand.setText("رفيق المسلم • اضغط للفتح");
             bubbleBrand.setTextColor(Color.parseColor("#104B40"));
             bubbleBrand.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
             bubbleBrand.setTypeface(null, Typeface.BOLD);
@@ -653,7 +674,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             headerRow.setGravity(Gravity.CENTER_VERTICAL);
 
             TextView badgeView = new TextView(this);
-            badgeView.setText("🕌 مسلم بلس");
+            badgeView.setText("🕌 رفيق المسلم");
             badgeView.setTextColor(Color.parseColor("#9A7732"));
             badgeView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
             badgeView.setTypeface(null, Typeface.BOLD);

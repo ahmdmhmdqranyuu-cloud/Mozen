@@ -118,9 +118,9 @@ object PermissionMonitorNotifier {
                 granted = status.exactAlarmsGranted,
                 title = if (isEnglish) "Exact Alarms Permission Needed" else "مطلوب إذن المنبهات الدقيقة للأذان",
                 body = if (isEnglish) {
-                    "Enable Exact Alarms so Muslim Plus can trigger Azan and scheduled reminders on the exact second."
+                    "Enable Exact Alarms so Rafeeq Al-Muslim can trigger Azan and scheduled reminders on the exact second."
                 } else {
-                    "فعّل إذن المنبهات الدقيقة ليتمكن تطبيق مسلم بلس من إطلاق الأذان والتنبيهات في موعدها بالثانية."
+                    "فعّل إذن المنبهات الدقيقة ليتمكن تطبيق رفيق المسلم من إطلاق الأذان والتنبيهات في موعدها بالثانية."
                 },
                 actionLabel = if (isEnglish) "Open Settings" else "فتح الإعدادات"
             ),

@@ -340,7 +340,7 @@ fun RuqyahScreen(onBack: () -> Unit) {
                         Button(
                             onClick = {
                                 val share = Intent(Intent.ACTION_SEND).apply {
-                                    putExtra(Intent.EXTRA_TEXT, "🛡️ ${item.title}\n\n${item.arabicText}\n\n🕌 عبر تطبيق مسلم بلس")
+                                    putExtra(Intent.EXTRA_TEXT, "🛡️ ${item.title}\n\n${item.arabicText}\n\n🕌 عبر تطبيق رفيق المسلم")
                                     type = "text/plain"
                                 }
                                 runCatching { context.startActivity(Intent.createChooser(share, "مشاركة الرقية")) }

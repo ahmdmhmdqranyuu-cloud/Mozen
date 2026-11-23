@@ -43,6 +43,10 @@ function persistPrayerConfigs(configs: Partial<Record<PrayerKey, PrayerSettingCo
   }
 }
 
+export function saveStoredPrayerConfigs(configs: Partial<Record<PrayerKey, PrayerSettingConfig>>): void {
+  persistPrayerConfigs(configs);
+}
+
 export function getPrayerConfig(user: UserProfile, prayerKey: PrayerKey): PrayerSettingConfig {
   const obligatory = isObligatoryPrayer(prayerKey);
   const storedMap = loadStoredPrayerConfigs();

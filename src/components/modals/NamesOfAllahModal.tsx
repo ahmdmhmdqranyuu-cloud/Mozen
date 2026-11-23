@@ -87,10 +87,10 @@ export const NamesOfAllahModal: React.FC<NamesOfAllahModalProps> = ({
   const handleCopy = (item: NameOfAllah) => {
     navigator.clipboard?.writeText(
       isEnglish
-        ? `99 Names of Allah (${item.number}/99):\n【${item.name} — ${item.transliteration}】\n${item.meaning}\n— Muslim Plus`
+        ? `99 Names of Allah (${item.number}/99):\n【${item.name} — ${item.transliteration}】\n${item.meaning}\n— Rafeeq Al-Muslim`
         : `من أسماء الله الحسنى (${item.number}/99):\n【${item.name}】\nالمعنى: ${item.meaning}\n${
             item.quranReference ? `الشاهد القرآني: ${item.quranReference}\n` : ''
-          }— تطبيق مسلم بلس`
+          }— تطبيق رفيق المسلم`
     );
     setCopiedId(item.number);
     setTimeout(() => setCopiedId(null), 2000);

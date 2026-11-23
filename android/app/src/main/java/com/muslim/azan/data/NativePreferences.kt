@@ -60,6 +60,21 @@ class NativePreferences(context: Context) {
         get() = prefs.getString("calc_method", "umm_al_qura") ?: "umm_al_qura"
         set(value) = prefs.edit().putString("calc_method", value).apply()
 
+    var calculationMethodManuallySet: Boolean
+        get() = prefs.getBoolean("calc_method_manually_set", false)
+        set(value) = prefs.edit().putBoolean("calc_method_manually_set", value).apply()
+
+    fun setCalculationMethodManually(methodId: String) {
+        calculationMethod = methodId
+        calculationMethodManuallySet = true
+    }
+
+    fun suggestCalculationMethodIfNotManual(recommendedMethodId: String) {
+        if (!calculationMethodManuallySet && recommendedMethodId.isNotBlank()) {
+            calculationMethod = recommendedMethodId
+        }
+    }
+
     var asrMethod: String
         get() = prefs.getString("asr_method", "standard") ?: "standard"
         set(value) = prefs.edit().putString("asr_method", value).apply()
@@ -87,6 +102,124 @@ class NativePreferences(context: Context) {
     var volumeKeyStopsAzan: Boolean
         get() = prefs.getBoolean("volume_key_stops_azan", true)
         set(value) = prefs.edit().putBoolean("volume_key_stops_azan", value).apply()
+
+    // =========================================================================
+    // 7-Section Independent App Sound & Volume Controls (Rafeeq Al-Muslim)
+    // =========================================================================
+    var fajrSoundEnabled: Boolean
+        get() = prefs.getBoolean("fajr_sound_enabled", azanSoundEnabled)
+        set(value) {
+            prefs.edit().putBoolean("fajr_sound_enabled", value).apply()
+            val cur = getPrayerConfig("fajr")
+            savePrayerConfig(cur.copy(soundEnabled = value))
+        }
+
+    var fajrVolumePercent: Int
+        get() = prefs.getInt("fajr_volume_percent", 100).coerceIn(0, 100)
+        set(value) {
+            val v = value.coerceIn(0, 100)
+            prefs.edit().putInt("fajr_volume_percent", v).apply()
+            val cur = getPrayerConfig("fajr")
+            savePrayerConfig(cur.copy(volumePercent = v))
+        }
+
+    var regularAzanVolumePercent: Int
+        get() = prefs.getInt("regular_azan_volume_percent", 100).coerceIn(0, 100)
+        set(value) {
+            val v = value.coerceIn(0, 100)
+            prefs.edit().putInt("regular_azan_volume_percent", v).apply()
+            listOf("dhuhr", "asr", "maghrib", "isha").forEach { key ->
+                val cur = getPrayerConfig(key)
+                savePrayerConfig(cur.copy(volumePercent = v))
+            }
+        }
+
+    var prePrayerVoice: String
+        get() = prefs.getString("pre_prayer_voice", "pre_prayer_15m") ?: "pre_prayer_15m"
+        set(value) {
+            prefs.edit().putString("pre_prayer_voice", value).apply()
+            listOf("fajr", "dhuhr", "asr", "maghrib", "isha").forEach { key ->
+                val cur = getPrayerConfig(key)
+                savePrayerConfig(cur.copy(preAlertVoice = value))
+            }
+        }
+
+    var prePrayerMinutes: Int
+        get() = prefs.getInt("pre_prayer_minutes", 15).coerceIn(1, 60)
+        set(value) {
+            val m = value.coerceIn(1, 60)
+            prefs.edit().putInt("pre_prayer_minutes", m).apply()
+            listOf("fajr", "dhuhr", "asr", "maghrib", "isha").forEach { key ->
+                val cur = getPrayerConfig(key)
+                savePrayerConfig(cur.copy(preAlertMinutes = m))
+            }
+        }
+
+    var prePrayerVolumePercent: Int
+        get() = prefs.getInt("pre_prayer_volume_percent", 90).coerceIn(0, 100)
+        set(value) = prefs.edit().putInt("pre_prayer_volume_percent", value.coerceIn(0, 100)).apply()
+
+    var azkarSoundEnabled: Boolean
+        get() = prefs.getBoolean("azkar_sound_enabled", morningAzkarEnabled || eveningAzkarEnabled)
+        set(value) = prefs.edit().putBoolean("azkar_sound_enabled", value).apply()
+
+    var morningAzkarAudio: String
+        get() = prefs.getString("morning_azkar_audio", "azkar_sabah") ?: "azkar_sabah"
+        set(value) = prefs.edit().putString("morning_azkar_audio", value).apply()
+
+    var eveningAzkarAudio: String
+        get() = prefs.getString("evening_azkar_audio", "azkar_massa") ?: "azkar_massa"
+        set(value) = prefs.edit().putString("evening_azkar_audio", value).apply()
+
+    var tasbihClickSoundEnabled: Boolean
+        get() = prefs.getBoolean("tasbih_click_sound_enabled", true)
+        set(value) = prefs.edit().putBoolean("tasbih_click_sound_enabled", value).apply()
+
+    var tasbihDuaVolumePercent: Int
+        get() = prefs.getInt("tasbih_dua_volume_percent", 85).coerceIn(0, 100)
+        set(value) = prefs.edit().putInt("tasbih_dua_volume_percent", value.coerceIn(0, 100)).apply()
+
+    var duaAudioEnabled: Boolean
+        get() = prefs.getBoolean("dua_audio_enabled", true)
+        set(value) = prefs.edit().putBoolean("dua_audio_enabled", value).apply()
+
+    var duaAudioVoice: String
+        get() = prefs.getString("dua_audio_voice", "salawat_1") ?: "salawat_1"
+        set(value) = prefs.edit().putString("dua_audio_voice", value).apply()
+
+    var quranAudioEnabled: Boolean
+        get() = prefs.getBoolean("quran_audio_enabled", true)
+        set(value) = prefs.edit().putBoolean("quran_audio_enabled", value).apply()
+
+    var quranVolumePercent: Int
+        get() = prefs.getInt("quran_volume_percent", 100).coerceIn(0, 100)
+        set(value) = prefs.edit().putInt("quran_volume_percent", value.coerceIn(0, 100)).apply()
+
+    var iqamaEnabled: Boolean
+        get() = prefs.getBoolean("iqama_enabled", true)
+        set(value) = prefs.edit().putBoolean("iqama_enabled", value).apply()
+
+    var iqamaVoice: String
+        get() = prefs.getString("iqama_voice", "iqama_1") ?: "iqama_1"
+        set(value) {
+            prefs.edit().putString("iqama_voice", value).apply()
+            listOf("fajr", "dhuhr", "asr", "maghrib", "isha").forEach { key ->
+                val cur = getPrayerConfig(key)
+                savePrayerConfig(cur.copy(iqamaVoice = if (iqamaEnabled) value else "none"))
+            }
+        }
+
+    var otherAlertsVolumePercent: Int
+        get() = prefs.getInt("other_alerts_volume_percent", 85).coerceIn(0, 100)
+        set(value) {
+            val v = value.coerceIn(0, 100)
+            prefs.edit().putInt("other_alerts_volume_percent", v).apply()
+            salawatVolumePercent = v
+        }
+
+    var salawatAudio: String
+        get() = prefs.getString("salawat_audio", "salawat_1") ?: "salawat_1"
+        set(value) = prefs.edit().putString("salawat_audio", value).apply()
 
     var totalTasbihCount: Int
         get() = prefs.getInt("total_tasbih_count", 0)
@@ -468,7 +601,7 @@ class NativePreferences(context: Context) {
         if (city.timezoneId.isNotEmpty()) {
             cityTimezoneId = city.timezoneId
         }
-        if (city.recommendedCalcMethod.isNotEmpty()) {
+        if (!calculationMethodManuallySet && city.recommendedCalcMethod.isNotEmpty()) {
             calculationMethod = city.recommendedCalcMethod
         }
         activeLocationSource = if (city.isCachedOnline) "online" else "manual"

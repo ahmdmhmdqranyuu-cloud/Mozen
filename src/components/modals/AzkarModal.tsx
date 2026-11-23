@@ -25,6 +25,7 @@ interface AzkarModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIncrementTotalTasbih: (amount: number) => void;
+  azkarSoundConfig?: { enabled: boolean; volumePercent: number };
 }
 
 const AZKAR_PROGRESS_KEY = 'moazen_azkar_progress_v3';
@@ -33,6 +34,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
   isOpen,
   onClose,
   onIncrementTotalTasbih,
+  azkarSoundConfig,
 }) => {
   const [viewMode, setViewMode] = useState<'index' | 'detail'>('index');
   const [activeTab, setActiveTab] = useState<'azkar' | 'tasbih'>('azkar');
@@ -99,8 +101,12 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
       soundService.stopAudio();
       setPlayingAudioTrack(null);
     } else {
+      if (azkarSoundConfig && azkarSoundConfig.enabled === false) {
+        return;
+      }
+      const vol = azkarSoundConfig?.volumePercent ?? 100;
       setPlayingAudioTrack(file);
-      soundService.playTrack(file, file, 'azkar', () => setPlayingAudioTrack(null));
+      soundService.playTrack(file, file, 'azkar', () => setPlayingAudioTrack(null), undefined, vol);
     }
   };
 
@@ -184,7 +190,7 @@ export const AzkarModal: React.FC<AzkarModalProps> = ({
 
   const handleCopyDhikr = (item: AzkarItem) => {
     const catLabel = categoryTabs.find((c) => c.id === item.category)?.label || 'الأذكار';
-    const text = `📿 ${catLabel}\n\n${item.text}\n\n${item.fadl ? `✨ الفضل: ${item.fadl}\n` : ''}📚 المصدر: ${item.source || 'حصن المسلم'}\n— تطبيق مسلم بلس`;
+    const text = `📿 ${catLabel}\n\n${item.text}\n\n${item.fadl ? `✨ الفضل: ${item.fadl}\n` : ''}📚 المصدر: ${item.source || 'حصن المسلم'}\n— تطبيق رفيق المسلم`;
     navigator.clipboard?.writeText(text);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);

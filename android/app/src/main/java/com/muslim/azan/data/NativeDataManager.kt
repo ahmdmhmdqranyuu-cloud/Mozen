@@ -412,8 +412,12 @@ object NativeDataManager {
         val cc = countryCode?.uppercase(Locale.US) ?: return fallbackMethod
         return when (cc) {
             "EG", "SD", "LY" -> "egypt"
-            "SA", "KW", "QA", "BH", "YE" -> "umm_al_qura"
+            "SA", "BH", "YE" -> "umm_al_qura"
+            "KW" -> "kuwait"
+            "QA" -> "qatar"
             "AE", "OM" -> "dubai"
+            "FR", "BE" -> "uoif"
+            "TR" -> "diyanet"
             "PK", "IN", "BD", "AF" -> "karachi"
             "US", "CA", "MX" -> "isna"
             else -> fallbackMethod

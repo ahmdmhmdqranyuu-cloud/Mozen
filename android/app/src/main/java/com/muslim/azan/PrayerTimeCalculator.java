@@ -262,11 +262,14 @@ public class PrayerTimeCalculator {
         boolean ishaFixedInterval = false;
         int ishaFixedMinutes = 90;
 
-        String method = calculationMethod != null ? calculationMethod.toLowerCase(Locale.US) : "";
+        String method = calculationMethod != null ? calculationMethod.trim().toLowerCase(Locale.US) : "";
         if (method.contains("egypt")) {
             fajrAngle = 19.5;
             ishaAngle = 17.5;
-        } else if (method.contains("mwl") || method.contains("muslim_world_league")) {
+        } else if (method.contains("uoif") || method.contains("france")) {
+            fajrAngle = 12.0;
+            ishaAngle = 12.0;
+        } else if (method.contains("mwl") || method.contains("muslim_world_league") || method.contains("diyanet") || method.contains("turkey")) {
             fajrAngle = 18.0;
             ishaAngle = 17.0;
         } else if (method.contains("isna") || method.contains("north_america")) {
@@ -275,11 +278,18 @@ public class PrayerTimeCalculator {
         } else if (method.contains("karachi")) {
             fajrAngle = 18.0;
             ishaAngle = 18.0;
-        } else if (method.contains("dubai") || method.contains("gulf")) {
+        } else if (method.contains("kuwait")) {
+            fajrAngle = 18.0;
+            ishaAngle = 17.5;
+        } else if (method.contains("qatar")) {
+            fajrAngle = 18.0;
+            ishaFixedInterval = true;
+            ishaFixedMinutes = 90;
+        } else if (method.contains("dubai") || method.contains("uae") || method.contains("gulf")) {
             fajrAngle = 18.2;
             ishaAngle = 18.2;
         } else {
-            // Umm al-Qura: Fajr 18.5°, Isha 90 minutes after Maghrib
+            // Umm al-Qura (umm_al_qura / makkah): Fajr 18.5°, Isha 90 minutes after Maghrib
             fajrAngle = 18.5;
             ishaFixedInterval = true;
             ishaFixedMinutes = 90;

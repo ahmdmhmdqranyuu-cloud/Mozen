@@ -73,7 +73,7 @@ export const RuqyahModal: React.FC<RuqyahModalProps> = ({ isOpen, onClose }) => 
   };
 
   const handleCopy = (id: string, text: string, title: string) => {
-    navigator.clipboard?.writeText(`🛡️ ${title}\n\n${text}\n\n— تطبيق مسلم بلس`);
+    navigator.clipboard?.writeText(`🛡️ ${title}\n\n${text}\n\n— تطبيق رفيق المسلم`);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };

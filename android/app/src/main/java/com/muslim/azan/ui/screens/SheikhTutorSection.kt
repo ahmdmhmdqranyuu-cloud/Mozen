@@ -287,6 +287,11 @@ fun SheikhTutorSection(
             stopAyahPlayback()
             return
         }
+        if (!prefs.quranAudioEnabled) {
+            errorMessage = if (isEnglish) "Quran audio is muted in Settings." else "تم كتم صوت تلاوات القرآن من الإعدادات."
+            return
+        }
+        NativeAudioPlayerManager.setVolume((prefs.quranVolumePercent / 100f).coerceIn(0f, 1f))
         val reciter = SHEIKH_RECITERS[selectedReciterIdx]
         val urls = queue.map { (sNum, aNum) ->
             val sPad = String.format(Locale.US, "%03d", sNum)

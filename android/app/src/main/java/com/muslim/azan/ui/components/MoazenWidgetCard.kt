@@ -29,13 +29,14 @@ import com.muslim.azan.theme.MoazenCardBorder
 import com.muslim.azan.theme.MoazenCardEnd
 import com.muslim.azan.theme.MoazenCardStart
 import com.muslim.azan.theme.MoazenSubCardBg
+import com.muslim.azan.theme.RafeeqGoldBevelBrush
 
 /**
  * Draws a subtle repeating 8-pointed Islamic geometric star lattice overlay in soft gold.
  */
 fun DrawScope.drawIslamicGeometricOrnament(
     lineColor: Color = Color(0xFFB9974A),
-    alpha: Float = 0.095f
+    alpha: Float = 0.08f
 ) {
     val tilePx = 38.dp.toPx()
     if (tilePx <= 1f) return
@@ -51,7 +52,6 @@ fun DrawScope.drawIslamicGeometricOrnament(
             val r = tilePx * 0.34f
             val rDiag = r * 0.7071f
 
-            // Axis-aligned square
             val sq1 = Path().apply {
                 moveTo(cx - r, cy - r)
                 lineTo(cx + r, cy - r)
@@ -61,7 +61,6 @@ fun DrawScope.drawIslamicGeometricOrnament(
             }
             drawPath(sq1, strokeColor, style = stroke)
 
-            // 45-degree rotated diamond (8-pointed star formation)
             val sq2 = Path().apply {
                 moveTo(cx, cy - r * 1.414f * 0.72f)
                 lineTo(cx + r * 1.414f * 0.72f, cy)
@@ -84,9 +83,9 @@ fun DrawScope.drawIslamicGeometricOrnament(
 }
 
 /**
- * Unified Ivory Cream Widget Container (#F6EEDC -> #EDE2C8):
- * - Warm creamy-ivory gradient surface with subtle Islamic geometric ornaments
- * - Soft mosque texture hint + light gold border (#D6C18D) & soft elevation shadow
+ * Unified Cream-Ivory 3D Beveled Gold Widget Container (Rafeeq Al-Muslim):
+ * - Warm creamy gradient surface (#FFFBF1 -> #F4E8CE)
+ * - Raised 3D metallic gold gradient border + subtle specular inner top rim & shadow
  */
 @Composable
 fun MoazenWidgetCard(
@@ -94,9 +93,9 @@ fun MoazenWidgetCard(
     cornerRadius: Dp = 18.dp,
     shapeOverride: Shape? = null,
     borderColor: Color = MoazenCardBorder,
-    borderWidth: Dp = 1.dp,
-    elevation: Dp = 3.dp,
-    watermarkAlpha: Float = 0.045f,
+    borderWidth: Dp = 1.8.dp,
+    elevation: Dp = 5.dp,
+    watermarkAlpha: Float = 0.04f,
     containerColor: Color = Color.Transparent,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
@@ -110,19 +109,38 @@ fun MoazenWidgetCard(
         modifier.clip(shape)
     }
 
+    val effectiveBevelBrush = if (borderColor == MoazenCardBorder) {
+        RafeeqGoldBevelBrush
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFFFF3BF),
+                borderColor,
+                Color(0xFF9A7324),
+                borderColor
+            )
+        )
+    }
+
     Surface(
         modifier = baseModifier,
         shape = shape,
         color = containerColor,
         shadowElevation = elevation,
-        border = BorderStroke(borderWidth, borderColor)
+        border = BorderStroke(borderWidth, effectiveBevelBrush)
     ) {
         Box(
-            modifier = Modifier.background(
-                Brush.linearGradient(
-                    colors = listOf(MoazenCardStart, MoazenCardEnd)
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(MoazenCardStart, MoazenCardEnd)
+                    )
                 )
-            )
+                .border(
+                    width = 0.9.dp,
+                    color = Color.White.copy(alpha = 0.75f),
+                    shape = shape
+                )
         ) {
             if (watermarkAlpha > 0f) {
                 Image(
@@ -156,7 +174,7 @@ fun MoazenSubWidgetBox(
     val mod = modifier
         .clip(shape)
         .background(MoazenSubCardBg)
-        .border(1.dp, borderColor, shape)
+        .border(1.2.dp, borderColor, shape)
         .let { m -> if (onClick != null) m.clickable(onClick = onClick) else m }
     Box(modifier = mod, content = content)
 }

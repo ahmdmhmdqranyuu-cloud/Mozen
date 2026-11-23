@@ -100,7 +100,7 @@ export function SeerahModal({ isOpen, onClose }: SeerahModalProps) {
   ];
 
   const handleCopy = (item: SeerahSectionItem) => {
-    const text = `${item.title}\n${item.subtitle}\n\n${item.summary}\n\n${item.details.join('\n• ')}\n\nمن تطبيق مسلم بلس`;
+    const text = `${item.title}\n${item.subtitle}\n\n${item.summary}\n\n${item.details.join('\n• ')}\n\nمن تطبيق رفيق المسلم`;
     navigator.clipboard?.writeText(text);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);

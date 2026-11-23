@@ -6,13 +6,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, BellRing, Sparkles, X, Moon } from 'lucide-react';
 import { MotionConfig } from 'framer-motion';
-import { Header } from './components/Header';
 import { PrayerCard } from './components/PrayerCard';
+import { RafeeqBannerWidget } from './components/RafeeqBannerWidget';
 import { FeatureGrid, FeatureKey } from './components/FeatureGrid';
 import { FeaturedQuranBanner } from './components/FeaturedQuranBanner';
 import { DailyCards } from './components/DailyCards';
 import { IslamicEventsBar } from './components/IslamicEventsBar';
-import { MuslimPlusBrandWidget } from './components/MuslimPlusBrandWidget';
 import { MotionModalPresence, MotionDialogPresence } from './components/common/MotionModalShell';
 import { BottomNav, TabKey } from './components/BottomNav';
 import { FloatingRecitationPlayer } from './components/FloatingRecitationPlayer';
@@ -141,6 +140,16 @@ const DEFAULT_PROFILE: UserProfile = {
   khatmaGoalDays: 30,
   darkMode: false,
   ramadanFastingTracker: {},
+  calculationMethodManuallySelected: false,
+  appSounds: {
+    fajrAzan: { enabled: true, trackId: 'abdulbasit_fajr', volumePercent: 100 },
+    regularAzan: { enabled: true, trackId: 'makkah', volumePercent: 100 },
+    prePrayer: { enabled: true, trackId: 'pre_prayer_15m', volumePercent: 90 },
+    azkar: { enabled: true, trackId: 'azkar_sabah_1', secondaryTrackId: 'azkar_massa_1', volumePercent: 100 },
+    tasbihDua: { enabled: true, trackId: 'salawat_1', volumePercent: 85 },
+    quran: { enabled: true, trackId: 'alafasy', volumePercent: 100 },
+    otherAlerts: { enabled: true, trackId: 'iqama_1', secondaryTrackId: 'salawat_1', volumePercent: 85 },
+  },
   prayersToday: {
     fajr: true,
     sunrise: false,
@@ -202,6 +211,7 @@ export default function App() {
   const [firstRunPermissionsOpen, setFirstRunPermissionsOpen] = useState<boolean>(false);
   const [focusedPermissionKey, setFocusedPermissionKey] = useState<ManagedPermissionKey | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState<boolean>(false);
+  const [showSplashIntro, setShowSplashIntro] = useState<boolean>(true);
   const [firstTimeSetupOpen, setFirstTimeSetupOpen] = useState<boolean>(() => {
     return (
       !reminderScheduler.getSettings().hasCompletedFirstTimeSetup ||
@@ -209,7 +219,15 @@ export default function App() {
     );
   });
 
-  // Request GPS location permission on first use (never overwrites saved location if GPS fails)
+  useEffect(() => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const timer = window.setTimeout(() => setShowSplashIntro(false), prefersReduced ? 180 : 1250);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Request GPS location permission on first use (never overwrites saved location or manually chosen calc method)
   useEffect(() => {
     if (!hasPromptedFirstGps() && !hasUserConfirmedLocation()) {
       detectSmartGpsLocation(
@@ -217,7 +235,9 @@ export default function App() {
           setUser((prev) => ({
             ...prev,
             city: detectedCity,
-            calculationMethod: detectedCity.recommendedMethod || prev.calculationMethod || 'egypt',
+            calculationMethod: prev.calculationMethodManuallySelected
+              ? prev.calculationMethod
+              : detectedCity.recommendedMethod || prev.calculationMethod || 'egypt',
           }));
         },
         () => {
@@ -568,42 +588,57 @@ export default function App() {
 
             if (pCfg.alertMode === 'vibrate_only' && navigator.vibrate) {
               navigator.vibrate([250, 120, 250]);
-            } else if (
-              currentUser.autoPlayAzan !== false &&
-              extSetup.azanSoundEnabled !== false &&
-              currentUser.soundEnabled &&
-              isPrayerAzanAllowed &&
-              pCfg.alertMode !== 'silent'
-            ) {
+            } else {
               const isFajr = prayerMatch.key === 'fajr';
-              const voice = pCfg.azanVoice || (isFajr ? 'abdulbasit_fajr' : 'makkah');
-              const durationMs = pCfg.alertMode === 'short_tone' ? 12000 : undefined;
+              const secAzanCfg = isFajr
+                ? currentUser.appSounds?.fajrAzan
+                : currentUser.appSounds?.regularAzan;
+              const azanSectionAllowed = secAzanCfg ? secAzanCfg.enabled !== false : true;
+              const effectiveAzanVol = secAzanCfg?.volumePercent ?? pCfg.volumePercent ?? 100;
 
-              setSmartAzanAudioPlaying(true);
-              soundService.playAzan(
-                voice,
-                isFajr,
-                () => {
-                  setSmartAzanAudioPlaying(false);
-                  setActiveAzanBanner(null);
-                  if (pCfg.duaAfterPrayerEnabled) {
-                    if (currentUser.soundEnabled) {
-                      soundService.playDuaAfterAzan(undefined, undefined, pCfg.volumePercent);
+              if (
+                currentUser.autoPlayAzan !== false &&
+                extSetup.azanSoundEnabled !== false &&
+                currentUser.soundEnabled &&
+                isPrayerAzanAllowed &&
+                azanSectionAllowed &&
+                pCfg.alertMode !== 'silent'
+              ) {
+                const voice =
+                  pCfg.azanVoice || secAzanCfg?.trackId || (isFajr ? 'abdulbasit_fajr' : 'makkah');
+                const durationMs = pCfg.alertMode === 'short_tone' ? 12000 : undefined;
+
+                setSmartAzanAudioPlaying(true);
+                soundService.playAzan(
+                  voice,
+                  isFajr,
+                  () => {
+                    setSmartAzanAudioPlaying(false);
+                    setActiveAzanBanner(null);
+                    if (pCfg.duaAfterPrayerEnabled) {
+                      const duaSecCfg = currentUser.appSounds?.tasbihDua;
+                      if (currentUser.soundEnabled && duaSecCfg?.enabled !== false) {
+                        soundService.playDuaAfterAzan(
+                          undefined,
+                          undefined,
+                          duaSecCfg?.volumePercent ?? effectiveAzanVol
+                        );
+                      }
+                      if ('Notification' in window && Notification.permission === 'granted') {
+                        try {
+                          new Notification('دعاء ما بعد الأذان والصلاة', {
+                            body: '«اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلَاةِ الْقَائِمَةِ آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ»',
+                            icon: '/assets/icons/prayer.png?v=2',
+                          });
+                        } catch {}
+                      }
                     }
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                      try {
-                        new Notification('دعاء ما بعد الأذان والصلاة', {
-                          body: '«اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلَاةِ الْقَائِمَةِ آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ»',
-                          icon: '/assets/icons/prayer.png?v=2',
-                        });
-                      } catch {}
-                    }
-                  }
-                },
-                undefined,
-                pCfg.volumePercent,
-                durationMs
-              );
+                  },
+                  undefined,
+                  effectiveAzanVol,
+                  durationMs
+                );
+              }
             }
 
             if (isPrayerAzanAllowed && 'Notification' in window && Notification.permission === 'granted') {
@@ -646,12 +681,19 @@ export default function App() {
               time: currentTimeStr,
             });
 
-            if (currentUser.soundEnabled && currentUser.iqamaSoundEnabled !== false) {
+            const otherCfg = currentUser.appSounds?.otherAlerts;
+            const iqamaVol = otherCfg?.volumePercent ?? pCfg.volumePercent ?? 85;
+            if (
+              currentUser.soundEnabled &&
+              currentUser.iqamaSoundEnabled !== false &&
+              currentUser.iqamaEnabled !== false &&
+              otherCfg?.enabled !== false
+            ) {
               soundService.playIqama(
                 iqamaVoiceId,
                 () => setActiveIqamaBanner(null),
                 undefined,
-                pCfg.volumePercent
+                iqamaVol
               );
             }
 
@@ -1218,31 +1260,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Scrollable Main Application Content with Integrated Synchronized Background (Fits cleanly in 1 viewport by default) */}
+      {/* Scrollable Main Application Content on Calm Creamy Canvas with 3D Gold-Framed Widgets */}
       <div className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden smooth-scroll-container scrollbar-none select-none w-full">
-        <div className="relative min-h-full w-full flex flex-col justify-between bg-[#EFE8D1]">
-          <img
-            src="/assets/aistudio/________________ae325fdd.jpg"
-            alt="خلفية الصفحة الرئيسية"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover object-[50%_15%] pointer-events-none select-none z-0"
-          />
-
+        <div className="relative min-h-full w-full flex flex-col justify-between muslim-plus-canvas">
           <div className="relative z-10 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-between pt-[env(safe-area-inset-top,0px)] pb-[calc(54px+env(safe-area-inset-bottom,0px))]">
             <div className="flex-1 flex flex-col justify-between pb-0">
-              {/* Transparent Top Flow: leaves sunrise mosque arch clear and anchors PrayerCard cleanly below */}
+              {/* Top Section: New Rafeeq Banner Widget directly above PrayerCard */}
               <div className="relative w-full pb-0 shrink-0">
                 <div className="relative z-10 flex flex-col">
-                  <Header
-                    user={user}
-                    hideBackground
-                    leaveDomeClear
-                    onOpenNotifications={handleOpenNotifications}
+                  <RafeeqBannerWidget
+                    language={user.language}
                     onOpenSettings={handleOpenSettingsFromHome}
-                    onOpenProfile={handleOpenProfileFromHome}
+                    onOpenNotifications={handleOpenNotifications}
                   />
-
-                  <MuslimPlusBrandWidget language={user.language} />
 
                   <PrayerCard
                     city={user.city}
@@ -1332,6 +1362,7 @@ export default function App() {
           isOpen={azkarOpen}
           onClose={() => setAzkarOpen(false)}
           onIncrementTotalTasbih={handleIncrementTasbih}
+          azkarSoundConfig={user.appSounds?.azkar}
         />
       </MotionModalPresence>
 
@@ -1345,6 +1376,13 @@ export default function App() {
           city={user.city}
           user={user}
           onTogglePrayerToday={handleTogglePrayerToday}
+          onUpdateCalculationMethod={(methodId) =>
+            setUser((prev) => ({
+              ...prev,
+              calculationMethod: methodId,
+              calculationMethodManuallySelected: true,
+            }))
+          }
           onOpenPrayerSettings={(key) => setPrayerSettingsKey(key)}
           onOpenLocationSettings={() => {
             setPrayerOpen(false);
@@ -1440,7 +1478,11 @@ export default function App() {
             setUser((prev) => ({ ...prev, city: newCity }));
           }}
           onUpdateCalculationMethod={(methodId) =>
-            setUser((prev) => ({ ...prev, calculationMethod: methodId }))
+            setUser((prev) => ({
+              ...prev,
+              calculationMethod: methodId,
+              calculationMethodManuallySelected: true,
+            }))
           }
           onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
           onUpdateFajrAzanVoice={(voice) => setUser((prev) => ({ ...prev, fajrAzanVoice: voice }))}
@@ -1551,6 +1593,7 @@ export default function App() {
           onClose={() => setTasbihOpen(false)}
           totalTasbihCount={user.totalTasbihCount}
           onIncrementTotalTasbih={handleIncrementTasbih}
+          tasbihSoundConfig={user.appSounds?.tasbihDua}
         />
       </MotionModalPresence>
 
@@ -1601,7 +1644,9 @@ export default function App() {
             setUser((prev) => ({
               ...prev,
               city: newCity,
-              calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
+              calculationMethod: prev.calculationMethodManuallySelected
+                ? prev.calculationMethod
+                : newCity.recommendedMethod || prev.calculationMethod,
             }))
           }
           onUpdateAzanVoice={(voice) => setUser((prev) => ({ ...prev, azanVoice: voice }))}
@@ -1633,8 +1678,10 @@ export default function App() {
             setUser((prev) => ({
               ...prev,
               city: newCity,
-              calculationMethod: newCity.recommendedMethod || prev.calculationMethod,
-            }));
+              calculationMethod: prev.calculationMethodManuallySelected
+                ? prev.calculationMethod
+                : newCity.recommendedMethod || prev.calculationMethod,
+            }))
           }}
         />
       </MotionModalPresence>
@@ -1735,12 +1782,12 @@ export default function App() {
         >
           <div className="text-center space-y-1.5">
             <h3 className="text-base font-black text-[#104B40] font-cairo">
-              {user.language === 'en' ? 'Exit Muslim Plus' : 'الخروج من تطبيق مسلم بلس'}
+              {user.language === 'en' ? 'Exit Rafeeq Al-Muslim' : 'الخروج من تطبيق رفيق المسلم'}
             </h3>
             <p className="text-xs text-[#4B5B58] font-semibold">
               {user.language === 'en'
-                ? 'Do you want to exit Muslim Plus?'
-                : 'هل تريد الخروج من تطبيق مسلم بلس؟'}
+                ? 'Do you want to exit Rafeeq Al-Muslim?'
+                : 'هل تريد الخروج من تطبيق رفيق المسلم؟'}
             </p>
           </div>
           <div className="flex items-center gap-2.5">
@@ -1775,6 +1822,35 @@ export default function App() {
           </div>
         </div>
       </MotionDialogPresence>
+
+      {/* Cream Animated Pulse Splash Intro Overlay */}
+      {showSplashIntro && (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#FBF4DF] select-none transition-opacity duration-300"
+          dir={user.language === 'en' ? 'ltr' : 'rtl'}
+        >
+          <div
+            aria-hidden="true"
+            className="absolute w-72 h-72 rounded-full pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(212,175,55,0.28) 0%, rgba(212,175,55,0.08) 45%, transparent 72%)',
+            }}
+          />
+          <div className="relative z-10 flex flex-col items-center gap-3 animate-rafeeq-splash px-6">
+            <div className="w-40 h-40 sm:w-44 sm:h-44 rounded-[32px] p-[3px] shadow-[0_18px_40px_rgba(110,78,18,0.22)] bg-gradient-to-br from-[#FFF3BF] via-[#D9B14A] to-[#9B711C]">
+              <img
+                src="/assets/icons/rafeeq-icon-512.png"
+                alt="رفيق المسلم"
+                className="w-full h-full object-cover rounded-[29px] bg-[#FAF1D4]"
+              />
+            </div>
+            <p className="text-sm font-bold text-[#104B40] font-cairo tracking-wide">
+              {user.language === 'en' ? 'Your Islamic Prayer & Quran Companion' : 'مؤذنك الإسلامي .. رفيقك في طريق الإيمان'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
     </MotionConfig>
   );

@@ -323,7 +323,11 @@ fun NamesOfAllahScreen(
                             }
                             Button(
                                 onClick = {
-                                    val text = "✦ ${item.number}/99 ✦\n\n【${item.name} • ${item.transliteration}】\n${item.meaning}\n\n🕌 Muslim Plus"
+                                    val text = if (isEnglish) {
+                                        "✦ ${item.number}/99 ✦\n\n【${item.name} • ${item.transliteration}】\n${item.meaning}\n\n🕌 Rafeeq Al-Muslim"
+                                    } else {
+                                        "✦ ${item.number}/99 ✦\n\n【${item.name} • ${item.transliteration}】\n${item.meaning}\n\n🕌 تطبيق رفيق المسلم"
+                                    }
                                     val share = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(Intent.EXTRA_TEXT, text)
                                         type = "text/plain"
@@ -504,13 +508,17 @@ fun NamesOfAllahScreen(
                                 when {
                                     isAsmaaPlaying -> NativeAudioPlayerManager.pause()
                                     isAsmaaPaused -> NativeAudioPlayerManager.resume()
-                                    else -> NativeAudioPlayerManager.playAssetAudio(
-                                        context = context,
-                                        assetPath = "audio/asmaa_allah_al_husna.mp3",
-                                        title = "أسماء الله الحسنى (99)",
-                                        subtitle = "تشغيل محلي بدون إنترنت",
-                                        trackTag = "asmaa_allah_al_husna"
-                                    )
+                                    else -> {
+                                        val duaPrefs = com.muslim.azan.data.NativePreferences(context)
+                                        NativeAudioPlayerManager.setVolume((duaPrefs.tasbihDuaVolumePercent / 100f).coerceIn(0f, 1f))
+                                        NativeAudioPlayerManager.playAssetAudio(
+                                            context = context,
+                                            assetPath = "audio/asmaa_allah_al_husna.mp3",
+                                            title = "أسماء الله الحسنى (99)",
+                                            subtitle = "تشغيل محلي بدون إنترنت",
+                                            trackTag = "asmaa_allah_al_husna"
+                                        )
+                                    }
                                 }
                             }
                     ) {

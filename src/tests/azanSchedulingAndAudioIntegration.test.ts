@@ -435,12 +435,13 @@ function runIntegrationTests() {
 
       // Verify all Home & Settings drawable resources and required MP3 assets exist on disk
       const requiredDrawables = [
-        'bg_home_fullscreen.jpg',
+        'bg_rafeeq_banner_widget.jpg',
         'bg_settings_fullscreen.png',
         'img_quran_mushaf.jpg',
         'img_azkar_tasbih.jpg',
         'img_hadith_mosque.jpg',
-        'ic_launcher_muslim_plus.png',
+        'ic_rafeeq_app_icon.png',
+        'ic_launcher_foreground_rafeeq.png',
         'ic_feat_quran.png',
         'ic_feat_prayer.png',
         'ic_feat_azkar.png',
@@ -456,6 +457,16 @@ function runIntegrationTests() {
         const p = path.join(rootDir, 'android/app/src/main/res/drawable-nodpi', img);
         assert.ok(fs.existsSync(p) && fs.statSync(p).size > 0, `Missing or empty drawable: ${img}`);
       }
+      assert.equal(
+        fs.existsSync(path.join(rootDir, 'android/app/src/main/res/drawable-nodpi/bg_home_fullscreen.jpg')),
+        false,
+        'Obsolete bg_home_fullscreen.jpg should remain removed'
+      );
+      assert.equal(
+        fs.existsSync(path.join(rootDir, 'android/app/src/main/res/drawable-nodpi/ic_launcher_muslim_plus.png')),
+        false,
+        'Obsolete ic_launcher_muslim_plus.png should remain removed'
+      );
 
       const requiredMp3s = [
         'makkah.mp3',

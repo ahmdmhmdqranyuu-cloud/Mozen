@@ -60,8 +60,10 @@ const OFFLINE_ASSETS = [
   '/assets/icons/nav_quran.png',
   '/assets/icons/nav_qibla.png',
   '/assets/icons/nav_settings.png',
-  // App Backgrounds & Wallpapers
-  '/assets/aistudio/________________ae325fdd.jpg',
+  // App Banner, Icons & Section Images
+  '/assets/aistudio/________________5564ace6.jpg',
+  '/assets/icons/rafeeq-icon-192.png',
+  '/assets/icons/rafeeq-icon-512.png',
   '/assets/aistudio/_______________________c271e9db.png',
   '/assets/images/open_mushaf_rehal_1792331334829.jpg',
   '/assets/images/tasbih_prayer_beads_1792265378950.jpg',

@@ -35,6 +35,7 @@ interface PrayerModalProps {
   user: UserProfile;
   onTogglePrayerToday: (prayer: PrayerKey) => void;
   onUpdateIqamaVoice?: (voice: string) => void;
+  onUpdateCalculationMethod?: (methodId: string) => void;
   onOpenLocationSettings?: () => void;
   onOpenPrayerSettings?: (prayerKey: PrayerKey) => void;
 }
@@ -48,6 +49,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
   user,
   onTogglePrayerToday,
   onUpdateIqamaVoice,
+  onUpdateCalculationMethod,
   onOpenLocationSettings,
   onOpenPrayerSettings,
 }) => {
@@ -118,8 +120,9 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
       soundService.stopAudio();
       setPlayingVoice(null);
     } else {
+      const vol = user.appSounds?.regularAzan?.volumePercent ?? 100;
       setPlayingVoice(voiceId);
-      soundService.playAzan(voiceId, false, () => setPlayingVoice(null));
+      soundService.playAzan(voiceId, false, () => setPlayingVoice(null), undefined, vol);
     }
   };
 
@@ -129,8 +132,9 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
       soundService.stopAudio();
       setPlayingIqamaVoice(null);
     } else {
+      const vol = user.appSounds?.otherAlerts?.volumePercent ?? 90;
       setPlayingIqamaVoice(iqamaId);
-      soundService.playIqama(iqamaId, () => setPlayingIqamaVoice(null));
+      soundService.playIqama(iqamaId, () => setPlayingIqamaVoice(null), undefined, vol);
     }
   };
 
@@ -159,29 +163,29 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
   const lastThirdStr = nightThirds.lastThirdStartFormatted;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#fcfbf7] flex flex-col overflow-hidden select-none animate-fadeIn">
-      <div className="w-full h-full max-w-2xl mx-auto flex flex-col overflow-hidden bg-[#fcfbf7] relative">
-        {/* Clean White Header (No Green) */}
-        <div className="bg-white text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b border-gray-100 shrink-0" dir="rtl">
+    <div className="fixed inset-0 z-50 muslim-plus-canvas flex flex-col overflow-hidden select-none animate-fadeIn">
+      <div className="w-full h-full max-w-2xl mx-auto flex flex-col overflow-hidden relative">
+        {/* Warm Cream Header with 3D Beveled Gold Rim */}
+        <div className="moazen-widget text-[#172A28] px-4 pt-5 pb-3.5 flex items-center justify-between shadow-sm border-b-2 border-[#C59B3F]/65 shrink-0" dir="rtl">
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => {
                 soundService.stopAudio();
                 onClose();
               }}
-              className="w-10 h-10 rounded-full bg-[#F7F6F2] hover:bg-gray-200 flex items-center justify-center text-[#172A28] transition-colors cursor-pointer"
+              className="w-11 h-11 rounded-full bg-[#F6EEDC] hover:bg-[#EDE2C8] border border-[#C59B3F]/60 flex items-center justify-center text-[#104B40] transition-colors cursor-pointer"
               aria-label="رجوع"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
             <div>
-              <h2 className="text-base sm:text-lg font-bold font-cairo text-[#172A28]">مواقيت الصلاة والأذان والإقامة</h2>
-              <p className="text-[11px] text-gray-500">
+              <h2 className="text-base sm:text-lg font-bold font-cairo text-[#104B40]">مواقيت الصلاة والأذان والإقامة</h2>
+              <p className="text-[11px] text-[#4B5B58]">
                 {city.name} - {city.country} • {activeMethodObj.name.split('(')[0].trim()}
               </p>
             </div>
           </div>
-          <Clock className="w-5 h-5 text-[#C5A059]" />
+          <Clock className="w-5 h-5 text-[#9A7324]" />
         </div>
 
         {/* Content Body */}
@@ -190,47 +194,60 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           {!isConfirmedLocation && (
             <div
               onClick={onOpenLocationSettings}
-              className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-right flex items-center justify-between gap-2 cursor-pointer"
+              className="moazen-widget border-2 border-[#C59B3F]/80 rounded-2xl p-3 text-right flex items-center justify-between gap-2 cursor-pointer"
               dir="rtl"
             >
               <div>
-                <span className="text-xs font-black text-amber-900 block">
+                <span className="text-xs font-black text-[#855B14] block">
                   تنبيه شفافية الموقع: يتم عرض مواقيت الموقع الافتراضي ({city.name})
                 </span>
-                <span className="text-[11px] text-amber-800 block mt-0.5">
+                <span className="text-[11px] text-[#4B5B58] block mt-0.5">
                   اضغط هنا لتحديد موقعك الفعلي عبر GPS أو اختيار محافظتك ومدينتك أو قريتك يدويًا دون إنترنت.
                 </span>
               </div>
-              <span className="text-[11px] font-black bg-amber-600 text-white px-3 py-1.5 rounded-xl shrink-0">
+              <span className="text-[11px] font-black bg-[#104B40] text-white px-3 py-1.5 rounded-xl shrink-0">
                 تحديد الموقع
               </span>
             </div>
           )}
 
-          {/* Top City & Countdown Summary Card with Unified Background */}
-          <div className="relative bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] rounded-2xl p-5 text-[#172A28] shadow-xs border border-emerald-950/10 text-center overflow-hidden">
-            <img
-              src="/assets/images/hadith_widget_mosque_1793589264940.jpg"
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
-            />
+          {/* Top City & Countdown Summary Card with 3D Beveled Gold Frame */}
+          <div className="moazen-widget relative rounded-2xl p-5 text-[#172A28] border-2 border-[#C59B3F] shadow-[0_8px_22px_rgba(122,92,31,0.16)] text-center overflow-hidden">
             <div className="relative z-10">
-              <span className="inline-block text-xs bg-white/80 text-[#9A7732] font-bold px-3 py-1 rounded-full mb-2 border border-[#C5A059]/25">
+              <span className="inline-block text-xs bg-[#FAF1D8] text-[#855B14] font-bold px-3 py-1 rounded-full mb-2 border border-[#C59B3F]/50">
                 {city.name} - {city.country} ({city.latitude.toFixed(2)}°N, {city.longitude.toFixed(2)}°E)
               </span>
-              <h3 className="text-2xl font-bold font-cairo text-[#172A28] my-1">
+              <h3 className="text-2xl font-bold font-cairo text-[#104B40] my-1">
                 صلاة {nextInfo.nextPrayer.name}
               </h3>
               <p className="text-3xl font-extrabold font-sans tracking-tight text-[#104B40]">
                 بعد {nextInfo.countdownStr}
               </p>
-              <span className="text-xs text-gray-600 font-bold block mt-1.5">
+              <span className="text-xs text-[#4B5B58] font-bold block mt-1.5">
                 موعد الأذان: {nextInfo.nextPrayer.time}
               </span>
               <span className="text-[10.5px] text-[#104B40] font-bold block mt-1">
                 طريقة الحساب: {activeMethodObj.name} • {activeAsrObj.id === 'hanafi' ? 'المذهب الحنفي' : 'المذهب الشافعي (الجمهور)'}
               </span>
+
+              {onUpdateCalculationMethod && (
+                <div className="mt-3 pt-2.5 border-t border-[#D6C18D]/60 text-right" dir="rtl">
+                  <label className="text-[10.5px] font-black text-[#855B14] block mb-1">
+                    الهيئة الفلكية المعتمدة (يُحفظ اختيارك يدويًا دون تغيير تلقائي):
+                  </label>
+                  <select
+                    value={user.calculationMethod || 'egypt'}
+                    onChange={(e) => onUpdateCalculationMethod(e.target.value)}
+                    className="w-full p-2 rounded-xl bg-[#FFFDF7] border border-[#C59B3F]/75 text-xs font-bold text-[#104B40] focus:outline-none"
+                  >
+                    {CALCULATION_METHODS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -258,15 +275,15 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           )}
 
           {/* Daily Schedule List */}
-          <div className="moazen-widget rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+          <div className="moazen-widget rounded-2xl p-4 border-2 border-[#C59B3F]/75 shadow-[0_6px_18px_rgba(122,92,31,0.12)] space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-[#D6C18D]/60">
               <div>
-                <h4 className="text-xs font-bold text-gray-700">جدول صلوات اليوم ومواعيد الإقامة</h4>
-                <p className="text-[10px] text-gray-400">
+                <h4 className="text-xs font-bold text-[#104B40]">جدول صلوات اليوم ومواعيد الإقامة</h4>
+                <p className="text-[10px] text-[#4B5B58]">
                   إقامة الفجر والظهر والعصر والعشاء بعد 15 دقيقة • المغرب بعد 7 دقائق
                 </p>
               </div>
-              <span className="text-[10px] text-[#9A7732] font-bold">
+              <span className="text-[10px] text-[#855B14] font-bold">
                 حدّد الصلوات المكتملة
               </span>
             </div>
@@ -288,20 +305,14 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                 <div
                   key={prayer.key}
                   onClick={() => onOpenPrayerSettings?.(prayer.key)}
-                  className={`relative overflow-hidden flex items-center justify-between p-3 rounded-xl border transition-all bg-gradient-to-br from-[#ebf5f1] to-[#f4f8f6] cursor-pointer ${
+                  className={`relative overflow-hidden flex items-center justify-between p-3 rounded-xl border transition-all bg-gradient-to-br from-[#FFFDF7] to-[#F3E8CE] cursor-pointer ${
                     isIqamaActive
-                      ? 'border-2 border-amber-400 ring-1 ring-amber-300'
+                      ? 'border-2 border-[#C59B3F] ring-1 ring-[#E5C15C]'
                       : isUpcoming
-                      ? 'border-2 border-[#C5A059] shadow-xs'
-                      : 'border-emerald-950/10 hover:border-[#C5A059]/60'
+                      ? 'border-2 border-[#104B40] shadow-xs'
+                      : 'border-[#D6C18D] hover:border-[#C59B3F]'
                   }`}
                 >
-                  <img
-                    src="/assets/images/hadith_widget_mosque_1793589264940.jpg"
-                    alt=""
-                    aria-hidden="true"
-                    className="absolute inset-0 w-full h-full object-cover opacity-[0.08] pointer-events-none"
-                  />
                   <div className="relative z-10 flex items-center gap-3">
                     <button
                       onClick={(e) => {

@@ -196,6 +196,25 @@ fun SettingsScreen(
     var selectedAzanVoice by remember { mutableStateOf(prefs.azanVoice) }
     var backgroundTestScheduledNote by remember { mutableStateOf<String?>(null) }
 
+    // 7-Section Independent App Sound Controls + Calculation Method lock
+    var selectedCalcMethod by remember { mutableStateOf(prefs.calculationMethod) }
+    var calcMethodManuallyLocked by remember { mutableStateOf(prefs.calculationMethodManuallySet) }
+    var fajrSoundEnabled by remember { mutableStateOf(prefs.fajrSoundEnabled) }
+    var selectedFajrVoice by remember { mutableStateOf(prefs.fajrVoice) }
+    var fajrVolumePercent by remember { mutableIntStateOf(prefs.fajrVolumePercent) }
+    var regularAzanVolumePercent by remember { mutableIntStateOf(prefs.regularAzanVolumePercent) }
+    var prePrayerMinutes by remember { mutableIntStateOf(prefs.prePrayerMinutes) }
+    var prePrayerVolumePercent by remember { mutableIntStateOf(prefs.prePrayerVolumePercent) }
+    var azkarSoundEnabled by remember { mutableStateOf(prefs.azkarSoundEnabled) }
+    var tasbihClickSoundEnabled by remember { mutableStateOf(prefs.tasbihClickSoundEnabled) }
+    var duaAudioEnabled by remember { mutableStateOf(prefs.duaAudioEnabled) }
+    var tasbihDuaVolumePercent by remember { mutableIntStateOf(prefs.tasbihDuaVolumePercent) }
+    var quranAudioEnabled by remember { mutableStateOf(prefs.quranAudioEnabled) }
+    var quranVolumePercent by remember { mutableIntStateOf(prefs.quranVolumePercent) }
+    var iqamaEnabled by remember { mutableStateOf(prefs.iqamaEnabled) }
+    var selectedIqamaVoice by remember { mutableStateOf(prefs.iqamaVoice) }
+    var otherAlertsVolumePercent by remember { mutableIntStateOf(prefs.otherAlertsVolumePercent) }
+
     var highLatitudeRule by remember { mutableStateOf(prefs.highLatitudeRule) }
     var manualLatText by remember { mutableStateOf(String.format(Locale.US, "%.4f", prefs.latitude)) }
     var manualLngText by remember { mutableStateOf(String.format(Locale.US, "%.4f", prefs.longitude)) }
@@ -318,7 +337,9 @@ fun SettingsScreen(
             accuracyMeters = gps.accuracyMeters,
             updatedAtMs = gps.detectedAtMs
         )
-        prefs.calculationMethod = gps.calcMethod
+        prefs.suggestCalculationMethodIfNotManual(gps.calcMethod)
+        selectedCalcMethod = prefs.calculationMethod
+        calcMethodManuallyLocked = prefs.calculationMethodManuallySet
 
         selectedCityName = gps.cityName
         currentLat = gps.latitude
@@ -871,6 +892,122 @@ fun SettingsScreen(
                                 color = MoazenInkMuted,
                                 fontSize = 11.sp
                             )
+                        }
+                    }
+
+                    // Calculation Method Selector with Manual Lock (10 Supported Methods)
+                    MoazenSubWidgetBox(
+                        cornerRadius = 12.dp,
+                        borderColor = MoazenGold.copy(alpha = 0.65f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isEnglish) "Calculation Method" else "طريقة حساب المواقيت الفلكية:",
+                                    color = MoazenInkEmerald,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (calcMethodManuallyLocked) MoazenInkEmerald.copy(alpha = 0.12f) else MoazenGold.copy(alpha = 0.22f)
+                                ) {
+                                    Text(
+                                        text = if (calcMethodManuallyLocked) {
+                                            if (isEnglish) "Manual Lock" else "مثبّت يدويًا"
+                                        } else {
+                                            if (isEnglish) "Auto Suggested" else "مقترح تلقائيًا"
+                                        },
+                                        color = if (calcMethodManuallyLocked) MoazenInkEmerald else MoazenGoldDark,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            val calcMethods = listOf(
+                                "egypt" to if (isEnglish) "Egyptian General Authority" else "الهيئة المصرية العامة للمساحة",
+                                "umm_al_qura" to if (isEnglish) "Umm Al-Qura University, Makkah" else "تقويم أم القرى - مكة المكرمة",
+                                "mwl" to if (isEnglish) "Muslim World League" else "رابطة العالم الإسلامي",
+                                "dubai" to if (isEnglish) "UAE Awqaf / Gulf Region" else "الشؤون الإسلامية والأوقاف (الإمارات)",
+                                "uoif" to if (isEnglish) "UOIF France (12°/12°)" else "اتحاد المنظمات الإسلامية في فرنسا",
+                                "karachi" to if (isEnglish) "Univ. of Islamic Sciences, Karachi" else "جامعة العلوم الإسلامية بكراتشي",
+                                "isna" to if (isEnglish) "ISNA North America" else "الجمعية الإسلامية لأمريكا الشمالية",
+                                "kuwait" to if (isEnglish) "Kuwait Ministry of Awqaf" else "وزارة الأوقاف - الكويت",
+                                "qatar" to if (isEnglish) "Qatar Calendar" else "التقويم القطري",
+                                "diyanet" to if (isEnglish) "Diyanet Turkey" else "رئاسة الشؤون الدينية التركية"
+                            )
+                            calcMethods.chunked(2).forEach { pair ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    pair.forEach { (key, label) ->
+                                        val isSel = selectedCalcMethod == key
+                                        Surface(
+                                            shape = RoundedCornerShape(9.dp),
+                                            color = if (isSel) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.88f),
+                                            border = BorderStroke(1.dp, if (isSel) MoazenGold else MoazenCardBorder),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .defaultMinSize(minHeight = 44.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .clickable {
+                                                    selectedCalcMethod = key
+                                                    calcMethodManuallyLocked = true
+                                                    prefs.setCalculationMethodManually(key)
+                                                    coroutineScope.launch(Dispatchers.IO) {
+                                                        BootReceiver.recalculateAndScheduleAll(context.applicationContext)
+                                                    }
+                                                }
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    color = if (isSel) Color.White else MoazenInkPrimary,
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (calcMethodManuallyLocked) {
+                                TextButton(
+                                    onClick = {
+                                        prefs.calculationMethodManuallySet = false
+                                        calcMethodManuallyLocked = false
+                                        Toast.makeText(
+                                            context,
+                                            if (isEnglish) "Auto-suggestion enabled for future city changes" else "تم تفعيل الاقتراح التلقائي عند تغيير المدينة",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (isEnglish) "Unlock & follow city suggestion next time" else "إلغاء التثبيت اليدوي واتباع اقتراح المدينة عند التغيير",
+                                        color = MoazenInkEmerald,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1542,6 +1679,8 @@ fun SettingsScreen(
                                 prefs.setCity(city)
                                 prefs.cityName = fullDisplayName
                                 selectedCityName = fullDisplayName
+                                selectedCalcMethod = prefs.calculationMethod
+                                calcMethodManuallyLocked = prefs.calculationMethodManuallySet
                                 currentLat = city.latitude
                                 currentLng = city.longitude
                                 activeLocationSource = prefs.activeLocationSource
@@ -1746,6 +1885,292 @@ fun SettingsScreen(
                             },
                             colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
                         )
+                    }
+
+                    // 7-Section Independent App Sound & Volume Controls (Rafeeq Al-Muslim)
+                    MoazenSubWidgetBox(
+                        cornerRadius = 12.dp,
+                        borderColor = MoazenGold.copy(alpha = 0.65f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isEnglish)
+                                    "Independent App Sounds (7 Sections)"
+                                else
+                                    "أصوات التطبيق المستقلة (7 أقسام ومستوى الصوت):",
+                                color = MoazenInkEmerald,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            @Composable
+                            fun SevenSectionItem(
+                                title: String,
+                                enabled: Boolean,
+                                onEnabledChange: (Boolean) -> Unit,
+                                volumePercent: Int,
+                                onVolumeChange: (Int) -> Unit,
+                                voiceOptions: List<Pair<String, String>>,
+                                selectedVoice: String,
+                                onSelectVoice: (String) -> Unit,
+                                onPreview: () -> Unit
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFFFFDF7),
+                                    border = BorderStroke(1.dp, MoazenCardBorder),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(title, color = MoazenInkPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                IconButton(onClick = onPreview, modifier = Modifier.size(34.dp)) {
+                                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MoazenInkEmerald)
+                                                }
+                                                Switch(
+                                                    checked = enabled,
+                                                    onCheckedChange = onEnabledChange,
+                                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                                                )
+                                            }
+                                        }
+                                        if (voiceOptions.isNotEmpty()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                            ) {
+                                                voiceOptions.forEach { (id, label) ->
+                                                    val sel = selectedVoice == id
+                                                    Surface(
+                                                        shape = RoundedCornerShape(7.dp),
+                                                        color = if (sel) MuslimPlusPillEmerald else Color.White,
+                                                        border = BorderStroke(1.dp, if (sel) MoazenGold else MoazenCardBorder),
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(7.dp))
+                                                            .clickable(enabled = enabled) { onSelectVoice(id) }
+                                                    ) {
+                                                        Text(
+                                                            text = label,
+                                                            color = if (sel) Color.White else MoazenInkPrimary,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("الصوت:", color = MoazenInkMuted, fontSize = 10.5.sp)
+                                            Slider(
+                                                value = volumePercent.toFloat(),
+                                                enabled = enabled,
+                                                onValueChange = { onVolumeChange(it.toInt().coerceIn(0, 100)) },
+                                                valueRange = 0f..100f,
+                                                colors = SliderDefaults.colors(
+                                                    thumbColor = MoazenGold,
+                                                    activeTrackColor = MoazenInkEmerald
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text("$volumePercent%", color = MoazenInkEmerald, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            SevenSectionItem(
+                                title = "1. أذان الفجر",
+                                enabled = fajrSoundEnabled,
+                                onEnabledChange = {
+                                    fajrSoundEnabled = it
+                                    prefs.fajrSoundEnabled = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                volumePercent = fajrVolumePercent,
+                                onVolumeChange = {
+                                    fajrVolumePercent = it
+                                    prefs.fajrVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "abdulbasit_fajr" to "عبد الباسط فجر",
+                                    "toubar_fajr" to "نصر الدين طوبار",
+                                    "fajr" to "فجر الحرم"
+                                ),
+                                selectedVoice = selectedFajrVoice,
+                                onSelectVoice = {
+                                    selectedFajrVoice = it
+                                    prefs.fajrVoice = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                onPreview = { launchAudioTest(selectedFajrVoice, "أذان الفجر", "prayer_azan", fajrVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "2. أذان باقي الصلوات",
+                                enabled = azanSoundEnabled,
+                                onEnabledChange = {
+                                    azanSoundEnabled = it
+                                    prefs.azanSoundEnabled = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                volumePercent = regularAzanVolumePercent,
+                                onVolumeChange = {
+                                    regularAzanVolumePercent = it
+                                    prefs.regularAzanVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "makkah" to "مكة",
+                                    "madinah" to "المدينة",
+                                    "cairo" to "القاهرة",
+                                    "alaqsa" to "الأقصى",
+                                    "alafasy" to "العفاسي"
+                                ),
+                                selectedVoice = selectedAzanVoice,
+                                onSelectVoice = {
+                                    selectedAzanVoice = it
+                                    prefs.azanVoice = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                onPreview = { launchAudioTest(selectedAzanVoice, "الأذان المختار", "prayer_azan", regularAzanVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "3. التنبيه قبل الصلاة",
+                                enabled = prePrayerAlertEnabled,
+                                onEnabledChange = {
+                                    prePrayerAlertEnabled = it
+                                    prefs.prePrayerAlertEnabled = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                volumePercent = prePrayerVolumePercent,
+                                onVolumeChange = {
+                                    prePrayerVolumePercent = it
+                                    prefs.prePrayerVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "10" to "قبل 10 دقائق",
+                                    "15" to "قبل 15 دقيقة",
+                                    "20" to "قبل 20 دقيقة"
+                                ),
+                                selectedVoice = prePrayerMinutes.toString(),
+                                onSelectVoice = {
+                                    val mins = it.toIntOrNull() ?: 15
+                                    prePrayerMinutes = mins
+                                    prefs.prePrayerMinutes = mins
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                onPreview = { launchAudioTest("pre_prayer_15m", "تنبيه قبل الصلاة", "prePrayerAlert", prePrayerVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "4. أذكار الصباح والمساء",
+                                enabled = azkarSoundEnabled,
+                                onEnabledChange = {
+                                    azkarSoundEnabled = it
+                                    prefs.azkarSoundEnabled = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                volumePercent = azkarVolumePercent,
+                                onVolumeChange = {
+                                    azkarVolumePercent = it
+                                    prefs.azkarVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "azkar_sabah" to "أذكار الصباح",
+                                    "azkar_massa" to "أذكار المساء"
+                                ),
+                                selectedVoice = prefs.morningAzkarAudio,
+                                onSelectVoice = { prefs.morningAzkarAudio = it },
+                                onPreview = { launchAudioTest("azkar_sabah", "أذكار الصباح", "morningAzkar", azkarVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "5. التسبيح والأدعية",
+                                enabled = tasbihClickSoundEnabled || duaAudioEnabled,
+                                onEnabledChange = {
+                                    tasbihClickSoundEnabled = it
+                                    duaAudioEnabled = it
+                                    prefs.tasbihClickSoundEnabled = it
+                                    prefs.duaAudioEnabled = it
+                                },
+                                volumePercent = tasbihDuaVolumePercent,
+                                onVolumeChange = {
+                                    tasbihDuaVolumePercent = it
+                                    prefs.tasbihDuaVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "salawat_1" to "صلاة على النبي 1",
+                                    "salawat_2" to "صلاة على النبي 2"
+                                ),
+                                selectedVoice = prefs.duaAudioVoice,
+                                onSelectVoice = { prefs.duaAudioVoice = it },
+                                onPreview = { launchAudioTest(prefs.duaAudioVoice, "التسبيح والأدعية", "salawat", tasbihDuaVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "6. القرآن والتلاوات",
+                                enabled = quranAudioEnabled,
+                                onEnabledChange = {
+                                    quranAudioEnabled = it
+                                    prefs.quranAudioEnabled = it
+                                },
+                                volumePercent = quranVolumePercent,
+                                onVolumeChange = {
+                                    quranVolumePercent = it
+                                    prefs.quranVolumePercent = it
+                                },
+                                voiceOptions = emptyList(),
+                                selectedVoice = "",
+                                onSelectVoice = {},
+                                onPreview = { launchAudioTest("qiyam_first_third", "تلاوة قرآنية", "prayer_azan", quranVolumePercent) }
+                            )
+
+                            SevenSectionItem(
+                                title = "7. الإقامة والتنبيهات الأخرى",
+                                enabled = iqamaEnabled,
+                                onEnabledChange = {
+                                    iqamaEnabled = it
+                                    prefs.iqamaEnabled = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                volumePercent = otherAlertsVolumePercent,
+                                onVolumeChange = {
+                                    otherAlertsVolumePercent = it
+                                    prefs.otherAlertsVolumePercent = it
+                                },
+                                voiceOptions = listOf(
+                                    "iqama_1" to "إقامة 1",
+                                    "iqama_2" to "إقامة 2",
+                                    "iqama_3" to "إقامة 3"
+                                ),
+                                selectedVoice = selectedIqamaVoice,
+                                onSelectVoice = {
+                                    selectedIqamaVoice = it
+                                    prefs.iqamaVoice = it
+                                    coroutineScope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
+                                },
+                                onPreview = { launchAudioTest(selectedIqamaVoice, "صوت الإقامة", "iqama", otherAlertsVolumePercent) }
+                            )
+                        }
                     }
 
                     // Live Sound Diagnostics Banner
@@ -2687,9 +3112,9 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = if (isEnglish)
-                            "Muslim Plus operates offline-first with ZERO ads, ZERO ad trackers, ZERO user accounts, and ZERO data selling:"
+                            "Rafeeq Al-Muslim operates offline-first with ZERO ads, ZERO ad trackers, ZERO user accounts, and ZERO data selling:"
                         else
-                            "يعمل تطبيق مسلم بلس بمنهجية العمل المحلي أولًا (Offline-First) دون أي إعلانات أو تتبع إعلاني أو حسابات تسجيل أو بيع للبيانات:",
+                            "يعمل تطبيق رفيق المسلم بمنهجية العمل المحلي أولًا (Offline-First) دون أي إعلانات أو تتبع إعلاني أو حسابات تسجيل أو بيع للبيانات:",
                         color = MoazenInkEmerald,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
@@ -2719,14 +3144,14 @@ fun SettingsScreen(
             SettingsCollapsibleCard(
                 title = "9. حول التطبيق",
                 icon = Icons.Default.Info,
-                iconResId = R.drawable.ic_settings_about,
+                iconResId = R.drawable.ic_rafeeq_app_icon,
                 isExpanded = true,
                 onToggle = { toggleSection(9) },
                 modifier = Modifier.padding(horizontal = 14.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "تطبيق مسلم بلس (الإصدار 2.2.0)",
+                        text = "تطبيق رفيق المسلم (الإصدار 2.2.0)",
                         color = MoazenInkEmerald,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
@@ -3032,7 +3457,7 @@ private fun CompactSettingsOverviewGrid(
                 CompactSettingsTileItem(6, "Azkar & Salawat", "Morning, Evening & Salawat", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
                 CompactSettingsTileItem(7, "Ramadan & Suhoor", "Musaharati & Imsak", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
                 CompactSettingsTileItem(8, "Privacy Policy", "Transparent Data Disclosure", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
-                CompactSettingsTileItem(9, "About Muslim Plus", "Version & Trusted Sources", Icons.Default.Info, R.drawable.ic_settings_about),
+                CompactSettingsTileItem(9, "About Rafeeq Al-Muslim", "Version & Trusted Sources", Icons.Default.Info, R.drawable.ic_rafeeq_app_icon),
                 CompactSettingsTileItem(10, "Storage & Reset", "Cache Cleanup & Defaults", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
             )
         } else {
@@ -3045,7 +3470,7 @@ private fun CompactSettingsOverviewGrid(
                 CompactSettingsTileItem(6, "التحكم في الأذكار", "الصباح والمساء", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
                 CompactSettingsTileItem(7, "إعدادات رمضان والسحور", "المسحراتي والإمساك", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
                 CompactSettingsTileItem(8, "سياسة الخصوصية", "إفصاح شفاف دون تتبع", Icons.Default.PrivacyTip, R.drawable.ic_settings_privacy),
-                CompactSettingsTileItem(9, "حول التطبيق", "الإصدار والمصادر", Icons.Default.Info, R.drawable.ic_settings_about),
+                CompactSettingsTileItem(9, "حول التطبيق", "الإصدار والمصادر", Icons.Default.Info, R.drawable.ic_rafeeq_app_icon),
                 CompactSettingsTileItem(10, "تسجيل الخروج وإعادة الضبط", "التخزين والإعدادات", Icons.Default.CleaningServices, R.drawable.ic_settings_logout)
             )
         }

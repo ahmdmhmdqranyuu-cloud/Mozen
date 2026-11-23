@@ -547,8 +547,46 @@ class SoundService {
     }
   }
 
-  public playTasbihClick() {
+  private getSavedSectionSound(sectionKey: 'tasbihDua' | 'otherAlerts' | 'quran' | 'azkar'): {
+    enabled: boolean;
+    volumePercent: number;
+  } | null {
     try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem('azan_user_profile');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        soundEnabled?: boolean;
+        appSounds?: Record<string, { enabled?: boolean; volumePercent?: number }>;
+      };
+      if (parsed?.soundEnabled === false) {
+        return { enabled: false, volumePercent: 0 };
+      }
+      const sec = parsed?.appSounds?.[sectionKey];
+      if (!sec) return null;
+      return {
+        enabled: sec.enabled !== false,
+        volumePercent: Math.max(0, Math.min(100, Number(sec.volumePercent ?? 100))),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  public playTasbihClick(volumeOverride?: number) {
+    try {
+      const saved = this.getSavedSectionSound('tasbihDua');
+      if (volumeOverride === undefined && saved && !saved.enabled) {
+        return;
+      }
+      const volScale =
+        typeof volumeOverride === 'number'
+          ? Math.max(0, Math.min(1, volumeOverride / 100))
+          : saved
+          ? Math.max(0, Math.min(1, saved.volumePercent / 100))
+          : 1;
+      if (volScale <= 0) return;
+
       const ctx = this.getAudioContext();
       if (!ctx) return;
 
@@ -559,7 +597,7 @@ class SoundService {
       osc.frequency.setValueAtTime(880, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.05);
 
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2 * volScale, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
 
       osc.connect(gain);
@@ -576,8 +614,20 @@ class SoundService {
     }
   }
 
-  public playSuccessCelebration() {
+  public playSuccessCelebration(volumeOverride?: number) {
     try {
+      const saved = this.getSavedSectionSound('tasbihDua');
+      if (volumeOverride === undefined && saved && !saved.enabled) {
+        return;
+      }
+      const volScale =
+        typeof volumeOverride === 'number'
+          ? Math.max(0, Math.min(1, volumeOverride / 100))
+          : saved
+          ? Math.max(0, Math.min(1, saved.volumePercent / 100))
+          : 1;
+      if (volScale <= 0) return;
+
       const ctx = this.getAudioContext();
       if (!ctx) return;
 
@@ -591,7 +641,7 @@ class SoundService {
         osc.type = 'triangle';
         osc.frequency.value = freq;
 
-        gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+        gain.gain.setValueAtTime(0.25 * volScale, now + idx * 0.08);
         gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
 
         osc.connect(gain);
@@ -1255,8 +1305,12 @@ class SoundService {
   /**
    * Comprehensive Ruqyah Shariah full audio:
    */
-  public playRuqyahShariah(onEnd?: () => void, onError?: (err: unknown) => void): boolean {
-    return this.playTrack('/audio/ruqyah_shariah.mp3', 'ruqyah_shariah', 'ruqyah', onEnd, onError);
+  public playRuqyahShariah(
+    onEnd?: () => void,
+    onError?: (err: unknown) => void,
+    volumePercent: number = 100
+  ): boolean {
+    return this.playTrack('/audio/ruqyah_shariah.mp3', 'ruqyah_shariah', 'ruqyah', onEnd, onError, volumePercent);
   }
 
   /**

@@ -97,7 +97,7 @@ export const DuaModal: React.FC<DuaModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleCopyDua = (dua: DuaItem) => {
-    const text = `🤲 ${dua.title}\n\n${dua.arabic}\n\n📚 [${dua.source}]\n— تطبيق مسلم بلس`;
+    const text = `🤲 ${dua.title}\n\n${dua.arabic}\n\n📚 [${dua.source}]\n— تطبيق رفيق المسلم`;
     navigator.clipboard?.writeText(text);
     setCopiedId(dua.id);
     setTimeout(() => setCopiedId(null), 2000);

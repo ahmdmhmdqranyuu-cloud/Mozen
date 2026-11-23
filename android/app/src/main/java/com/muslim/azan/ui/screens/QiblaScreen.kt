@@ -19,9 +19,9 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -130,14 +130,6 @@ fun QiblaScreen(
             .fillMaxSize()
             .background(MuslimPlusCanvasBrush)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_home_fullscreen),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            alignment = BiasAlignment(0f, -0.76f),
-            alpha = 0.14f,
-            modifier = Modifier.matchParentSize()
-        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -195,60 +187,76 @@ fun QiblaScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Compass Visualizer (Unified Mint + Mosque Watermark Dial)
+        // Compass Visualizer (Warm Cream Dial + 3D Metallic Gold Ring)
         Box(
             modifier = Modifier
-                .size(270.dp)
+                .size(274.dp)
+                .shadow(10.dp, CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(colors = listOf(MoazenCardStart, MoazenCardEnd)))
-                .border(2.dp, MoazenGold.copy(alpha = 0.55f), CircleShape),
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFFFFFDF7), Color(0xFFFBF4E0), Color(0xFFEDE0BE))
+                    )
+                )
+                .border(3.dp, RafeeqGoldBevelBrush, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.img_hadith_mosque),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alpha = 0.08f,
-                modifier = Modifier.matchParentSize()
-            )
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2f, size.height / 2f)
-                val radius = size.minDimension / 2f - 20f
+                val radius = size.minDimension / 2f - 18f
+
+                // Inner fine emerald ring
+                drawCircle(
+                    color = MoazenInkEmerald.copy(alpha = 0.22f),
+                    radius = radius - 6f,
+                    center = center,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                )
 
                 // Draw dial marks
-                for (angle in 0 until 360 step 30) {
+                for (angle in 0 until 360 step 15) {
+                    val isMajor = angle % 30 == 0
                     rotate(angle.toFloat(), center) {
                         drawLine(
-                            color = MoazenInkEmerald.copy(alpha = 0.35f),
+                            color = if (isMajor) MoazenGoldDark.copy(alpha = 0.85f) else MoazenInkEmerald.copy(alpha = 0.35f),
                             start = Offset(center.x, center.y - radius),
-                            end = Offset(center.x, center.y - radius + 15f),
-                            strokeWidth = 3f
+                            end = Offset(center.x, center.y - radius + if (isMajor) 16f else 9f),
+                            strokeWidth = if (isMajor) 3.2f else 1.8f
                         )
                     }
                 }
 
                 // Draw Compass Needle pointing towards Qibla
                 rotate(animatedRotation + qiblaBearing, center) {
-                    // Needle line
                     drawLine(
-                        color = MoazenGoldDark,
+                        color = MoazenInkEmerald,
                         start = center,
-                        end = Offset(center.x, center.y - radius + 25f),
-                        strokeWidth = 8f
+                        end = Offset(center.x, center.y - radius + 24f),
+                        strokeWidth = 7f
                     )
-                    // Needle tip
+                    drawCircle(
+                        color = MoazenGoldDark,
+                        radius = 13f,
+                        center = Offset(center.x, center.y - radius + 24f)
+                    )
                     drawCircle(
                         color = MoazenGold,
-                        radius = 12f,
-                        center = Offset(center.x, center.y - radius + 25f)
+                        radius = 7f,
+                        center = Offset(center.x, center.y - radius + 24f)
                     )
                 }
 
                 // Center hub
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.85f),
-                    radius = 22f,
+                    color = Color(0xFFFFFDF7),
+                    radius = 24f,
                     center = center
+                )
+                drawCircle(
+                    color = MoazenGoldDark.copy(alpha = 0.65f),
+                    radius = 24f,
+                    center = center,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
                 )
             }
 

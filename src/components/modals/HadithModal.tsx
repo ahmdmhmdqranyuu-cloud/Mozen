@@ -72,7 +72,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
 
   const handleCopyHadith = (hadith: ExpandedHadithItem) => {
     const grade = getHadithGrade(hadith);
-    const text = `${hadith.hadith}\n\n[الراوي: ${hadith.narrator} | المصدر: ${hadith.source} | الدرجة: ${grade}]\n\nمن تطبيق مسلم بلس`;
+    const text = `${hadith.hadith}\n\n[الراوي: ${hadith.narrator} | المصدر: ${hadith.source} | الدرجة: ${grade}]\n\nمن تطبيق رفيق المسلم`;
     navigator.clipboard.writeText(text);
     setCopiedId(hadith.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -84,7 +84,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
       title: `حديث نبوي: ${hadith.title}`,
       body: hadith.hadith,
       source: `الراوي: ${hadith.narrator} | المصدر: ${hadith.source} | الدرجة: ${grade}`,
-      footer: 'تطبيق مسلم بلس — موسوعة الحديث النبوي الشريف',
+      footer: 'تطبيق رفيق المسلم — موسوعة الحديث النبوي الشريف',
     });
     setSharedId(hadith.id);
     setTimeout(() => setSharedId(null), 2000);
@@ -97,7 +97,7 @@ export const HadithModal: React.FC<HadithModalProps> = ({
       title: hadith.title,
       body: hadith.hadith,
       source: `الراوي: ${hadith.narrator} • ${hadith.source} (${grade})`,
-      footer: 'تطبيق مسلم بلس',
+      footer: 'تطبيق رفيق المسلم',
     });
   };
 

@@ -207,7 +207,7 @@ export const WallpapersModal: React.FC<WallpapersModalProps> = ({
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: w.title,
-            text: `${w.title}\n${w.islamicPhrase || ''}\n🕌 عبر تطبيق مسلم بلس`,
+            text: `${w.title}\n${w.islamicPhrase || ''}\n🕌 عبر تطبيق رفيق المسلم`,
             files: [file],
           });
           showToast(`✓ تمت مشاركة الخلفية «${w.title}» بنجاح`);
@@ -231,7 +231,7 @@ export const WallpapersModal: React.FC<WallpapersModalProps> = ({
         title: w.title,
         category: w.categoryName,
         arabicText: `${w.islamicPhrase || w.description}\n${w.url}`,
-        source: w.phraseSubtext || 'خلفيات تطبيق مسلم بلس',
+        source: w.phraseSubtext || 'خلفيات تطبيق رفيق المسلم',
       });
       if (res === 'copied') {
         showToast(`✓ تم نسخ رابط ووصف الخلفية للمشاركة`);

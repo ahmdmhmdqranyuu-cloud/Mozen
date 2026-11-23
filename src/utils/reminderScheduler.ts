@@ -928,13 +928,19 @@ class ReminderScheduler {
             const pDateKey = `preprayer_${leadMins}_${p.key}_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             if (!this.firedKeySet.has(pDateKey)) {
               this.markAsFired(pDateKey);
+              const preSoundCfg = resolvedProf?.appSounds?.prePrayer;
+              const masterSoundAllowed = resolvedProf?.soundEnabled !== false;
+              const preSoundAllowed =
+                masterSoundAllowed &&
+                this.settings.prePrayerAlert?.autoPlaySound !== false &&
+                (preSoundCfg ? preSoundCfg.enabled !== false : true);
               if (preEnabled) {
-                if (this.settings.prePrayerAlert?.autoPlaySound !== false) {
+                if (preSoundAllowed) {
                   soundService.playPrePrayerAlert(
                     undefined,
                     undefined,
-                    pCfg?.preAlertVoice || 'pre_prayer_15m',
-                    pCfg?.volumePercent ?? 100
+                    pCfg?.preAlertVoice || preSoundCfg?.trackId || 'pre_prayer_15m',
+                    preSoundCfg?.volumePercent ?? pCfg?.volumePercent ?? 100
                   );
                 }
                 this.sendNotification(
@@ -1029,52 +1035,75 @@ class ReminderScheduler {
   }
 
   public playAudioForSection(section: string, audioTrackId: string) {
+    const prof = this.resolveUserProfile();
+    if (prof?.soundEnabled === false) return;
+    const sounds = prof?.appSounds;
+
+    const azkarEnabled = sounds?.azkar ? sounds.azkar.enabled !== false : true;
     const azkarVol =
+      sounds?.azkar?.volumePercent ??
       this.settings.azkarVolumePercent ??
       this.settings.morningAzkar.volumePercent ??
       this.settings.eveningAzkar.volumePercent ??
       100;
-    const salawatVol = this.settings.salawat.volumePercent ?? 85;
+    const preEnabled = sounds?.prePrayer ? sounds.prePrayer.enabled !== false : true;
+    const preVol = sounds?.prePrayer?.volumePercent ?? 100;
+    const otherEnabled = sounds?.otherAlerts ? sounds.otherAlerts.enabled !== false : true;
+    const otherVol = sounds?.otherAlerts?.volumePercent ?? this.settings.salawat.volumePercent ?? 85;
 
     switch (section) {
       case 'salawat':
-        soundService.playSalawat(audioTrackId, undefined, salawatVol);
+        if (!otherEnabled) return;
+        soundService.playSalawat(audioTrackId, undefined, otherVol);
         break;
       case 'morningAzkar':
+        if (!azkarEnabled) return;
         soundService.playAzkarSabah(
           audioTrackId,
           undefined,
-          this.settings.morningAzkar.volumePercent ?? azkarVol
+          sounds?.azkar?.volumePercent ?? this.settings.morningAzkar.volumePercent ?? azkarVol
         );
         break;
       case 'eveningAzkar':
+        if (!azkarEnabled) return;
         soundService.playAzkarMassa(
           audioTrackId,
           undefined,
-          this.settings.eveningAzkar.volumePercent ?? azkarVol
+          sounds?.azkar?.volumePercent ?? this.settings.eveningAzkar.volumePercent ?? azkarVol
         );
         break;
       case 'musaharati':
-        soundService.playMusaharati(audioTrackId);
+        if (!otherEnabled) return;
+        soundService.playMusaharati(audioTrackId, undefined, otherVol);
         break;
       case 'iftarCannon':
-        soundService.playIftarCannon(audioTrackId);
+        if (!otherEnabled) return;
+        soundService.playIftarCannon(audioTrackId, undefined, otherVol);
         break;
       case 'prePrayerAlert':
       case 'approaching_prayer':
-        soundService.playPrePrayerAlert();
+        if (!preEnabled) return;
+        soundService.playPrePrayerAlert(
+          undefined,
+          undefined,
+          sounds?.prePrayer?.trackId || audioTrackId || 'pre_prayer_15m',
+          preVol
+        );
         break;
       case 'qiyamFirstThird':
-        soundService.playQiyamFirstThird();
+        if (!otherEnabled) return;
+        soundService.playQiyamFirstThird(undefined, undefined, otherVol);
         break;
       case 'qiyamLastThird':
-        soundService.playQiyamLastThird();
+        if (!otherEnabled) return;
+        soundService.playQiyamLastThird(undefined, undefined, otherVol);
         break;
       case 'ruqyah':
-        soundService.playRuqyahShariah();
+        if (!otherEnabled) return;
+        soundService.playRuqyahShariah(undefined, undefined, otherVol);
         break;
       default:
-        soundService.playTrack(`/audio/${audioTrackId}.mp3`, audioTrackId, section);
+        soundService.playTrack(`/audio/${audioTrackId}.mp3`, audioTrackId, section, undefined, undefined, otherVol);
     }
   }
 

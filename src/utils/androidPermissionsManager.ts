@@ -678,7 +678,7 @@ export async function checkAndNotifyMissingFeaturePermissions(options: {
         ? 'Battery Unrestricted Needed • Reliable Background Azan'
         : 'مطلوب استثناء البطارية • استمرار الأذان في الخلفية',
       body: isEn
-        ? 'Exclude Muslim Plus from battery restrictions so Azan alerts never get delayed.'
+        ? 'Exclude Rafeeq Al-Muslim from battery restrictions so Azan alerts never get delayed.'
         : 'لضمان رفع الأذان والتنبيهات في وقتها دون إيقاف من نظام توفير الطاقة، اضغط هنا لفتح صفحة استثناء البطارية مباشرة.',
     });
   }

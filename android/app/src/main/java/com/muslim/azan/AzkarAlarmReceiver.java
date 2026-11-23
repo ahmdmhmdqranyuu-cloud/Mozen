@@ -259,7 +259,7 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                     || "prePrayerAlert".equals(section)
                     || "iftar".equals(section);
 
-            String resolvedTitle = title != null && !title.isEmpty() ? title : "مسلم بلس";
+            String resolvedTitle = title != null && !title.isEmpty() ? title : "رفيق المسلم";
             String resolvedBody = body != null && !body.isEmpty() ? body : "حان موعد الصلاة والأذكار";
 
             Intent targetIntent;
@@ -353,7 +353,7 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            String resolvedTitle = (title != null && !title.isEmpty()) ? title : "تذكير مسلم بلس";
+            String resolvedTitle = (title != null && !title.isEmpty()) ? title : "تذكير رفيق المسلم";
             String resolvedBody = (body != null && !body.isEmpty()) ? body : "حان موعد التذكير الذي حددته";
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)

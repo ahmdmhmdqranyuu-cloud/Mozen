@@ -55,6 +55,7 @@ import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
 import androidx.compose.ui.draw.shadow
 import com.muslim.azan.ui.components.MoazenWidgetCard
+import com.muslim.azan.ui.components.RafeeqBannerWidget
 import androidx.compose.ui.BiasAlignment
 import com.muslim.azan.ui.navigation.Screen
 import kotlinx.coroutines.delay
@@ -205,6 +206,10 @@ fun HomeScreen(
                 "isna" -> "ISNA (North America)"
                 "karachi" -> "Univ. of Islamic Sciences, Karachi"
                 "dubai" -> "Gulf / Dubai Standard"
+                "uoif" -> "UOIF (France)"
+                "kuwait" -> "Kuwait Awqaf"
+                "qatar" -> "Qatar Awqaf"
+                "diyanet" -> "Diyanet (Turkey)"
                 else -> "Umm Al-Qura, Makkah"
             }
         } else {
@@ -213,7 +218,11 @@ fun HomeScreen(
                 "mwl" -> "رابطة العالم الإسلامي"
                 "isna" -> "الجمعية الإسلامية بأمريكا"
                 "karachi" -> "جامعة كراتشي"
-                "dubai" -> "توقيت الخليج / دبي"
+                "dubai" -> "دبي والإمارات والخليج"
+                "uoif" -> "اتحاد المنظمات بفرنسا UOIF"
+                "kuwait" -> "وزارة الأوقاف الكويتية"
+                "qatar" -> "أوقاف قطر"
+                "diyanet" -> "ديانت تركيا"
                 else -> "توقيت أم القرى"
             }
         }
@@ -258,180 +267,28 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = viewportMinHeight)
+                    .background(MuslimPlusCanvasBrush)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_home_fullscreen),
-                    contentDescription = "خلفية مسلم بلس",
-                    contentScale = ContentScale.Crop,
-                    alignment = BiasAlignment(0f, -0.76f),
-                    modifier = Modifier.matchParentSize()
-                )
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Balanced Upper Mosque & Logo Region leaving space for the Muslim Plus brand widget + PrayerCard
-                    val mosqueClearSpacer = (viewportMinHeight * 0.15f - 44.dp).coerceIn(58.dp, 98.dp)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 0.dp),
+                            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 0.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                    // Top Corner Row: Compact Warm Gold Verse + Cream-Ivory Action Icons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.Start,
-                            modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = "وَما تَوْفِيقِي إِلَّا بِاللَّهِ",
-                                color = Color(0xFFF5D77F),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                style = TextStyle(
-                                    shadow = Shadow(
-                                        color = Color(0xCC061C15),
-                                        offset = Offset(0f, 1.5f),
-                                        blurRadius = 4f
-                                    )
-                                )
-                            )
-                            Text(
-                                text = "سورة هود - 88",
-                                color = Color(0xFFF5D77F).copy(alpha = 0.92f),
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                style = TextStyle(
-                                    shadow = Shadow(
-                                        color = Color(0xCC061C15),
-                                        offset = Offset(0f, 1.5f),
-                                        blurRadius = 4f
-                                    )
-                                )
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MoazenCardStart.copy(alpha = 0.95f),
-                                border = BorderStroke(1.1.dp, MoazenCardBorder),
-                                shadowElevation = 3.dp,
-                                modifier = Modifier
-                                    .size(31.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onNavigate(Screen.Settings) }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "الإعدادات",
-                                        tint = MoazenInkEmerald,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Surface(
-                                shape = CircleShape,
-                                color = MoazenCardStart.copy(alpha = 0.95f),
-                                border = BorderStroke(1.1.dp, MoazenCardBorder),
-                                shadowElevation = 3.dp,
-                                modifier = Modifier
-                                    .size(31.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onNavigate(Screen.PrayerTimes) }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Notifications,
-                                        contentDescription = "التنبيهات والمواقيت",
-                                        tint = MoazenInkEmerald,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Lift brand widget & PrayerCard cleanly upward while keeping mosque arch & dome horizon clear
-                    Spacer(modifier = Modifier.height(mosqueClearSpacer))
-
-                    // Creamy Muslim Plus Brand Widget above PrayerCard (switches AR/EN automatically, no foreign background)
-                    MoazenWidgetCard(
-                        cornerRadius = 15.dp,
-                        borderColor = MoazenCardBorder,
-                        elevation = 3.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 3.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(26.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(MoazenInkEmerald, MuslimPlusPillEmerald)
-                                            )
-                                        )
-                                        .border(1.dp, MoazenGold.copy(alpha = 0.8f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.NightsStay,
-                                        contentDescription = null,
-                                        tint = Color(0xFFF5D77F),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Text(
-                                        text = if (isEnglish || (language != "ar" && language != "ur")) "Muslim Plus" else "مسلم بلس",
-                                        color = MoazenInkEmerald,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "✦",
-                                        color = MoazenGold,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Text(
-                                text = if (isEnglish) "Azan • Quran • Azkar" else "المؤذن • القرآن • الأذكار",
-                                color = MoazenGoldDark,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                        RafeeqBannerWidget(
+                            isEnglish = isEnglish,
+                            hasNotificationBadge = true,
+                            onOpenSettings = { onNavigate(Screen.Settings) },
+                            onOpenNotifications = { onNavigate(Screen.PrayerTimes) },
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
 
                     // Unified Ivory-Cream Prayer Times Card (#F6EEDC -> #EDE2C8, #D6C18D border)
                     MoazenWidgetCard(
@@ -955,7 +812,7 @@ fun HomeScreen(
                                         .clip(CircleShape)
                                         .clickable {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            val shareText = "✦ آية اليوم • سورة $activeSurahName (${dailySnapshot.ayah.ayahNumber}) ✦\n\n$activeAyahSnippet\n\n📚 المصدر: صفحة ${dailySnapshot.ayah.pageNumber} من المصحف الشريف\n🕌 عبر تطبيق مسلم بلس"
+                                            val shareText = "✦ آية اليوم • سورة $activeSurahName (${dailySnapshot.ayah.ayahNumber}) ✦\n\n$activeAyahSnippet\n\n📚 المصدر: صفحة ${dailySnapshot.ayah.pageNumber} من المصحف الشريف\n🕌 عبر تطبيق رفيق المسلم"
                                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                                 putExtra(Intent.EXTRA_TEXT, shareText)
                                                 type = "text/plain"
@@ -1051,7 +908,7 @@ fun HomeScreen(
                                                 .clip(CircleShape)
                                                 .clickable {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    val shareText = "✦ دعاء اليوم ✦\n\n«${dailySnapshot.dua.text}»\n\n📚 المصدر: ${dailySnapshot.dua.source}\n🕌 عبر تطبيق مسلم بلس"
+                                                    val shareText = "✦ دعاء اليوم ✦\n\n«${dailySnapshot.dua.text}»\n\n📚 المصدر: ${dailySnapshot.dua.source}\n🕌 عبر تطبيق رفيق المسلم"
                                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                                         type = "text/plain"
@@ -1150,7 +1007,7 @@ fun HomeScreen(
                                                 .clip(CircleShape)
                                                 .clickable {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    val shareText = "✦ حديث اليوم ✦\n\n${dailySnapshot.hadith.fullText}\n\n📚 المصدر: ${dailySnapshot.hadith.source}\n🕌 عبر تطبيق مسلم بلس"
+                                                    val shareText = "✦ حديث اليوم ✦\n\n${dailySnapshot.hadith.fullText}\n\n📚 المصدر: ${dailySnapshot.hadith.source}\n🕌 عبر تطبيق رفيق المسلم"
                                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                                         type = "text/plain"

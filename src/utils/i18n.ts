@@ -764,7 +764,7 @@ const EXTRA_STRINGS_EN = {
 export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
   ar: {
     ...EXTRA_STRINGS_AR,
-    appName: 'مسلم بلس',
+    appName: 'رفيق المسلم',
     appTagline: 'مؤذنك الإسلامي .. رفيقك في طريق الإيمان',
     ayahHeader: '{وَمَا تَوْفِيقِي إِلَّا بِاللَّهِ}',
     ayahSource: 'سورة هود : 88',
@@ -869,8 +869,8 @@ export const TRANSLATIONS: Record<AppLanguage, TranslationDictionary> = {
   },
   en: {
     ...EXTRA_STRINGS_EN,
-    appName: 'Islamic Muezzin',
-    appTagline: 'Islamic Muezzin • Your Companion in Faith',
+    appName: 'Rafeeq Al-Muslim',
+    appTagline: 'Rafeeq Al-Muslim • Your Companion in Faith',
     ayahHeader: '{And my success is only by Allah}',
     ayahSource: 'Surah Hud : 88',
     fajr: 'Fajr',

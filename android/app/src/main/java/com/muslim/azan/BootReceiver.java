@@ -87,7 +87,17 @@ public class BootReceiver extends BroadcastReceiver {
             String azanVoice = prefs.getString("azan_voice", "makkah");
             String fajrVoice = prefs.getString("fajr_voice", "abdulbasit_fajr");
             boolean azanSoundEnabled = prefs.getBoolean("azanSoundEnabled", true);
+            boolean fajrSoundEnabled = prefs.getBoolean("fajr_sound_enabled", azanSoundEnabled);
+            int fajrVolumePercent = Math.max(0, Math.min(100, prefs.getInt("fajr_volume_percent", 100)));
+            int regularAzanVolumePercent = Math.max(0, Math.min(100, prefs.getInt("regular_azan_volume_percent", 100)));
             boolean prePrayerAlertEnabled = prefs.getBoolean("pre_prayer_alert_enabled", true);
+            String prePrayerVoice = prefs.getString("pre_prayer_voice", "pre_prayer_15m");
+            int prePrayerMinutes = Math.max(1, Math.min(60, prefs.getInt("pre_prayer_minutes", 15)));
+            int prePrayerVolumePercent = Math.max(0, Math.min(100, prefs.getInt("pre_prayer_volume_percent", 90)));
+            boolean azkarSoundEnabled = prefs.getBoolean("azkar_sound_enabled", true);
+            boolean iqamaEnabled = prefs.getBoolean("iqama_enabled", true);
+            String iqamaVoice = prefs.getString("iqama_voice", "iqama_1");
+            int otherAlertsVolumePercent = Math.max(0, Math.min(100, prefs.getInt("other_alerts_volume_percent", 85)));
 
             int fajrOff = prefs.getInt("offset_fajr", 0);
             int dhuhrOff = prefs.getInt("offset_dhuhr", 0);
@@ -103,7 +113,7 @@ public class BootReceiver extends BroadcastReceiver {
             int salawatInterval = prefs.getInt("salawat_repeat_interval", 15);
             String salawatUnit = prefs.getString("salawat_repeat_unit", "minutes");
             String salawatAudio = prefs.getString("salawat_audio", "salawat_1");
-            int salawatVolumePercent = Math.max(0, Math.min(100, prefs.getInt("salawat_volume_percent", 85)));
+            int salawatVolumePercent = Math.max(0, Math.min(100, prefs.getInt("salawat_volume_percent", otherAlertsVolumePercent)));
 
             boolean morningAzkarEnabled = prefs.getBoolean("morning_azkar_enabled", true);
             String morningAzkarTime = prefs.getString("morning_azkar_time", "08:00");
@@ -141,16 +151,18 @@ public class BootReceiver extends BroadcastReceiver {
                 boolean isDuha = "duha".equals(k);
                 int legacyOffset = Math.max(-60, Math.min(60, prefs.getInt("offset_" + k, 0)));
                 String defaultVoice = "fajr".equals(k) ? fajrVoice : (isObligatory ? azanVoice : (isDuha ? "duha_surah" : "salawat_1"));
+                int defaultVol = "fajr".equals(k) ? fajrVolumePercent : regularAzanVolumePercent;
+                boolean defaultSound = "fajr".equals(k) ? fajrSoundEnabled : (isObligatory ? azanSoundEnabled : isDuha);
                 offsets[i] = legacyOffset;
-                soundEnabledArr[i] = isObligatory ? azanSoundEnabled : isDuha;
-                volumePercentArr[i] = 100;
+                soundEnabledArr[i] = defaultSound;
+                volumePercentArr[i] = defaultVol;
                 preAlertEnabledArr[i] = isObligatory && prePrayerAlertEnabled;
-                preAlertMinutesArr[i] = 15;
-                preAlertVoiceArr[i] = "pre_prayer_15m";
+                preAlertMinutesArr[i] = prePrayerMinutes;
+                preAlertVoiceArr[i] = prePrayerVoice;
                 silentDuringArr[i] = false;
                 azanVoiceArr[i] = defaultVoice;
                 alertModeArr[i] = (isObligatory || isDuha) ? "full_azan" : "short_tone";
-                iqamaVoiceArr[i] = isObligatory ? "iqama_1" : "none";
+                iqamaVoiceArr[i] = (isObligatory && iqamaEnabled) ? iqamaVoice : "none";
                 duaAfterArr[i] = isObligatory;
                 didYouPrayEnabledArr[i] = true;
 
@@ -160,14 +172,14 @@ public class BootReceiver extends BroadcastReceiver {
                         JSONObject cfg = new JSONObject(cfgRaw);
                         offsets[i] = Math.max(-60, Math.min(60, cfg.optInt("offsetMinutes", legacyOffset)));
                         soundEnabledArr[i] = cfg.optBoolean("soundEnabled", soundEnabledArr[i]);
-                        volumePercentArr[i] = Math.max(0, Math.min(100, cfg.optInt("volumePercent", 100)));
+                        volumePercentArr[i] = Math.max(0, Math.min(100, cfg.optInt("volumePercent", defaultVol)));
                         preAlertEnabledArr[i] = cfg.optBoolean("preAlertEnabled", preAlertEnabledArr[i]);
-                        preAlertMinutesArr[i] = Math.max(1, Math.min(60, cfg.optInt("preAlertMinutes", 15)));
-                        preAlertVoiceArr[i] = cfg.optString("preAlertVoice", "pre_prayer_15m");
+                        preAlertMinutesArr[i] = Math.max(1, Math.min(60, cfg.optInt("preAlertMinutes", prePrayerMinutes)));
+                        preAlertVoiceArr[i] = cfg.optString("preAlertVoice", prePrayerVoice);
                         silentDuringArr[i] = cfg.optBoolean("silentDuringPrayer", false);
                         azanVoiceArr[i] = cfg.optString("azanVoice", defaultVoice);
                         alertModeArr[i] = cfg.optString("alertMode", alertModeArr[i]);
-                        iqamaVoiceArr[i] = cfg.optString("iqamaVoice", iqamaVoiceArr[i]);
+                        iqamaVoiceArr[i] = iqamaEnabled ? cfg.optString("iqamaVoice", iqamaVoiceArr[i]) : "none";
                         duaAfterArr[i] = cfg.optBoolean("duaAfterPrayerEnabled", duaAfterArr[i]);
                         didYouPrayEnabledArr[i] = cfg.optBoolean("didYouPrayEnabled", true);
                     } catch (Exception cfgEx) {
@@ -243,7 +255,7 @@ public class BootReceiver extends BroadcastReceiver {
                             preObj.put("body", "«إِنَّ الصَّلَاةَ كَانَتْ عَلَى الْمُؤْمِنِينَ كِتَابًا مَوْقُوتًا» • متبقي " + preMins + " دقيقة على " + pName);
                             preObj.put("triggerEpochMs", prePrayerEpochMs);
                             preObj.put("audioTrackId", preAlertVoiceArr[pIdx]);
-                            preObj.put("volumePercent", volumePercentArr[pIdx]);
+                            preObj.put("volumePercent", prePrayerVolumePercent);
                             preObj.put("alertMode", "full_azan");
                             preObj.put("autoPlay", true);
                             priorityArray.put(preObj);
@@ -272,7 +284,7 @@ public class BootReceiver extends BroadcastReceiver {
                     }
 
                     // Schedule Iqama alert 7-15 min after Azan when enabled for obligatory prayers
-                    boolean hasIqamaSlot = isObligatory && soundEnabledArr[pIdx] && iqamaVoiceArr[pIdx] != null
+                    boolean hasIqamaSlot = isObligatory && iqamaEnabled && soundEnabledArr[pIdx] && iqamaVoiceArr[pIdx] != null
                             && !iqamaVoiceArr[pIdx].isEmpty() && !"none".equals(iqamaVoiceArr[pIdx])
                             && !"silent".equals(alertModeArr[pIdx]) && !"vibrate_only".equals(alertModeArr[pIdx]);
                     int iqamaDelayMins = "maghrib".equals(pKey) ? 7 : 15;
@@ -288,7 +300,7 @@ public class BootReceiver extends BroadcastReceiver {
                             iqamaObj.put("body", "قد قامت الصلاة • حي على الصلاة في " + cityName);
                             iqamaObj.put("triggerEpochMs", iqamaEpochMs);
                             iqamaObj.put("audioTrackId", iqamaVoiceArr[pIdx]);
-                            iqamaObj.put("volumePercent", volumePercentArr[pIdx]);
+                            iqamaObj.put("volumePercent", otherAlertsVolumePercent);
                             iqamaObj.put("alertMode", "full_azan");
                             iqamaObj.put("autoPlay", true);
                             priorityArray.put(iqamaObj);
@@ -326,7 +338,7 @@ public class BootReceiver extends BroadcastReceiver {
                         mObj.put("triggerEpochMs", morningEpochMs);
                         mObj.put("audioTrackId", morningAzkarAudio);
                         mObj.put("volumePercent", azkarVolumePercent);
-                        mObj.put("autoPlay", true);
+                        mObj.put("autoPlay", azkarSoundEnabled);
                         priorityArray.put(mObj);
                     }
                 }
@@ -342,7 +354,7 @@ public class BootReceiver extends BroadcastReceiver {
                         eObj.put("triggerEpochMs", eveningEpochMs);
                         eObj.put("audioTrackId", eveningAzkarAudio);
                         eObj.put("volumePercent", azkarVolumePercent);
-                        eObj.put("autoPlay", true);
+                        eObj.put("autoPlay", azkarSoundEnabled);
                         priorityArray.put(eObj);
                     }
                 }

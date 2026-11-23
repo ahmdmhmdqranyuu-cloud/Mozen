@@ -1,4 +1,12 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  CALCULATION_METHODS,
+  calculatePrayerTimes,
+  validatePrayerChronology,
+} from '../utils/prayerTimes';
+import { AppSoundPreferences } from '../types';
 import {
   WORSHIP_ITEMS,
   loadWorshipTrackerState,
@@ -263,6 +271,62 @@ async function runTests() {
       assert.ok(enMsg.body.startsWith('Have you prayed '));
       assert.equal(didYouPrayDedupKey(refDate, key), `2026-04-10_${key}`);
     }
+  });
+
+  await check('All 10 Islamic calculation methods (including uoif, dubai, qatar) produce valid chronological prayer times', () => {
+    assert.equal(CALCULATION_METHODS.length, 10);
+    const ids = CALCULATION_METHODS.map((m) => m.id);
+    assert.ok(ids.includes('uoif'));
+    assert.ok(ids.includes('dubai'));
+    assert.ok(ids.includes('qatar'));
+
+    const paris = {
+      id: 'paris',
+      name: 'باريس',
+      country: 'فرنسا',
+      latitude: 48.8566,
+      longitude: 2.3522,
+      timezone: 'Europe/Paris',
+    };
+    const testDate = new Date(2026, 4, 15, 12, 0, 0);
+    for (const method of CALCULATION_METHODS) {
+      const prayers = calculatePrayerTimes(paris, testDate, method.id, 'standard', {}, 'auto', 'angle_based');
+      assert.equal(prayers.length, 7);
+      assert.ok(validatePrayerChronology(prayers), `Invalid chronology for method ${method.id}`);
+    }
+  });
+
+  await check('7-Section AppSoundPreferences schema & Android/Web enforcement + manual calculation method lock are wired', () => {
+    const sampleSounds: AppSoundPreferences = {
+      fajrAzan: { enabled: true, trackId: 'abdulbasit_fajr', volumePercent: 100 },
+      regularAzan: { enabled: true, trackId: 'makkah', volumePercent: 95 },
+      prePrayer: { enabled: true, trackId: 'pre_prayer_15m', volumePercent: 85 },
+      azkar: { enabled: true, trackId: 'azkar_sabah_1', secondaryTrackId: 'azkar_massa_1', volumePercent: 90 },
+      tasbihDua: { enabled: true, trackId: 'salawat_1', volumePercent: 80 },
+      quran: { enabled: true, trackId: 'alafasy', volumePercent: 100 },
+      otherAlerts: { enabled: true, trackId: 'iqama_1', secondaryTrackId: 'salawat_1', volumePercent: 85 },
+    };
+    assert.equal(Object.keys(sampleSounds).length, 7);
+
+    const rootDir = process.cwd();
+    const settingsModal = fs.readFileSync(path.join(rootDir, 'src/components/modals/SettingsModal.tsx'), 'utf8');
+    assert.match(settingsModal, /calculationMethodManuallySelected/, 'SettingsModal must preserve manual method lock');
+    assert.match(settingsModal, /azan_7_sections/, 'SettingsModal must expose 7-section sound controls');
+
+    const settingsKt = fs.readFileSync(
+      path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/ui/screens/SettingsScreen.kt'),
+      'utf8'
+    );
+    assert.match(settingsKt, /calcMethodManuallyLocked/, 'SettingsScreen.kt must preserve manual method lock');
+    assert.match(settingsKt, /fajrVolumePercent/, 'SettingsScreen.kt must expose 7-section sound controls');
+    assert.match(settingsKt, /ic_rafeeq_app_icon/, 'SettingsScreen.kt must use ic_rafeeq_app_icon');
+
+    const nativePrefs = fs.readFileSync(
+      path.join(rootDir, 'android/app/src/main/java/com/muslim/azan/data/NativePreferences.kt'),
+      'utf8'
+    );
+    assert.match(nativePrefs, /var tasbihDuaVolumePercent/, 'NativePreferences.kt must persist tasbihDuaVolumePercent');
+    assert.match(nativePrefs, /var quranAudioEnabled/, 'NativePreferences.kt must persist quranAudioEnabled');
   });
 
   console.log(`\nAll ${passed} Feature Updates tests passed.`);

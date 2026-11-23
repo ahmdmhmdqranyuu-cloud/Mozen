@@ -185,11 +185,13 @@ class RecitationPlayerService {
       return;
     }
 
+    const quranPrefs = this.getSavedQuranSoundPrefs();
     const url = this.candidateUrls[this.candidateIndex];
     const audio = new Audio();
     audio.preload = 'auto';
     audio.src = url;
     audio.playbackRate = this.state.playbackSpeed;
+    audio.volume = quranPrefs.enabled ? Math.max(0, Math.min(1, quranPrefs.volumePercent / 100)) : 0;
     this.audio = audio;
 
     audio.onloadedmetadata = () => {
@@ -395,13 +397,36 @@ class RecitationPlayerService {
     }
   }
 
+  private getSavedQuranSoundPrefs(): { enabled: boolean; volumePercent: number } {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('azan_user_profile');
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            soundEnabled?: boolean;
+            appSounds?: { quran?: { enabled?: boolean; volumePercent?: number } };
+          };
+          const masterEnabled = parsed?.soundEnabled !== false;
+          const quranCfg = parsed?.appSounds?.quran;
+          return {
+            enabled: masterEnabled && quranCfg?.enabled !== false,
+            volumePercent: Math.max(0, Math.min(100, Number(quranCfg?.volumePercent ?? 100))),
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return { enabled: true, volumePercent: 100 };
+  }
+
   private setupMediaSession(surah: SurahAudioItem, reciter: Reciter) {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `سورة ${surah.name}`,
         artist: reciter.name,
-        album: 'تطبيق المؤذن - التلاوات القرآنية',
+        album: 'رفيق المسلم - التلاوات القرآنية',
         artwork: [
           { src: reciter.photoUrl, sizes: '256x256', type: 'image/jpeg' },
         ],

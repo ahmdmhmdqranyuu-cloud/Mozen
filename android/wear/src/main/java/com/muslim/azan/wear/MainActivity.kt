@@ -279,7 +279,7 @@ private fun WearPrayersMainScreen(
         ) {
             item {
                 Text(
-                    text = "مسلم بلس • ${city.nameAr}",
+                    text = "رفيق المسلم • ${city.nameAr}",
                     color = WearGoldAccent,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,

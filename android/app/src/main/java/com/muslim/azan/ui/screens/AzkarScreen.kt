@@ -90,7 +90,10 @@ fun AzkarScreen(
                     val title = if (selectedCategoryIndex == 0) "أذكار الصباح المباركة" else "أذكار المساء المباركة"
                     if (isPlayingAudio && currentAudioTitle == title) {
                         NativeAudioPlayerManager.stop()
+                    } else if (!prefs.azkarSoundEnabled) {
+                        android.widget.Toast.makeText(context, "صوت الأذكار مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
                     } else {
+                        NativeAudioPlayerManager.setVolume(prefs.azkarVolumePercent / 100f)
                         NativeAudioPlayerManager.playAssetAudio(context, "audio/$trackName", title, "بصوت خاشع")
                     }
                 }
@@ -172,7 +175,10 @@ fun AzkarScreen(
                             .clickable {
                                 if (isSabahPlaying) {
                                     NativeAudioPlayerManager.stop()
+                                } else if (!prefs.azkarSoundEnabled) {
+                                    android.widget.Toast.makeText(context, "صوت الأذكار مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
+                                    NativeAudioPlayerManager.setVolume(prefs.azkarVolumePercent / 100f)
                                     NativeAudioPlayerManager.playAssetAudio(
                                         context,
                                         "audio/azkar_sabah.mp3",
@@ -215,7 +221,10 @@ fun AzkarScreen(
                             .clickable {
                                 if (isMassaPlaying) {
                                     NativeAudioPlayerManager.stop()
+                                } else if (!prefs.azkarSoundEnabled) {
+                                    android.widget.Toast.makeText(context, "صوت الأذكار مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
+                                    NativeAudioPlayerManager.setVolume(prefs.azkarVolumePercent / 100f)
                                     NativeAudioPlayerManager.playAssetAudio(
                                         context,
                                         "audio/azkar_massa.mp3",

@@ -202,6 +202,7 @@ export interface UserProfile {
   dstMode?: DstMode;
   city: CityLocation;
   calculationMethod: string;
+  calculationMethodManuallySelected?: boolean;
   highLatitudeRule?: HighLatitudeRule;
   asrJuristicMethod?: 'standard' | 'hanafi';
   asrMethod?: 'standard' | 'hanafi';
@@ -264,7 +265,34 @@ export interface UserProfile {
 
   // Comprehensive Audio Reminders & Scheduler Settings
   audioReminders?: IslamicAudioRemindersSettings;
+  appSounds?: AppSoundPreferences;
   onboardingCompleted?: boolean;
+}
+
+export type AppSoundSectionKey =
+  | 'fajrAzan'
+  | 'regularAzan'
+  | 'prePrayer'
+  | 'azkar'
+  | 'tasbihDua'
+  | 'quran'
+  | 'otherAlerts';
+
+export interface SectionAudioConfig {
+  enabled: boolean;
+  trackId: string;
+  secondaryTrackId?: string;
+  volumePercent: number; // 0..100
+}
+
+export interface AppSoundPreferences {
+  fajrAzan: SectionAudioConfig;
+  regularAzan: SectionAudioConfig;
+  prePrayer: SectionAudioConfig;
+  azkar: SectionAudioConfig;
+  tasbihDua: SectionAudioConfig;
+  quran: SectionAudioConfig;
+  otherAlerts: SectionAudioConfig;
 }
 
 export type RepeatUnit = 'minutes' | 'hours';

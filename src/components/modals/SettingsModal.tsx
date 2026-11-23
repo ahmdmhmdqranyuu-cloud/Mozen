@@ -60,11 +60,24 @@ import {
   isSmartAzanWidgetEnabled,
   setSmartAzanWidgetEnabled,
 } from './SmartAzanIqamaWidget';
-import { CityLocation, DstMode, HighLatitudeRule, PrayerKey, UserProfile } from '../../types';
+import {
+  AppSoundPreferences,
+  AppSoundSectionKey,
+  CityLocation,
+  DstMode,
+  HighLatitudeRule,
+  PrayerKey,
+  SectionAudioConfig,
+  UserProfile,
+} from '../../types';
 import {
   AZAN_VOICES,
   FAJR_AZAN_VOICES,
   IQAMA_VOICES,
+  PRE_PRAYER_AUDIO_OPTIONS,
+  MORNING_AZKAR_AUDIO_OPTIONS,
+  EVENING_AZKAR_AUDIO_OPTIONS,
+  QURAN_RECITERS,
   DUHA_AUDIO_FILE,
   DUA_AFTER_AZAN_AUDIO_FILE,
   soundService,
@@ -218,6 +231,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [auditioningVoice, setAuditioningVoice] = useState<string | null>(null);
   const [auditioningFajrVoice, setAuditioningFajrVoice] = useState<string | null>(null);
   const [auditioningIqama, setAuditioningIqama] = useState<string | null>(null);
+  const [auditioningSoundSection, setAuditioningSoundSection] = useState<AppSoundSectionKey | null>(null);
   const [liveCountdownInfo, setLiveCountdownInfo] = useState<{
     prayerName: string;
     countdownStr: string;
@@ -503,6 +517,182 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     showToast('✓ تم حفظ إعدادات التنبيهات وجدولتها بنجاح');
   };
 
+  const resolvedAppSounds: AppSoundPreferences = {
+    fajrAzan: user.appSounds?.fajrAzan || {
+      enabled: user.prayerAzanEnabled?.fajr !== false,
+      trackId: user.fajrAzanVoice || 'abdulbasit_fajr',
+      volumePercent: 100,
+    },
+    regularAzan: user.appSounds?.regularAzan || {
+      enabled: user.autoPlayAzan !== false,
+      trackId: user.azanVoice || 'makkah',
+      volumePercent: 100,
+    },
+    prePrayer: user.appSounds?.prePrayer || {
+      enabled: reminderSettings.prePrayerAlert?.enabled !== false,
+      trackId: 'pre_prayer_15m',
+      volumePercent: 90,
+    },
+    azkar: user.appSounds?.azkar || {
+      enabled: reminderSettings.morningAzkar.enabled || reminderSettings.eveningAzkar.enabled,
+      trackId: reminderSettings.morningAzkar.audioFile || 'azkar_sabah_1',
+      secondaryTrackId: reminderSettings.eveningAzkar.audioFile || 'azkar_massa_1',
+      volumePercent: reminderSettings.azkarVolumePercent ?? 100,
+    },
+    tasbihDua: user.appSounds?.tasbihDua || {
+      enabled: true,
+      trackId: 'salawat_1',
+      volumePercent: 85,
+    },
+    quran: user.appSounds?.quran || {
+      enabled: true,
+      trackId: 'alafasy',
+      volumePercent: 100,
+    },
+    otherAlerts: user.appSounds?.otherAlerts || {
+      enabled: user.iqamaEnabled !== false,
+      trackId: user.iqamaVoice || 'iqama_1',
+      secondaryTrackId: reminderSettings.salawat.audioFile || 'salawat_1',
+      volumePercent: reminderSettings.salawat.volumePercent ?? 85,
+    },
+  };
+
+  const handleUpdateAppSoundSection = (
+    key: AppSoundSectionKey,
+    patch: Partial<SectionAudioConfig>
+  ) => {
+    const updatedSection: SectionAudioConfig = {
+      ...resolvedAppSounds[key],
+      ...patch,
+    };
+    const nextSounds: AppSoundPreferences = {
+      ...resolvedAppSounds,
+      [key]: updatedSection,
+    };
+
+    if (onUpdateUser) {
+      onUpdateUser((prev) => {
+        const nextConfigs = { ...(prev.prayerConfigs || {}) };
+        if (key === 'fajrAzan' && nextConfigs.fajr) {
+          nextConfigs.fajr = {
+            ...nextConfigs.fajr,
+            soundEnabled: updatedSection.enabled,
+            azanVoice: updatedSection.trackId,
+            volumePercent: updatedSection.volumePercent,
+          };
+        }
+        if (key === 'regularAzan') {
+          (['dhuhr', 'asr', 'maghrib', 'isha'] as PrayerKey[]).forEach((pk) => {
+            if (nextConfigs[pk]) {
+              nextConfigs[pk] = {
+                ...nextConfigs[pk]!,
+                soundEnabled: updatedSection.enabled,
+                azanVoice: updatedSection.trackId,
+                volumePercent: updatedSection.volumePercent,
+              };
+            }
+          });
+        }
+        return {
+          ...prev,
+          appSounds: nextSounds,
+          prayerConfigs: nextConfigs,
+          fajrAzanVoice: key === 'fajrAzan' ? updatedSection.trackId : prev.fajrAzanVoice,
+          azanVoice: key === 'regularAzan' ? updatedSection.trackId : prev.azanVoice,
+          autoPlayAzan: key === 'regularAzan' ? updatedSection.enabled : prev.autoPlayAzan,
+          prePrayerReminderEnabled:
+            key === 'prePrayer' ? updatedSection.enabled : prev.prePrayerReminderEnabled,
+          iqamaEnabled: key === 'otherAlerts' ? updatedSection.enabled : prev.iqamaEnabled,
+          iqamaSoundEnabled:
+            key === 'otherAlerts' ? updatedSection.enabled : prev.iqamaSoundEnabled,
+          iqamaVoice: key === 'otherAlerts' ? updatedSection.trackId : prev.iqamaVoice,
+        };
+      });
+    }
+
+    if (key === 'prePrayer') {
+      reminderScheduler.updateSettings((prev) => ({
+        ...prev,
+        prePrayerAlert: {
+          ...prev.prePrayerAlert,
+          enabled: updatedSection.enabled,
+        },
+      }));
+      setReminderSettings(reminderScheduler.getSettings());
+    } else if (key === 'azkar') {
+      reminderScheduler.updateSettings((prev) => ({
+        ...prev,
+        azkarVolumePercent: updatedSection.volumePercent,
+        morningAzkar: {
+          ...prev.morningAzkar,
+          enabled: updatedSection.enabled,
+          audioFile: updatedSection.trackId,
+          volumePercent: updatedSection.volumePercent,
+        },
+        eveningAzkar: {
+          ...prev.eveningAzkar,
+          enabled: updatedSection.enabled,
+          audioFile: updatedSection.secondaryTrackId || prev.eveningAzkar.audioFile,
+          volumePercent: updatedSection.volumePercent,
+        },
+      }));
+      setReminderSettings(reminderScheduler.getSettings());
+    } else if (key === 'otherAlerts') {
+      reminderScheduler.updateSettings((prev) => ({
+        ...prev,
+        salawat: {
+          ...prev.salawat,
+          audioFile: updatedSection.secondaryTrackId || prev.salawat.audioFile,
+          volumePercent: updatedSection.volumePercent,
+        },
+      }));
+      setReminderSettings(reminderScheduler.getSettings());
+    }
+  };
+
+  const handlePreviewAppSoundSection = (key: AppSoundSectionKey) => {
+    if (auditioningSoundSection === key) {
+      soundService.stopAudio();
+      setAuditioningSoundSection(null);
+      return;
+    }
+    soundService.stopAudio();
+    setAuditioningVoice(null);
+    setAuditioningFajrVoice(null);
+    setAuditioningIqama(null);
+    setPlayingReminderTrack(null);
+    setAuditioningSoundSection(key);
+
+    const cfg = resolvedAppSounds[key];
+    const done = () => setAuditioningSoundSection(null);
+
+    if (key === 'fajrAzan' || key === 'regularAzan') {
+      soundService.playAzan(cfg.trackId, key === 'fajrAzan', done, done, cfg.volumePercent);
+    } else if (key === 'prePrayer') {
+      const opt = PRE_PRAYER_AUDIO_OPTIONS.find((o) => o.id === cfg.trackId) || PRE_PRAYER_AUDIO_OPTIONS[0];
+      soundService.playTrack(opt.filePath, opt.id, 'pre_prayer', done, done, cfg.volumePercent);
+    } else if (key === 'azkar') {
+      const opt = MORNING_AZKAR_AUDIO_OPTIONS.find((o) => o.id === cfg.trackId) || MORNING_AZKAR_AUDIO_OPTIONS[0];
+      soundService.playTrack(opt.filePath, opt.id, 'azkar_morning', done, done, cfg.volumePercent);
+    } else if (key === 'tasbihDua') {
+      const opt = SALAWAT_AUDIO_OPTIONS.find((o) => o.id === cfg.trackId) || SALAWAT_AUDIO_OPTIONS[0];
+      soundService.playTrack(opt.filePath, opt.id, 'salawat', done, done, cfg.volumePercent);
+    } else if (key === 'quran') {
+      const reciter = QURAN_RECITERS.find((r) => r.id === cfg.trackId) || QURAN_RECITERS[0];
+      soundService.playTrack(
+        `https://cdn.islamic.network/quran/audio/128/${reciter.serverKey}/1.mp3`,
+        `quran_${reciter.id}`,
+        'recitation',
+        done,
+        done,
+        cfg.volumePercent,
+        { forceUserAction: true }
+      );
+    } else {
+      soundService.playIqama(cfg.trackId, done, done, cfg.volumePercent);
+    }
+  };
+
   const handleSelectFajrVoice = (voiceId: string) => {
     if (onUpdateFajrAzanVoice) {
       onUpdateFajrAzanVoice(voiceId);
@@ -633,8 +823,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const applyLocationToApp = (city: CityLocation, sourceLabel?: string) => {
     onUpdateCity(city);
     savePersistentLocation(city);
-    if (city.recommendedMethod) {
-      onUpdateCalculationMethod(city.recommendedMethod);
+    if (city.recommendedMethod && !user.calculationMethodManuallySelected) {
+      if (onUpdateUser) {
+        onUpdateUser((prev) => ({
+          ...prev,
+          calculationMethod: prev.calculationMethodManuallySelected
+            ? prev.calculationMethod
+            : city.recommendedMethod!,
+        }));
+      } else {
+        onUpdateCalculationMethod(city.recommendedMethod);
+      }
     }
     setSelectedCountry(city.country);
     setSelectedState(city.state || '');
@@ -821,7 +1020,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       order: 9,
       title: t.settingsAbout,
       subtitle: t.settingsAboutSub,
-      iconImg: '/assets/aistudio/1794629416999_a48d32bb.jpg',
+      iconImg: '/assets/icons/rafeeq-icon-192.png',
       badge: isRtl ? 'معلومات التطبيق' : 'About',
       color: 'from-emerald-800 to-teal-950',
     },
@@ -1436,14 +1635,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                       {expandedGroup === 'loc_method' && (
                         <div className="p-3.5 bg-[#FAF4E4]/75 border-t border-[#D6C18D]/50 space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-xs text-gray-700 font-bold block">
-                              الهيئة الفلكية المعتمدة:
-                            </label>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <label className="text-xs text-gray-700 font-bold block">
+                                الهيئة الفلكية المعتمدة:
+                              </label>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                  user.calculationMethodManuallySelected
+                                    ? 'bg-emerald-50 text-[#104B40] border-emerald-200'
+                                    : 'bg-amber-50 text-amber-900 border-amber-200'
+                                }`}
+                              >
+                                {user.calculationMethodManuallySelected
+                                  ? 'مثبّت يدوياً (لا يتغير بتغيير الموقع)'
+                                  : 'مقترح تلقائياً حسب المدينة'}
+                              </span>
+                            </div>
                             <select
                               value={user.calculationMethod}
                               onChange={(e) => onUpdateCalculationMethod(e.target.value)}
-                              className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none"
+                              className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:outline-none min-h-[44px]"
                             >
                               {CALCULATION_METHODS.map((m) => (
                                 <option key={m.id} value={m.id}>
@@ -1451,6 +1663,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </option>
                               ))}
                             </select>
+                            {user.calculationMethodManuallySelected && onUpdateUser && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onUpdateUser((prev) => ({
+                                    ...prev,
+                                    calculationMethodManuallySelected: false,
+                                    calculationMethod:
+                                      prev.city?.recommendedMethod || prev.calculationMethod || 'egypt',
+                                  }));
+                                  showToast('✓ تم تفعيل الاقتراح التلقائي لطريقة الحساب حسب المدينة');
+                                }}
+                                className="text-[11px] font-bold text-[#104B40] underline cursor-pointer"
+                              >
+                                إعادة التفعيل التلقائي حسب المدينة ({user.city?.recommendedMethod ? CALCULATION_METHODS.find((m) => m.id === user.city?.recommendedMethod)?.name : 'الافتراضية'})
+                              </button>
+                            )}
                           </div>
 
                           <div className="space-y-1">
@@ -2021,6 +2250,207 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* 5. Azan & Iqama Subpage */}
                 {activeWidgetId === 'azan_iqama' && (
                   <div className="space-y-2.5">
+                    {/* Group 0: 7 Independent App Sound Sections */}
+                    <div className="moazen-widget rounded-2xl border border-[#C59B3F] overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('azan_7_sections')}
+                        className="w-full p-3.5 min-h-[48px] flex items-center justify-between text-right cursor-pointer bg-amber-50/55 hover:bg-amber-50/85"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Volume2 className="w-4 h-4 text-[#104B40]" />
+                          <span className="text-xs font-black text-[#104B40]">
+                            إعدادات الأصوات المستقلة (الأقسام الـ 7 ومستوى الصوت)
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-[#104B40] transition-transform ${
+                            expandedGroup === 'azan_7_sections' ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                      {expandedGroup === 'azan_7_sections' && (
+                        <div className="p-3.5 bg-[#FAF4E4]/85 border-t border-[#D6C18D]/60 space-y-2.5">
+                          <p className="text-[11px] text-[#355A50] font-semibold">
+                            تحكم مستقل كامل في الصوت ومستوى العلو والتشغيل أو الكتم لكل قسم من أقسام رفيق المسلم:
+                          </p>
+                          {(
+                            [
+                              {
+                                key: 'fajrAzan',
+                                title: '1. أذان الفجر',
+                                subtitle: 'نداء الفجر «الصلاة خير من النوم»',
+                                options: FAJR_AZAN_VOICES.map((v) => ({ id: v.id, label: v.name })),
+                              },
+                              {
+                                key: 'regularAzan',
+                                title: '2. أذان باقي الصلوات',
+                                subtitle: 'الظهر والعصر والمغرب والعشاء',
+                                options: AZAN_VOICES.filter((v) => !v.isFajrOnly).map((v) => ({
+                                  id: v.id,
+                                  label: v.name,
+                                })),
+                              },
+                              {
+                                key: 'prePrayer',
+                                title: '3. التنبيه قبل الصلاة',
+                                subtitle: 'تنبيه تذكيري قبل دخول الوقت',
+                                options: PRE_PRAYER_AUDIO_OPTIONS.map((v) => ({
+                                  id: v.id,
+                                  label: v.title,
+                                })),
+                              },
+                              {
+                                key: 'azkar',
+                                title: '4. أذكار الصباح والمساء',
+                                subtitle: 'تلاوة أذكار اليوم والليلة',
+                                options: [
+                                  ...MORNING_AZKAR_AUDIO_OPTIONS.map((v) => ({
+                                    id: v.id,
+                                    label: v.title,
+                                  })),
+                                  ...EVENING_AZKAR_AUDIO_OPTIONS.map((v) => ({
+                                    id: v.id,
+                                    label: v.title,
+                                  })),
+                                ],
+                              },
+                              {
+                                key: 'tasbihDua',
+                                title: '5. التسبيح والأدعية',
+                                subtitle: 'صوت التسبيح والأدعية الصوتية',
+                                options: SALAWAT_AUDIO_OPTIONS.map((v) => ({
+                                  id: v.id,
+                                  label: v.title,
+                                })),
+                              },
+                              {
+                                key: 'quran',
+                                title: '6. القرآن والتلاوات',
+                                subtitle: 'قارئ المصحف الشريف والمقارئ',
+                                options: QURAN_RECITERS.map((r) => ({
+                                  id: r.id,
+                                  label: r.name,
+                                })),
+                              },
+                              {
+                                key: 'otherAlerts',
+                                title: '7. التنبيهات والتذكيرات الأخرى',
+                                subtitle: 'الإقامة والصلاة على النبي والتنبيهات',
+                                options: IQAMA_VOICES.map((v) => ({
+                                  id: v.id,
+                                  label: `${v.name} — ${v.muezzin}`,
+                                })),
+                              },
+                            ] as {
+                              key: AppSoundSectionKey;
+                              title: string;
+                              subtitle: string;
+                              options: { id: string; label: string }[];
+                            }[]
+                          ).map((sec) => {
+                            const cfg = resolvedAppSounds[sec.key];
+                            const isPreviewing = auditioningSoundSection === sec.key;
+                            return (
+                              <div
+                                key={sec.key}
+                                className="rounded-xl bg-[#FFFDF7] border border-[#C59B3F]/45 p-3 space-y-2 shadow-2xs"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <h4 className="text-xs font-black text-[#104B40] truncate">
+                                      {sec.title}
+                                    </h4>
+                                    <p className="text-[10px] text-[#5C6E69] truncate">
+                                      {sec.subtitle}
+                                    </p>
+                                  </div>
+                                  <label className="flex items-center gap-1.5 min-h-[44px] px-1 cursor-pointer shrink-0">
+                                    <span className="text-[10px] font-bold text-[#104B40]">
+                                      {cfg.enabled ? 'مفعّل' : 'مكتوم'}
+                                    </span>
+                                    <input
+                                      type="checkbox"
+                                      checked={cfg.enabled}
+                                      onChange={(e) =>
+                                        handleUpdateAppSoundSection(sec.key, {
+                                          enabled: e.target.checked,
+                                        })
+                                      }
+                                      className="w-5 h-5 accent-[#104B40] cursor-pointer"
+                                    />
+                                  </label>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={cfg.trackId}
+                                    disabled={!cfg.enabled}
+                                    onChange={(e) =>
+                                      handleUpdateAppSoundSection(sec.key, {
+                                        trackId: e.target.value,
+                                      })
+                                    }
+                                    className="flex-1 min-w-0 min-h-[44px] px-2.5 py-2 rounded-xl bg-white border border-[#D6C18D] text-[11px] font-bold text-[#172A28] disabled:opacity-50"
+                                  >
+                                    {sec.options.map((opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewAppSoundSection(sec.key)}
+                                    className={`min-h-[44px] px-3 rounded-xl text-[11px] font-black flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors ${
+                                      isPreviewing
+                                        ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                                        : 'bg-[#104B40] text-white hover:bg-[#0B3D35]'
+                                    }`}
+                                  >
+                                    {isPreviewing ? (
+                                      <>
+                                        <Square className="w-3.5 h-3.5 fill-current" />
+                                        <span>إيقاف</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="w-3.5 h-3.5 fill-current" />
+                                        <span>معاينة</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                <div className="flex items-center gap-2.5 pt-0.5">
+                                  <span className="text-[10px] font-bold text-[#355A50] shrink-0">
+                                    مستوى الصوت:
+                                  </span>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    disabled={!cfg.enabled}
+                                    value={cfg.volumePercent}
+                                    onChange={(e) =>
+                                      handleUpdateAppSoundSection(sec.key, {
+                                        volumePercent: Number(e.target.value),
+                                      })
+                                    }
+                                    className="flex-1 accent-[#104B40] cursor-pointer disabled:opacity-45"
+                                  />
+                                  <span className="text-[11px] font-black text-[#104B40] w-9 text-left tabular-nums">
+                                    {cfg.volumePercent}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Group 1: General Azan and Sound Switches */}
                     <div className="moazen-widget rounded-2xl border border-[#D6C18D] overflow-hidden shadow-2xs">
                       <button
@@ -3500,7 +3930,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {expandedGroup === 'privacy_terms' && (
                         <div className="p-3.5 bg-[#FAF4E4]/75 border-t border-[#D6C18D]/50 space-y-2">
                           <p className="text-xs text-gray-700 leading-relaxed font-semibold">
-                            يعمل تطبيق مسلم بلس بمنهجية العمل المحلي أولاً (Offline-First) بدون حسابات
+                            يعمل تطبيق رفيق المسلم بمنهجية العمل المحلي أولاً (Offline-First) بدون حسابات
                             تسجيل أو إعلانات أو شبكات تتبع أو بيع للبيانات:
                           </p>
                           <p className="text-[11px] text-gray-600 leading-relaxed">
@@ -3524,19 +3954,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="space-y-2.5">
                     <div className="moazen-widget rounded-2xl p-4 border border-[#C5A059]/40 shadow-2xs space-y-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-2xl bg-[#0B1412] border-2 border-[#C5A059]/65 overflow-hidden shrink-0">
+                        <div className="w-14 h-14 rounded-2xl bg-[#FAF1D4] border-2 border-[#C5A059]/65 overflow-hidden shrink-0">
                           <img
-                            src="/assets/aistudio/1794629416999_a48d32bb.jpg"
+                            src="/assets/icons/rafeeq-icon-192.png"
                             alt="حول التطبيق"
                             className="w-full h-full object-cover object-center block"
                           />
                         </div>
                         <div>
                           <h4 className="text-sm font-black text-[#104B40]">
-                            تطبيق مسلم بلس
+                            تطبيق رفيق المسلم
                           </h4>
                           <p className="text-xs font-bold text-[#9A7732] mt-0.5">
-                            الإصدار 2.2.0 • صدقة جارية خالصة لوجه الله تعالى
+                            الإصدار 2.2.0 • مؤذنك الإسلامي .. رفيقك في طريق الإيمان
                           </p>
                         </div>
                       </div>

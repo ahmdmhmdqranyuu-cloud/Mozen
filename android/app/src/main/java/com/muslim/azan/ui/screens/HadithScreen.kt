@@ -102,7 +102,7 @@ fun HadithScreen(
 
                             IconButton(
                                 onClick = {
-                                    val shareText = "${h.hadithArabic}\n\nالراوي: ${h.narrator} | المصدر: ${h.source}\n- من تطبيق مسلم بلس"
+                                    val shareText = "${h.hadithArabic}\n\nالراوي: ${h.narrator} | المصدر: ${h.source}\n- من تطبيق رفيق المسلم"
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                         type = "text/plain"

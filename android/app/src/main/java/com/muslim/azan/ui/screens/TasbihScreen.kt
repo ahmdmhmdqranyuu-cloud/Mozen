@@ -64,6 +64,7 @@ fun TasbihScreen(
     var lifetimeCount by remember { mutableStateOf(prefs.totalTasbihCount) }
 
     fun triggerVibration() {
+        if (!prefs.tasbihClickSoundEnabled) return
         runCatching {
             if (vibrator?.hasVibrator() == true) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

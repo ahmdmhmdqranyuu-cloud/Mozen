@@ -197,7 +197,7 @@ export const RamadanModal: React.FC<RamadanModalProps> = ({
     await shareIslamicText({
       title: `إمساكية شهر رمضان المبارك - ${user.city.name}`,
       body: `مواعيد اليوم في ${user.city.name} (${user.city.country}):\n• موعد الإمساك: ${imsakStr}\n• أذان الفجر: ${todayFajr?.time || ''}\n• أذان المغرب (الإفطار): ${todayMaghrib?.time || ''}`,
-      source: 'تطبيق مسلم بلس',
+      source: 'تطبيق رفيق المسلم',
       extraFooter: 'تقبل الله منا ومنكم الصيام والقيام وصالح الأعمال 🌙',
     });
     setCopiedMessage(true);

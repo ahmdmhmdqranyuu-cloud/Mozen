@@ -464,14 +464,19 @@ fun QuranScreen(
                                         }
                                         IconButton(
                                             onClick = {
-                                                val reciter = NativeDataManager.reciters[selectedReciterIndex]
-                                                val formattedNum = String.format(java.util.Locale.US, "%03d", surah.number)
-                                                NativeAudioPlayerManager.playUrlAudio(
-                                                    context,
-                                                    "${reciter.serverUrl}$formattedNum.mp3",
-                                                    "سورة ${surah.nameArabic}",
-                                                    reciter.nameArabic
-                                                )
+                                                if (!prefs.quranAudioEnabled) {
+                                                    android.widget.Toast.makeText(context, "صوت القرآن مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    NativeAudioPlayerManager.setVolume(prefs.quranVolumePercent / 100f)
+                                                    val reciter = NativeDataManager.reciters[selectedReciterIndex]
+                                                    val formattedNum = String.format(java.util.Locale.US, "%03d", surah.number)
+                                                    NativeAudioPlayerManager.playUrlAudio(
+                                                        context,
+                                                        "${reciter.serverUrl}$formattedNum.mp3",
+                                                        "سورة ${surah.nameArabic}",
+                                                        reciter.nameArabic
+                                                    )
+                                                }
                                             },
                                             modifier = Modifier.size(26.dp)
                                         ) {
@@ -641,14 +646,19 @@ fun QuranScreen(
                                                 )
                                                 TextButton(
                                                     onClick = {
-                                                        val reciter = NativeDataManager.reciters[selectedReciterIndex]
-                                                        val formattedNum = String.format(java.util.Locale.US, "%03d", sNum)
-                                                        NativeAudioPlayerManager.playUrlAudio(
-                                                            context,
-                                                            "${reciter.serverUrl}$formattedNum.mp3",
-                                                            "سورة $sTitle",
-                                                            reciter.nameArabic
-                                                        )
+                                                        if (!prefs.quranAudioEnabled) {
+                                                            android.widget.Toast.makeText(context, "صوت القرآن مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            NativeAudioPlayerManager.setVolume(prefs.quranVolumePercent / 100f)
+                                                            val reciter = NativeDataManager.reciters[selectedReciterIndex]
+                                                            val formattedNum = String.format(java.util.Locale.US, "%03d", sNum)
+                                                            NativeAudioPlayerManager.playUrlAudio(
+                                                                context,
+                                                                "${reciter.serverUrl}$formattedNum.mp3",
+                                                                "سورة $sTitle",
+                                                                reciter.nameArabic
+                                                            )
+                                                        }
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                                                 ) {
@@ -734,14 +744,19 @@ fun QuranScreen(
                 ) {
                     Button(
                         onClick = {
-                            val reciter = NativeDataManager.reciters[selectedReciterIndex]
-                            val formattedNum = String.format(java.util.Locale.US, "%03d", activeSurah.number)
-                            NativeAudioPlayerManager.playUrlAudio(
-                                context,
-                                "${reciter.serverUrl}$formattedNum.mp3",
-                                "سورة ${activeSurah.nameArabic}",
-                                reciter.nameArabic
-                            )
+                            if (!prefs.quranAudioEnabled) {
+                                android.widget.Toast.makeText(context, "صوت القرآن مكتوم حاليًا من إعدادات الصوت", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                NativeAudioPlayerManager.setVolume(prefs.quranVolumePercent / 100f)
+                                val reciter = NativeDataManager.reciters[selectedReciterIndex]
+                                val formattedNum = String.format(java.util.Locale.US, "%03d", activeSurah.number)
+                                NativeAudioPlayerManager.playUrlAudio(
+                                    context,
+                                    "${reciter.serverUrl}$formattedNum.mp3",
+                                    "سورة ${activeSurah.nameArabic}",
+                                    reciter.nameArabic
+                                )
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = GoldAccent),
                         shape = RoundedCornerShape(10.dp),

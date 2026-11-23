@@ -137,11 +137,25 @@ export const CALCULATION_METHODS = [
   { id: 'egypt', name: 'الهيئة العامة المصرية للمساحة (الفجر 19.5°، العشاء 17.5°)', fajrAngle: 19.5, ishaAngle: 17.5, ishaInterval: 0 },
   { id: 'makkah', name: 'جامعة أم القرى - مكة المكرمة (الفجر 18.5°، العشاء 90 دقيقة)', fajrAngle: 18.5, ishaAngle: 0, ishaInterval: 90 },
   { id: 'mwl', name: 'رابطة العالم الإسلامي (الفجر 18°، العشاء 17°)', fajrAngle: 18.0, ishaAngle: 17.0, ishaInterval: 0 },
+  { id: 'dubai', name: 'الشؤون الإسلامية بدبي والإمارات والخليج (الفجر 18.2°، العشاء 18.2°)', fajrAngle: 18.2, ishaAngle: 18.2, ishaInterval: 0 },
+  { id: 'uoif', name: 'اتحاد المنظمات الإسلامية في فرنسا - UOIF (الفجر 12°، العشاء 12°)', fajrAngle: 12.0, ishaAngle: 12.0, ishaInterval: 0 },
   { id: 'karachi', name: 'جامعة العلوم الإسلامية بكراتشي (الفجر 18°، العشاء 18°)', fajrAngle: 18.0, ishaAngle: 18.0, ishaInterval: 0 },
   { id: 'isna', name: 'الجمعية الإسلامية لأمريكا الشمالية - ISNA (الفجر 15°، العشاء 15°)', fajrAngle: 15.0, ishaAngle: 15.0, ishaInterval: 0 },
   { id: 'kuwait', name: 'وزارة الأوقاف والشؤون الإسلامية بالكويت (الفجر 18°، العشاء 17.5°)', fajrAngle: 18.0, ishaAngle: 17.5, ishaInterval: 0 },
+  { id: 'qatar', name: 'وزارة الأوقاف والشؤون الإسلامية بقطر (الفجر 18°، العشاء 90 دقيقة)', fajrAngle: 18.0, ishaAngle: 0, ishaInterval: 90 },
   { id: 'diyanet', name: 'رئاسة الشؤون الدينية التركية - Diyanet (الفجر 18°، العشاء 17°)', fajrAngle: 18.0, ishaAngle: 17.0, ishaInterval: 0 },
 ];
+
+export function normalizeCalculationMethodId(methodId?: string): string {
+  const raw = (methodId || 'egypt').trim().toLowerCase();
+  if (raw === 'umm_al_qura' || raw === 'makkah' || raw.includes('qura')) return 'makkah';
+  if (raw === 'uae' || raw === 'gulf' || raw === 'dubai') return 'dubai';
+  if (raw === 'france' || raw === 'uoif') return 'uoif';
+  if (raw === 'muslim_world_league' || raw === 'mwl') return 'mwl';
+  if (raw === 'north_america' || raw === 'isna') return 'isna';
+  if (CALCULATION_METHODS.some((m) => m.id === raw)) return raw;
+  return 'egypt';
+}
 
 export const ASR_METHODS = [
   { id: 'standard' as const, name: 'جمهور الفقهاء (الشافعي، المالكي، الحنبلي) - ظل الشيء مثله' },
@@ -313,7 +327,8 @@ export function calculatePrayerTimes(
   dstModeOverride?: DstMode,
   highLatitudeRule: HighLatitudeRule = 'angle_based'
 ): PrayerTime[] {
-  const method = CALCULATION_METHODS.find((m) => m.id === methodId) || CALCULATION_METHODS[0];
+  const normalizedMethodId = normalizeCalculationMethodId(methodId);
+  const method = CALCULATION_METHODS.find((m) => m.id === normalizedMethodId) || CALCULATION_METHODS[0];
   const { latitude: rawLat, longitude: lng, warnings } = validateCityCoordinates(city);
 
   const dstStatus = detectDaylightSavingStatus(date, city?.timezone, lng);

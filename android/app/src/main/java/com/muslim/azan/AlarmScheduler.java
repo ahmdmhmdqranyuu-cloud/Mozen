@@ -212,7 +212,7 @@ public class AlarmScheduler {
             intent.setData(Uri.parse("almoazen://custom_reminder/" + Uri.encode(reminderId)));
             intent.putExtra("section", "custom_reminder");
             intent.putExtra("reminderId", reminderId);
-            intent.putExtra("title", title != null ? title : "تذكير مسلم بلس");
+            intent.putExtra("title", title != null ? title : "تذكير رفيق المسلم");
             intent.putExtra("body", body != null ? body : "");
             intent.putExtra("autoPlay", false);
 

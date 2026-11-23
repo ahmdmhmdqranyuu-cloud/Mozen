@@ -792,7 +792,7 @@ fun WallpapersScreen(
                                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                             type = "image/*"
                                             putExtra(Intent.EXTRA_STREAM, shareUri)
-                                            putExtra(Intent.EXTRA_TEXT, "$activeTitle — من تطبيق مسلم بلس")
+                                            putExtra(Intent.EXTRA_TEXT, "$activeTitle — من تطبيق رفيق المسلم")
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
                                         runCatching {

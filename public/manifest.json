@@ -1,33 +1,33 @@
 {
   "id": "/",
-  "name": "تطبيق مسلم بلس - مواقيت الصلاة والأذان والأذكار",
-  "short_name": "مسلم بلس",
-  "description": "تطبيق إسلامي شامل للأندرويد والآيفون يعمل بدون إنترنت: مواقيت الصلاة، الأذان التلقائي، أصوات الإقامة، القرآن الكريم كاملًا، الأذكار، الحج والعمرة، وقصص الأنبياء.",
+  "name": "رفيق المسلم - مؤذنك الإسلامي .. رفيقك في طريق الإيمان",
+  "short_name": "رفيق المسلم",
+  "description": "مؤذنك الإسلامي .. رفيقك في طريق الإيمان: تطبيق إسلامي شامل يعمل بدون إنترنت مع مواقيت الصلاة، الأذان التلقائي، أصوات الإقامة، القرآن الكريم كاملًا، الأذكار، الحج والعمرة، وقصص الأنبياء.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
-  "background_color": "#FAF9F5",
-  "theme_color": "#0C392C",
+  "background_color": "#FBF4DF",
+  "theme_color": "#FBF4DF",
   "dir": "rtl",
   "lang": "ar",
   "categories": ["lifestyle", "education", "books"],
   "icons": [
     {
-      "src": "/assets/icons/prayer.png",
+      "src": "/assets/icons/rafeeq-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/prayer.png",
+      "src": "/assets/icons/rafeeq-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/prayer.png",
+      "src": "/assets/icons/rafeeq-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

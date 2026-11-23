@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -137,7 +139,7 @@ fun PrayerTimesScreen(
                 lat = gps.latitude
                 lng = gps.longitude
                 cityTimezoneId = gps.timezoneId
-                calcMethod = gps.calcMethod
+                calcMethod = prefs.calculationMethod
                 val accText = if (gps.accuracyMeters > 0) " • دقة ±${gps.accuracyMeters}م" else ""
                 gpsDetail = String.format(Locale.US, "%.4f°, %.4f°%s", gps.latitude, gps.longitude, accText)
                 scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
@@ -163,25 +165,34 @@ fun PrayerTimesScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(EmeraldDeep)
+            .background(MuslimPlusCanvasBrush)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Header
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            MoazenWidgetCard(
+                cornerRadius = 18.dp,
+                borderColor = MoazenCardBorder,
+                elevation = 4.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = TextPrimary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                    }
+                    Text(
+                        text = "مواقيت الصلاة الدقيقة",
+                        color = MoazenInkEmerald,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(
-                    text = "مواقيت الصلاة الدقيقة",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
             }
         }
 
@@ -311,13 +322,17 @@ fun PrayerTimesScreen(
                         ) {
                             Text(
                                 text = when (calcMethod) {
-                                    "umm_al_qura" -> "أم القرى (مكة المكرمة)"
+                                    "umm_al_qura" -> "توقيت أم القرى (مكة المكرمة)"
                                     "egypt" -> "الهيئة المصرية العامة للمساحة"
-                                    "dubai" -> "دبي / الخليج"
                                     "mwl" -> "رابطة العالم الإسلامي"
-                                    "isna" -> "الجمعية الإسلامية لأمريكا الشمالية"
+                                    "dubai" -> "دبي والإمارات والخليج"
+                                    "uoif" -> "اتحاد المنظمات الإسلامية بفرنسا (UOIF 12°)"
                                     "karachi" -> "جامعة العلوم الإسلامية بكراتشي"
-                                    else -> "أم القرى (افتراضي)"
+                                    "isna" -> "الجمعية الإسلامية لأمريكا الشمالية (ISNA)"
+                                    "kuwait" -> "وزارة الأوقاف الكويتية"
+                                    "qatar" -> "وزارة الأوقاف والشؤون الإسلامية بقطر"
+                                    "diyanet" -> "رئاسة الشؤون الدينية التركية (Diyanet)"
+                                    else -> "أم القرى (مكة المكرمة)"
                                 },
                                 color = MoazenInkPrimary,
                                 fontSize = 13.sp,
@@ -446,14 +461,21 @@ fun PrayerTimesScreen(
             onDismissRequest = { showCalcMethodDialog = false },
             title = { Text("اختر طريقة الحساب", color = MoazenInkPrimary, fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     val methods = listOf(
-                        "umm_al_qura" to "أم القرى (مكة المكرمة)",
                         "egypt" to "الهيئة العامة المصرية للمساحة",
-                        "dubai" to "دبي / الخليج",
+                        "umm_al_qura" to "توقيت أم القرى (مكة المكرمة)",
                         "mwl" to "رابطة العالم الإسلامي",
-                        "isna" to "الجمعية الإسلامية لأمريكا الشمالية",
-                        "karachi" to "جامعة العلوم الإسلامية بكراتشي"
+                        "dubai" to "دبي والإمارات والخليج",
+                        "uoif" to "اتحاد المنظمات الإسلامية بفرنسا (UOIF 12°)",
+                        "karachi" to "جامعة العلوم الإسلامية بكراتشي",
+                        "isna" to "الجمعية الإسلامية لأمريكا الشمالية (ISNA)",
+                        "kuwait" to "وزارة الأوقاف الكويتية",
+                        "qatar" to "أوقاف قطر",
+                        "diyanet" to "رئاسة الشؤون الدينية التركية (Diyanet)"
                     )
                     methods.forEach { (key, name) ->
                         val isSelected = calcMethod == key
@@ -464,7 +486,7 @@ fun PrayerTimesScreen(
                                 .background(if (isSelected) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
                                 .clickable {
                                     calcMethod = key
-                                    prefs.calculationMethod = key
+                                    prefs.setCalculationMethodManually(key)
                                     showCalcMethodDialog = false
                                     scope.launch(Dispatchers.IO) { BootReceiver.recalculateAndScheduleAll(context.applicationContext) }
                                 }

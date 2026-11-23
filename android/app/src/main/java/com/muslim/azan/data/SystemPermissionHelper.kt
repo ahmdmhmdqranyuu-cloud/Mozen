@@ -414,7 +414,7 @@ object SystemPermissionHelper {
                 accuracyMeters = accuracyMeters,
                 updatedAtMs = nowMs
             )
-            prefs.calculationMethod = resolvedCalcMethod
+            prefs.suggestCalculationMethodIfNotManual(resolvedCalcMethod)
         }
 
         return Result.success(result)

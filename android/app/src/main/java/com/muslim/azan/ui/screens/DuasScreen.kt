@@ -106,7 +106,7 @@ fun DuasScreen(
 
                                 IconButton(
                                     onClick = {
-                                        val shareText = "«${dua.arabicText}»\n- ${dua.source}\nتطبيق مسلم بلس"
+                                        val shareText = "«${dua.arabicText}»\n- ${dua.source}\nتطبيق رفيق المسلم"
                                         val intent = Intent(Intent.ACTION_SEND).apply {
                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                             type = "text/plain"
