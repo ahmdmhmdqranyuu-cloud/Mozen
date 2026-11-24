@@ -45,7 +45,8 @@ import java.util.TimeZone
 fun PrayerTimesScreen(
     prefs: NativePreferences,
     onBack: () -> Unit,
-    onOpenPrayerSettings: (String) -> Unit = {}
+    onOpenPrayerSettings: (String) -> Unit = {},
+    onOpenMasajid: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -181,17 +182,25 @@ fun PrayerTimesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                        }
+                        Text(
+                            text = "مواقيت الصلاة الدقيقة",
+                            color = MoazenInkEmerald,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    Text(
-                        text = "مواقيت الصلاة الدقيقة",
-                        color = MoazenInkEmerald,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    TextButton(onClick = onOpenMasajid) {
+                        Icon(Icons.Default.Mosque, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("المساجد", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

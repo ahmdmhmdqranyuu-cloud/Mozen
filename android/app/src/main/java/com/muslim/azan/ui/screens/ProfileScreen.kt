@@ -24,6 +24,7 @@ import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
 import com.muslim.azan.ui.components.MoazenWidgetCard
+import com.muslim.azan.ui.components.WorshipTrackerWidget
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -214,6 +215,15 @@ fun ProfileScreen(
                         }
                     }
                 }
+            }
+
+            // Daily Worship Tracker Widget (Goals, 8 Worship Acts & 7-Day History)
+            item {
+                WorshipTrackerWidget(
+                    prefs = prefs,
+                    language = prefs.language,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // Stats Quick Overview

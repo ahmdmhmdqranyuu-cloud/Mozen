@@ -1,6 +1,7 @@
 package com.muslim.azan.service
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -175,6 +176,37 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             AzkarAudioService.getSectionPriority(AzkarAudioService.currentSection) >= 4
     }
 
+    private fun inferIncomingPriority(trackTag: String, assetPath: String = ""): Int {
+        val tag = (trackTag + " " + assetPath).lowercase()
+        return when {
+            "makkah" in tag || "madinah" in tag || "abdulbasit" in tag || "azan" in tag -> 5
+            "iqama" in tag -> 4
+            "pre_prayer" in tag -> 3
+            "azkar" in tag || "musaharati" in tag || "iftar" in tag -> 2
+            "salawat" in tag -> 1
+            else -> 2
+        }
+    }
+
+    private fun isBlockedByBackgroundPriority(incomingPriority: Int): Boolean {
+        if (!AzkarAudioService.isPlayingNow) return false
+        val bgPriority = AzkarAudioService.getSectionPriority(AzkarAudioService.currentSection)
+        if (bgPriority >= 4) return true
+        return bgPriority > incomingPriority
+    }
+
+    private fun stopLowerPriorityBackgroundService(context: Context) {
+        if (!AzkarAudioService.isPlayingNow) return
+        val bgPriority = AzkarAudioService.getSectionPriority(AzkarAudioService.currentSection)
+        if (bgPriority >= 4) return
+        runCatching {
+            val stopIntent = Intent(context.applicationContext, AzkarAudioService::class.java).apply {
+                action = AzkarAudioService.ACTION_STOP_AUDIO
+            }
+            context.applicationContext.startService(stopIntent)
+        }
+    }
+
     fun playAssetAudio(
         context: Context,
         assetPath: String,
@@ -182,10 +214,12 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
         subtitle: String,
         trackTag: String = assetPath
     ) {
-        if (isPriorityAzanBlocked()) {
-            Log.d(TAG, "Azan/Iqama active; deferring media playback: $title")
+        val incomingPriority = inferIncomingPriority(trackTag, assetPath)
+        if (isBlockedByBackgroundPriority(incomingPriority)) {
+            Log.d(TAG, "Higher-priority background audio active; rejecting playback: $title")
             return
         }
+        stopLowerPriorityBackgroundService(context)
         stop()
         activeContext = context.applicationContext
         if (!requestFocus(context, speechContent = false)) {
@@ -270,6 +304,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             onError?.invoke("يُمنع التشغيل أثناء الأذان أو الإقامة")
             return
         }
+        stopLowerPriorityBackgroundService(context)
         stop()
         activeContext = context.applicationContext
         onFileOrQueueComplete = onComplete
@@ -347,6 +382,7 @@ object NativeAudioPlayerManager : MediaPlayer.OnCompletionListener, MediaPlayer.
             onError?.invoke("يُمنع التشغيل أثناء الأذان أو الإقامة")
             return
         }
+        stopLowerPriorityBackgroundService(context)
         stop()
         activeContext = context.applicationContext
         playlistUrls = urls

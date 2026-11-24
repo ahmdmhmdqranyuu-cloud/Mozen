@@ -30,7 +30,8 @@ import com.muslim.azan.ui.components.MoazenWidgetCard
 @Composable
 fun RamadanScreen(
     prefs: NativePreferences,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenZakat: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val todayKey = remember {
@@ -83,17 +84,23 @@ fun RamadanScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                    }
+                    Text(
+                        text = "شهر رمضان المبارك",
+                        color = MoazenInkEmerald,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(
-                    text = "شهر رمضان المبارك",
-                    color = MoazenInkEmerald,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                TextButton(onClick = onOpenZakat) {
+                    Text("حاسبة الزكاة", color = MoazenGoldDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
 

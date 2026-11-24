@@ -243,15 +243,12 @@ fun HomeScreen(
         GridItem("الحج والعمرة", "المناسك والأدعية", Icons.Default.Mosque, Screen.Hajj, R.drawable.ic_feat_hajj, "Hajj & Umrah", "Rituals & Duas"),
         GridItem("السبحة الإلكترونية", "سبح بحمد ربك", Icons.Default.TouchApp, Screen.Tasbih, R.drawable.ic_feat_tasbih, "Tasbih", "Digital Counter"),
         GridItem("أسماء الله", "الأسماء الحسنى (99)", Icons.Default.AutoAwesome, Screen.NamesOfAllah, R.drawable.ic_feat_names, "99 Names", "Asma ul-Husna"),
-        GridItem("الرقية والسنن", "التحصين والشفاء", Icons.Default.Shield, Screen.Ruqyah, R.drawable.ic_feat_ruqyah, "Ruqyah", "Healing & Sunnah"),
-        GridItem("المساجد والعيدين", "المساجد والمناسبات", Icons.Default.LocationCity, Screen.Masajid, R.drawable.ic_feat_recitations, "Masajid", "Mosques & Events"),
-        GridItem("الزكاة", "حاسبة الزكاة", Icons.Default.Calculate, Screen.Zakat, null, "Zakat", "Calculator"),
-        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets, R.drawable.ic_feat_prophets, "Prophets", "Stories & Lessons"),
+        GridItem("التلاوات الصوتية", "استماع للسور الكاملة", Icons.Default.Headphones, Screen.Quran, R.drawable.ic_feat_recitations, "Recitations", "Full Surah Audio"),
         GridItem("خلفيات إسلامية", "خلفيات عالية الجودة", Icons.Default.Wallpaper, Screen.Wallpapers, R.drawable.ic_feat_wallpapers, "Wallpapers", "HD Backgrounds"),
         GridItem("مسابقة إسلامي", "اختبر معلوماتك", Icons.Default.Quiz, Screen.Quiz, R.drawable.ic_feat_quiz, "Islamic Quiz", "Test Knowledge"),
-        GridItem("رمضان مبارك", "المسابقة والفوازير", Icons.Default.NightsStay, Screen.Ramadan, R.drawable.ic_feat_ramadan, "Ramadan", "Fasting & Qiyam"),
-        GridItem("ملفي الشخصي", "الإحصائيات والختمة", Icons.Default.Person, Screen.Profile, null, "My Profile", "Stats & Khatma"),
-        GridItem("الإعدادات", "تخصيص التطبيق", Icons.Default.Settings, Screen.Settings, R.drawable.ic_feat_settings, "Settings", "Customize App")
+        GridItem("رمضان مبارك", "الصيام والقيام", Icons.Default.NightsStay, Screen.Ramadan, R.drawable.ic_feat_ramadan, "Ramadan", "Fasting & Qiyam"),
+        GridItem("الرقية والسنن", "التحصين والشفاء", Icons.Default.Shield, Screen.Ruqyah, R.drawable.ic_feat_ruqyah, "Ruqyah", "Healing & Sunnah"),
+        GridItem("قصص الأنبياء", "دروس وعبر", Icons.Default.AutoStories, Screen.Prophets, R.drawable.ic_feat_prophets, "Prophets", "Stories & Lessons")
     )
 
     var isGridExpanded by remember { mutableStateOf(false) }

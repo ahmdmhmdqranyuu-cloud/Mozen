@@ -246,6 +246,9 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                     onOpenPrayerSettings = { prayerKey ->
                                         navController.navigate(Screen.PrayerSettings.routeFor(prayerKey))
+                                    },
+                                    onOpenMasajid = {
+                                        navController.navigate(Screen.Masajid.route)
                                     }
                                 )
                             }
@@ -288,7 +291,10 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Ramadan.route) {
                                 RamadanScreen(
                                     prefs = prefs,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    onOpenZakat = {
+                                        navController.navigate(Screen.Zakat.route)
+                                    }
                                 )
                             }
                             composable(Screen.Seerah.route) {
@@ -352,7 +358,10 @@ class MainActivity : ComponentActivity() {
                                     prefs = prefs,
                                     onBack = { navController.popBackStack() },
                                     onReopenOnboarding = { showOnboarding = true },
-                                    onLanguageChanged = { newLang -> appLanguage = newLang }
+                                    onLanguageChanged = { newLang -> appLanguage = newLang },
+                                    onOpenProfile = {
+                                        navController.navigate(Screen.Profile.route)
+                                    }
                                 )
                             }
                             composable(

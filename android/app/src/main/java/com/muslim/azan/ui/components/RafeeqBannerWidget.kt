@@ -70,8 +70,7 @@ fun RafeeqBannerWidget(
                         .fillMaxWidth()
                         .aspectRatio(720f / 300f)
                         .clip(innerShape)
-                        .background(Color(0xFFFBF4DF))
-                        .border(1.dp, Color.White.copy(alpha = 0.72f), innerShape)
+                        .background(Color(0xFFD9B14A))
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.bg_rafeeq_banner_widget),

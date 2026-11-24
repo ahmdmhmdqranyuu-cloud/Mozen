@@ -395,7 +395,11 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         boolean isTestAlarm = intent.getBooleanExtra("isTestAlarm", false);
 
         if (!isTestAlarm && !canPreemptCurrentPlayback(section)) {
-            if (shouldQueueWhenBlocked(section)) {
+            int currentPriority = getSectionPriority(currentSection);
+            int incomingPriority = getSectionPriority(section);
+            if (currentPriority >= 5 && incomingPriority <= 1) {
+                Log.d(TAG, "Rejecting lower-priority audio trigger (" + section + ") while Azan (" + currentSection + ") is active");
+            } else if (shouldQueueWhenBlocked(section)) {
                 String pKey = intent.getStringExtra("prayerKey");
                 String queueKey = (section != null ? section : "unknown") + "_"
                         + (pKey != null ? pKey : "") + "_"

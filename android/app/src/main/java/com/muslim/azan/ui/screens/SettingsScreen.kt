@@ -81,7 +81,8 @@ fun SettingsScreen(
     prefs: NativePreferences,
     onBack: () -> Unit,
     onReopenOnboarding: (() -> Unit)? = null,
-    onLanguageChanged: (String) -> Unit = {}
+    onLanguageChanged: (String) -> Unit = {},
+    onOpenProfile: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -657,6 +658,22 @@ fun SettingsScreen(
                         Text(text = "آخر سورة تمت قراءتها:", color = MoazenInkMuted, fontSize = 13.sp)
                         val s = NativeDataManager.surahs.find { it.number == prefs.lastReadSurah }
                         Text(text = "سورة ${s?.nameArabic ?: "الفاتحة"}", color = MoazenInkPrimary, fontWeight = FontWeight.Bold)
+                    }
+                    if (onOpenProfile != null) {
+                        Button(
+                            onClick = onOpenProfile,
+                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isEnglish) "Open Profile & Worship Tracker" else "فتح الملف الشخصي ومتتبع العبادات",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
