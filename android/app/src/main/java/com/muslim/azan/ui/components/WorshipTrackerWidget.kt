@@ -309,7 +309,7 @@ fun WorshipTrackerWidget(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isToday) MoazenGold.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.45f))
+                                        .background(if (isToday) MoazenGold.copy(alpha = 0.16f) else MoazenChipUnselectedBg)
                                         .border(
                                             0.7.dp,
                                             if (isToday) MoazenGoldDark else MoazenCardBorder.copy(alpha = 0.45f),
@@ -397,7 +397,7 @@ fun WorshipTrackerWidget(
                                             modifier = Modifier
                                                 .size(16.dp)
                                                 .clip(RoundedCornerShape(5.dp))
-                                                .background(if (done) MoazenGold else Color.White.copy(alpha = 0.85f))
+                                                .background(if (done) MoazenGold else MoazenChipUnselectedBg)
                                                 .border(
                                                     1.dp,
                                                     if (done) Color(0xFFF5D77F) else MoazenGoldDark.copy(alpha = 0.6f),
@@ -409,7 +409,7 @@ fun WorshipTrackerWidget(
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
                                                     contentDescription = null,
-                                                    tint = MoazenInkPrimary,
+                                                    tint = Color(0xFF1A2220),
                                                     modifier = Modifier.size(11.dp)
                                                 )
                                             }

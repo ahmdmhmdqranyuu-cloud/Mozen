@@ -244,7 +244,7 @@ fun QuranScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(MoazenInkEmerald),
+                                    .background(MuslimPlusPillEmerald),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.AutoStories, contentDescription = null, tint = MoazenGold, modifier = Modifier.size(22.dp))
@@ -432,7 +432,7 @@ fun QuranScreen(
                                         modifier = Modifier
                                             .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(MoazenInkEmerald),
+                                            .background(MuslimPlusPillEmerald),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
@@ -944,7 +944,7 @@ fun QuranScreen(
                         showPageJumpDialog = false
                         openPage(target)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
+                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
                 ) {
                     Text("انتقال", color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -976,7 +976,7 @@ fun QuranScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (selectedReciterIndex == index) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                .background(if (selectedReciterIndex == index) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                 .clickable {
                                     selectedReciterIndex = index
                                     prefs.quranReciterIndex = index

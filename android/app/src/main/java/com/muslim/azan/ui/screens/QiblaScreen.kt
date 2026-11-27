@@ -187,16 +187,25 @@ fun QiblaScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Compass Visualizer (Warm Cream Dial + 3D Metallic Gold Ring)
+        // Compass Visualizer (Warm Cream / Dark Obsidian Dial + 3D Metallic Gold Ring)
+        val isDarkDial = LocalAlMoazenIsDark.current
+        val dialInkEmerald = MoazenInkEmerald
+        val dialGoldDark = MoazenGoldDark
+        val dialGold = MoazenGold
+        val dialGradientColors = if (isDarkDial) {
+            listOf(Color(0xFF15372D), Color(0xFF0E261F), Color(0xFF081914))
+        } else {
+            listOf(Color(0xFFFFFDF7), Color(0xFFFBF4E0), Color(0xFFEDE0BE))
+        }
+        val dialHubColor = if (isDarkDial) Color(0xFF123027) else Color(0xFFFFFDF7)
+
         Box(
             modifier = Modifier
                 .size(274.dp)
                 .shadow(10.dp, CircleShape, clip = false)
                 .clip(CircleShape)
                 .background(
-                    Brush.radialGradient(
-                        colors = listOf(Color(0xFFFFFDF7), Color(0xFFFBF4E0), Color(0xFFEDE0BE))
-                    )
+                    Brush.radialGradient(colors = dialGradientColors)
                 )
                 .border(3.dp, RafeeqGoldBevelBrush, CircleShape),
             contentAlignment = Alignment.Center
@@ -207,7 +216,7 @@ fun QiblaScreen(
 
                 // Inner fine emerald ring
                 drawCircle(
-                    color = MoazenInkEmerald.copy(alpha = 0.22f),
+                    color = dialInkEmerald.copy(alpha = 0.22f),
                     radius = radius - 6f,
                     center = center,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
@@ -218,7 +227,7 @@ fun QiblaScreen(
                     val isMajor = angle % 30 == 0
                     rotate(angle.toFloat(), center) {
                         drawLine(
-                            color = if (isMajor) MoazenGoldDark.copy(alpha = 0.85f) else MoazenInkEmerald.copy(alpha = 0.35f),
+                            color = if (isMajor) dialGoldDark.copy(alpha = 0.85f) else dialInkEmerald.copy(alpha = 0.35f),
                             start = Offset(center.x, center.y - radius),
                             end = Offset(center.x, center.y - radius + if (isMajor) 16f else 9f),
                             strokeWidth = if (isMajor) 3.2f else 1.8f
@@ -229,18 +238,18 @@ fun QiblaScreen(
                 // Draw Compass Needle pointing towards Qibla
                 rotate(animatedRotation + qiblaBearing, center) {
                     drawLine(
-                        color = MoazenInkEmerald,
+                        color = dialInkEmerald,
                         start = center,
                         end = Offset(center.x, center.y - radius + 24f),
                         strokeWidth = 7f
                     )
                     drawCircle(
-                        color = MoazenGoldDark,
+                        color = dialGoldDark,
                         radius = 13f,
                         center = Offset(center.x, center.y - radius + 24f)
                     )
                     drawCircle(
-                        color = MoazenGold,
+                        color = dialGold,
                         radius = 7f,
                         center = Offset(center.x, center.y - radius + 24f)
                     )
@@ -248,12 +257,12 @@ fun QiblaScreen(
 
                 // Center hub
                 drawCircle(
-                    color = Color(0xFFFFFDF7),
+                    color = dialHubColor,
                     radius = 24f,
                     center = center
                 )
                 drawCircle(
-                    color = MoazenGoldDark.copy(alpha = 0.65f),
+                    color = dialGoldDark.copy(alpha = 0.65f),
                     radius = 24f,
                     center = center,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)

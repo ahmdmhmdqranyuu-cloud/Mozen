@@ -31,6 +31,9 @@ import {
   RefreshCw,
   Eye,
   BookOpen,
+  WifiOff,
+  HardDrive,
+  Trash2,
 } from 'lucide-react';
 import { TimeSliderPicker } from '../common/TimeSliderPicker';
 import {
@@ -101,6 +104,7 @@ import {
   saveExtendedSetupSettings,
   ExtendedSetupSettings,
 } from '../../utils/androidPermissionsManager';
+import { recitationOfflineManager } from '../../utils/recitationOfflineManager';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -232,6 +236,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [auditioningFajrVoice, setAuditioningFajrVoice] = useState<string | null>(null);
   const [auditioningIqama, setAuditioningIqama] = useState<string | null>(null);
   const [auditioningSoundSection, setAuditioningSoundSection] = useState<AppSoundSectionKey | null>(null);
+  const [prioritizeOfflineAudio, setPrioritizeOfflineAudio] = useState<boolean>(() =>
+    typeof user.prioritizeOfflineAudio === 'boolean'
+      ? user.prioritizeOfflineAudio
+      : recitationOfflineManager.getPrioritizeOfflinePlayback()
+  );
+  const [, setOfflineStorageRev] = useState<number>(0);
+
+  useEffect(() => {
+    const resolved =
+      typeof user.prioritizeOfflineAudio === 'boolean'
+        ? user.prioritizeOfflineAudio
+        : recitationOfflineManager.getPrioritizeOfflinePlayback();
+    setPrioritizeOfflineAudio(resolved);
+  }, [user.prioritizeOfflineAudio, isOpen]);
+
+  useEffect(() => {
+    return recitationOfflineManager.subscribe(() => {
+      setOfflineStorageRev((r) => r + 1);
+    });
+  }, []);
+
   const [liveCountdownInfo, setLiveCountdownInfo] = useState<{
     prayerName: string;
     countdownStr: string;
@@ -515,6 +540,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reminderScheduler.updateSettings(updater);
     setReminderSettings(reminderScheduler.getSettings());
     showToast('✓ تم حفظ إعدادات التنبيهات وجدولتها بنجاح');
+  };
+
+  const handleTogglePrioritizeOffline = (enabled: boolean) => {
+    setPrioritizeOfflineAudio(enabled);
+    recitationOfflineManager.setPrioritizeOfflinePlayback(enabled);
+    if (onUpdateUser) {
+      onUpdateUser((prev) => ({ ...prev, prioritizeOfflineAudio: enabled }));
+    }
+    showToast(
+      enabled
+        ? '✓ تم تفعيل أولوية التشغيل أوفلاين للتلاوات المحفوظة في IndexedDB'
+        : '✓ تم تفعيل البث المباشر أولاً مع استخدام الملفات المحفوظة كبديل'
+    );
   };
 
   const resolvedAppSounds: AppSoundPreferences = {
@@ -2444,6 +2482,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     {cfg.volumePercent}%
                                   </span>
                                 </div>
+
+                                {sec.key === 'quran' && (
+                                  <div className="pt-2 mt-1.5 border-t border-[#D6C18D]/40 flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <span className="text-[11px] font-black text-[#104B40] flex items-center gap-1">
+                                        <WifiOff className="w-3.5 h-3.5 text-[#104B40] shrink-0" />
+                                        <span>أولوية التشغيل الصوتي أوفلاين</span>
+                                      </span>
+                                      <span className="text-[10px] text-[#5C6E69] block">
+                                        تفضيل تشغيل التلاوات المحفوظة في IndexedDB قبل البث عبر الإنترنت
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="checkbox"
+                                      checked={prioritizeOfflineAudio}
+                                      onChange={(e) => handleTogglePrioritizeOffline(e.target.checked)}
+                                      aria-label="أولوية التشغيل الصوتي أوفلاين"
+                                      className="w-5 h-5 accent-[#104B40] rounded cursor-pointer shrink-0"
+                                    />
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -2506,6 +2565,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               />
                             </div>
                           )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Group 1.5: Offline Recitation Playback Priority & IndexedDB Storage */}
+                    <div className="moazen-widget rounded-2xl border border-[#D6C18D] overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup('azan_offline_playback')}
+                        className="w-full p-3.5 flex items-center justify-between text-right cursor-pointer hover:bg-gray-50/70"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <WifiOff className="w-4 h-4 text-[#104B40] shrink-0" />
+                          <span className="text-xs font-black text-gray-900 truncate">
+                            التشغيل الصوتي أوفلاين وإدارة التلاوات المحفوظة (IndexedDB)
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-500 transition-transform shrink-0 ${
+                            expandedGroup === 'azan_offline_playback' ? 'rotate-180 text-[#104B40]' : ''
+                          }`}
+                        />
+                      </button>
+                      {expandedGroup === 'azan_offline_playback' && (
+                        <div className="p-3.5 bg-[#FAF4E4]/75 border-t border-[#D6C18D]/50 space-y-2.5">
+                          <div className="moazen-widget flex items-center justify-between p-3 rounded-xl border border-[#D6C18D]/70 gap-3">
+                            <div>
+                              <h4 className="text-xs font-black text-[#104B40]">
+                                {isRtl
+                                  ? 'أولوية التشغيل الصوتي أوفلاين'
+                                  : 'Prioritize Offline Audio Playback'}
+                              </h4>
+                              <p className="text-[10.5px] text-gray-600 mt-0.5 leading-relaxed">
+                                {isRtl
+                                  ? 'عند التفعيل، يتم تشغيل التلاوات المحفوظة في الذاكرة المحلية (IndexedDB) أولاً قبل البث عبر الإنترنت لتوفير البيانات وتسريع التشغيل.'
+                                  : 'When enabled, downloaded recitations stored in IndexedDB are played first before streaming online.'}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={prioritizeOfflineAudio}
+                              onChange={(e) => handleTogglePrioritizeOffline(e.target.checked)}
+                              aria-label="Prioritize Offline Audio Playback"
+                              className="w-5 h-5 accent-[#104B40] rounded cursor-pointer shrink-0"
+                            />
+                          </div>
+
+                          {(() => {
+                            const offlineList = recitationOfflineManager.getDownloadedList();
+                            const totalBytes = recitationOfflineManager.getTotalOfflineBytes();
+                            return (
+                              <div className="moazen-widget p-3 rounded-xl border border-gray-200 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <HardDrive className="w-4 h-4 text-[#9A7732] shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-bold text-gray-900 block">
+                                      التلاوات المحفوظة محلياً: {offlineList.length} سورة
+                                    </span>
+                                    <span className="text-[10px] text-gray-500 block">
+                                      المساحة المستخدمة في IndexedDB:{' '}
+                                      {recitationOfflineManager.formatBytes(totalBytes)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {offlineList.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await recitationOfflineManager.clearAllDownloads();
+                                      showToast('✓ تم مسح جميع التلاوات المحفوظة من IndexedDB');
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>مسح الكل</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

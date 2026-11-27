@@ -21,7 +21,9 @@ public final class AlarmScheduleTracker {
     public static final String KEY_SCHEDULE_SUMMARY = "last_schedule_summary_json";
     public static final String KEY_BG_TEST_STATUS = "background_test_status_json";
     public static final String KEY_AUDIO_DIAGNOSTIC = "last_audio_diagnostic_json";
+    public static final String KEY_DIAGNOSTIC_LOG_HISTORY = "diagnostic_log_history_json";
     public static final String ACTION_BG_TEST_STATE_CHANGED = "com.muslim.azan.BG_TEST_STATE_CHANGED";
+    private static final int MAX_DIAGNOSTIC_LOG_ENTRIES = 25;
 
     public enum ScheduleMode {
         ALARM_CLOCK("ALARM_CLOCK", "منبه نظام دقيق (AlarmClock)"),
@@ -310,34 +312,77 @@ public final class AlarmScheduleTracker {
 
             ScheduleMode usedMode = null;
             try {
-                if ("prayer_azan".equals(section) && canExact) {
-                    try {
-                        backend.scheduleAlarmClock(obj, requestCode, triggerEpochMs);
-                        usedMode = ScheduleMode.ALARM_CLOCK;
-                    } catch (SecurityException se) {
-                        backend.scheduleInexactWhileIdle(obj, requestCode, triggerEpochMs);
-                        usedMode = ScheduleMode.INEXACT_WHILE_IDLE;
-                        lastFailureReason = "تم التحويل للجدولة البديلة بعد تعذر AlarmClock: " + safeMsg(se);
+                if ("prayer_azan".equals(section)) {
+
+                    // الأذان الأساسي يجب أن يستخدم جدولة دقيقة فقط.
+                    if (!canExact) {
+                        throw new SecurityException(
+                                "Exact alarm permission is not granted for prayer azan"
+                        );
                     }
+
+                    try {
+                        backend.scheduleAlarmClock(
+                                obj,
+                                requestCode,
+                                triggerEpochMs
+                        );
+                        usedMode = ScheduleMode.ALARM_CLOCK;
+
+                    } catch (SecurityException alarmClockError) {
+
+                        // محاولة بديلة دقيقة، وليس Inexact.
+                        backend.scheduleExactWhileIdle(
+                                obj,
+                                requestCode,
+                                triggerEpochMs
+                        );
+
+                        usedMode = ScheduleMode.EXACT_WHILE_IDLE;
+                    }
+
                 } else if (sdkInt >= Build.VERSION_CODES.M) {
+
                     if (canExact) {
                         try {
-                            backend.scheduleExactWhileIdle(obj, requestCode, triggerEpochMs);
+                            backend.scheduleExactWhileIdle(
+                                    obj,
+                                    requestCode,
+                                    triggerEpochMs
+                            );
                             usedMode = ScheduleMode.EXACT_WHILE_IDLE;
+
                         } catch (SecurityException se) {
-                            backend.scheduleInexactWhileIdle(obj, requestCode, triggerEpochMs);
+                            backend.scheduleInexactWhileIdle(
+                                    obj,
+                                    requestCode,
+                                    triggerEpochMs
+                            );
                             usedMode = ScheduleMode.INEXACT_WHILE_IDLE;
-                            lastFailureReason = "تم التحويل للجدولة البديلة بعد رفض ExactAlarm: " + safeMsg(se);
+                            lastFailureReason =
+                                    "Exact scheduling denied: " + safeMsg(se);
                         }
+
                     } else {
-                        backend.scheduleInexactWhileIdle(obj, requestCode, triggerEpochMs);
+                        backend.scheduleInexactWhileIdle(
+                                obj,
+                                requestCode,
+                                triggerEpochMs
+                        );
                         usedMode = ScheduleMode.INEXACT_WHILE_IDLE;
                     }
+
                 } else {
-                    backend.scheduleExactLegacy(obj, requestCode, triggerEpochMs);
+                    backend.scheduleExactLegacy(
+                            obj,
+                            requestCode,
+                            triggerEpochMs
+                    );
                     usedMode = ScheduleMode.EXACT;
                 }
+
             } catch (Exception ex) {
+
                 usedMode = ScheduleMode.FAILED;
                 failedCount++;
                 failedSections.add(section);
@@ -458,6 +503,18 @@ public final class AlarmScheduleTracker {
         if (context == null || outcome == null) return;
         SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
         rt.edit().putString(KEY_SCHEDULE_SUMMARY, outcome.toJson().toString()).apply();
+        appendDiagnosticLog(
+                context,
+                "SCHEDULE",
+                "mode=" + outcome.getPrimaryMode().code
+                        + " scheduled=" + outcome.scheduledCount + "/" + outcome.totalCandidates
+                        + " alarmClock=" + outcome.alarmClockCount
+                        + " exact=" + outcome.exactCount
+                        + " inexact=" + outcome.inexactCount
+                        + " failed=" + outcome.failedCount
+                        + " canExact=" + outcome.exactPermissionGranted
+                        + (outcome.lastFailureReason.isEmpty() ? "" : " err=" + outcome.lastFailureReason)
+        );
     }
 
     public static ScheduleOutcome loadOutcome(Context context) {
@@ -470,6 +527,15 @@ public final class AlarmScheduleTracker {
         if (context == null || status == null) return;
         SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
         rt.edit().putString(KEY_BG_TEST_STATUS, status.toJson().toString()).apply();
+        appendDiagnosticLog(
+                context,
+                "BG_TEST",
+                "state=" + status.state
+                        + " mode=" + status.scheduleMode.code
+                        + " track=" + status.audioTrackId
+                        + " canExact=" + status.exactPermissionGranted
+                        + (status.failureReason.isEmpty() ? "" : " err=" + status.failureReason)
+        );
         try {
             android.content.Intent b = new android.content.Intent(ACTION_BG_TEST_STATE_CHANGED);
             b.setPackage(context.getPackageName());
@@ -557,6 +623,16 @@ public final class AlarmScheduleTracker {
         if (context == null || diag == null) return;
         SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
         rt.edit().putString(KEY_AUDIO_DIAGNOSTIC, diag.toJson().toString()).apply();
+        appendDiagnosticLog(
+                context,
+                "AUDIO",
+                "section=" + diag.section
+                        + " file=" + diag.resolvedFileName
+                        + " focus=" + diag.focusResultCode
+                        + " prepared=" + diag.preparedOk
+                        + " started=" + diag.startedOk
+                        + (diag.errorReason.isEmpty() ? "" : " err=" + diag.errorReason)
+        );
     }
 
     public static AudioPlaybackDiagnostic loadAudioDiagnostic(Context context) {
@@ -569,6 +645,56 @@ public final class AlarmScheduleTracker {
         if (context == null) return null;
         SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
         return BackgroundTestStatus.fromJson(rt.getString(KEY_BG_TEST_STATUS, null));
+    }
+
+    public static synchronized void appendDiagnosticLog(Context context, String category, String message) {
+        if (context == null || message == null) return;
+        try {
+            SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
+            String raw = rt.getString(KEY_DIAGNOSTIC_LOG_HISTORY, "[]");
+            JSONArray arr = new JSONArray(raw);
+            JSONObject entry = new JSONObject();
+            entry.put("ts", System.currentTimeMillis());
+            entry.put("cat", category != null ? category : "INFO");
+            entry.put("msg", message);
+            arr.put(entry);
+
+            JSONArray trimmed = new JSONArray();
+            int start = Math.max(0, arr.length() - MAX_DIAGNOSTIC_LOG_ENTRIES);
+            for (int i = start; i < arr.length(); i++) {
+                trimmed.put(arr.get(i));
+            }
+            rt.edit().putString(KEY_DIAGNOSTIC_LOG_HISTORY, trimmed.toString()).apply();
+        } catch (Exception ignored) {}
+    }
+
+    public static synchronized java.util.List<String> loadDiagnosticLogHistory(Context context) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (context == null) return out;
+        try {
+            SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
+            JSONArray arr = new JSONArray(rt.getString(KEY_DIAGNOSTIC_LOG_HISTORY, "[]"));
+            java.text.SimpleDateFormat fmt =
+                    new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US);
+            for (int i = arr.length() - 1; i >= 0; i--) {
+                JSONObject obj = arr.optJSONObject(i);
+                if (obj == null) continue;
+                long ts = obj.optLong("ts", 0L);
+                String cat = obj.optString("cat", "INFO");
+                String msg = obj.optString("msg", "");
+                String timeLabel = ts > 0L ? fmt.format(new java.util.Date(ts)) : "--:--:--";
+                out.add("[" + timeLabel + "] [" + cat + "] " + msg);
+            }
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    public static synchronized void clearDiagnosticLogHistory(Context context) {
+        if (context == null) return;
+        try {
+            SharedPreferences rt = context.getSharedPreferences(RUNTIME_STATE_PREFS, Context.MODE_PRIVATE);
+            rt.edit().remove(KEY_DIAGNOSTIC_LOG_HISTORY).apply();
+        } catch (Exception ignored) {}
     }
 
     private static String safeMsg(Throwable t) {

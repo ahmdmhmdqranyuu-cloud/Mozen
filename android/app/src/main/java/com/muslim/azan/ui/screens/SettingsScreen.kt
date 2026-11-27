@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -69,6 +70,7 @@ import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.model.CityLocation
 import com.muslim.azan.service.NativeAudioPlayerManager
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.DeveloperDiagnosticsDialog
 import com.muslim.azan.ui.components.MoazenSubWidgetBox
 import com.muslim.azan.ui.components.MoazenWidgetCard
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +84,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onReopenOnboarding: (() -> Unit)? = null,
     onLanguageChanged: (String) -> Unit = {},
+    onThemeModeChanged: (String) -> Unit = {},
     onOpenProfile: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -91,8 +94,12 @@ fun SettingsScreen(
     var expandedSection by remember { mutableStateOf<Int?>(null) }
     var permissionRefreshTick by remember { mutableIntStateOf(0) }
     var selectedLanguage by remember { mutableStateOf(prefs.language) }
+    var selectedThemeMode by remember { mutableStateOf(prefs.themeMode) }
     LaunchedEffect(prefs.language) {
         selectedLanguage = prefs.language
+    }
+    LaunchedEffect(prefs.themeMode) {
+        selectedThemeMode = prefs.themeMode
     }
     val isEnglish = selectedLanguage == "en"
 
@@ -287,6 +294,9 @@ fun SettingsScreen(
     }
 
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showDeveloperDiagnostics by remember { mutableStateOf(false) }
+    var aboutVersionTapCount by remember { mutableIntStateOf(0) }
+    var lastAboutTapMs by remember { mutableLongStateOf(0L) }
 
     val permStatus = remember(expandedSection, permissionRefreshTick) {
         SystemPermissionHelper.checkPermissions(context)
@@ -430,6 +440,7 @@ fun SettingsScreen(
 
     BackHandler(
         enabled = azkarPreviewCategory != null ||
+            showDeveloperDiagnostics ||
             showResetConfirmDialog ||
             showCountryDropdown ||
             showStateDropdown ||
@@ -437,6 +448,7 @@ fun SettingsScreen(
     ) {
         when {
             azkarPreviewCategory != null -> azkarPreviewCategory = null
+            showDeveloperDiagnostics -> showDeveloperDiagnostics = false
             showResetConfirmDialog -> showResetConfirmDialog = false
             showCountryDropdown -> showCountryDropdown = false
             showStateDropdown -> showStateDropdown = false
@@ -469,6 +481,13 @@ fun SettingsScreen(
                     alignment = Alignment.TopCenter,
                     modifier = Modifier.matchParentSize()
                 )
+                if (LocalAlMoazenIsDark.current) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(DarkCanvasMid.copy(alpha = 0.84f))
+                    )
+                }
 
                 Column(
                     modifier = Modifier
@@ -1201,7 +1220,7 @@ fun SettingsScreen(
                             }
                         },
                         enabled = !isDetectingGps,
-                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (isDetectingGps) {
@@ -1293,7 +1312,7 @@ fun SettingsScreen(
                                 ) {
                                     Button(
                                         onClick = { applyGpsResult(pending) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -1477,9 +1496,9 @@ fun SettingsScreen(
                                 },
                                 label = { Text(cLabel, fontSize = 11.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MoazenInkEmerald,
+                                    selectedContainerColor = MuslimPlusPillEmerald,
                                     selectedLabelColor = Color.White,
-                                    containerColor = Color.White.copy(alpha = 0.72f),
+                                    containerColor = MoazenChipUnselectedBg,
                                     labelColor = MoazenInkPrimary
                                 )
                             )
@@ -1512,7 +1531,7 @@ fun SettingsScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSel) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
+                                            .background(if (isSel) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                             .clickable {
                                                 selectedCountryFilter = cSummary.countryAr
                                                 selectedStateFilter = null
@@ -1551,7 +1570,7 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selectedStateFilter == null) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
+                                        .background(if (selectedStateFilter == null) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable {
                                             selectedStateFilter = null
                                             showStateDropdown = false
@@ -1566,7 +1585,7 @@ fun SettingsScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isStateSel) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
+                                            .background(if (isStateSel) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                             .clickable {
                                                 selectedStateFilter = stateName
                                                 showStateDropdown = false
@@ -1720,17 +1739,104 @@ fun SettingsScreen(
             }
         }
 
-        // Section 4: Language (Arabic RTL / English LTR + Device Locale Detection)
+        // Section 4: Language & Theme Mode (System Default / Light / Dark)
         if (expandedSection == 4) {
             SettingsCollapsibleCard(
-                title = if (isEnglish) "4. App Language & Layout Direction" else "4. لغة التطبيق والواجهة",
+                title = if (isEnglish) "4. Language & Theme Appearance" else "4. لغة التطبيق والمظهر",
                 icon = Icons.Default.Language,
                 iconResId = R.drawable.ic_settings_language,
                 isExpanded = true,
                 onToggle = { toggleSection(4) },
                 modifier = Modifier.padding(horizontal = 14.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (isEnglish)
+                            "App Theme (System Default / Light / Dark):"
+                        else
+                            "مظهر التطبيق (افتراضي النظام / فاتح / داكن):",
+                        color = MoazenInkEmerald,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    val themeChoices = remember(isEnglish) {
+                        listOf(
+                            Triple(
+                                "system",
+                                if (isEnglish) "System Default" else "تلقائي (حسب النظام)",
+                                Icons.Default.BrightnessAuto
+                            ),
+                            Triple(
+                                "light",
+                                if (isEnglish) "Light Mode" else "الوضع الفاتح",
+                                Icons.Default.WbSunny
+                            ),
+                            Triple(
+                                "dark",
+                                if (isEnglish) "Dark Mode" else "الوضع الداكن",
+                                Icons.Default.NightsStay
+                            )
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        themeChoices.forEach { (modeCode, modeLabel, modeIcon) ->
+                            val isSelectedTheme = selectedThemeMode == modeCode
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelectedTheme) MuslimPlusPillEmerald else MoazenChipUnselectedBg,
+                                border = BorderStroke(
+                                    width = if (isSelectedTheme) 1.5.dp else 1.dp,
+                                    color = if (isSelectedTheme) MoazenGold else MoazenCardBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .testTag("theme_mode_$modeCode")
+                                    .clickable {
+                                        prefs.themeMode = modeCode
+                                        selectedThemeMode = modeCode
+                                        onThemeModeChanged(modeCode)
+                                        Toast.makeText(
+                                            context,
+                                            if (isEnglish) "Theme set to $modeLabel" else "تم تفعيل: $modeLabel",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = modeIcon,
+                                        contentDescription = modeLabel,
+                                        tint = if (isSelectedTheme) GoldLight else MoazenInkEmerald,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = modeLabel,
+                                        color = if (isSelectedTheme) Color.White else MoazenInkPrimary,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MoazenCardBorder, thickness = 0.8.dp)
+
                     Text(
                         text = if (isEnglish)
                             "Choose your preferred interface language and text direction (RTL / LTR). Quranic verses and authentic Arabic Azkar texts remain preserved in Arabic script."
@@ -1752,7 +1858,7 @@ fun SettingsScreen(
                         val isSelectedLang = selectedLanguage == code
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isSelectedLang) MoazenInkEmerald else Color.White.copy(alpha = 0.85f),
+                            color = if (isSelectedLang) MuslimPlusPillEmerald else MoazenChipUnselectedBg,
                             border = BorderStroke(
                                 width = if (isSelectedLang) 1.5.dp else 1.dp,
                                 color = if (isSelectedLang) MoazenGold else MoazenCardBorder
@@ -2231,7 +2337,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isVoiceSelected) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                .background(if (isVoiceSelected) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                 .border(1.dp, MoazenCardBorder, RoundedCornerShape(8.dp))
                                 .clickable {
                                     selectedAzanVoice = voiceKey
@@ -2333,7 +2439,7 @@ fun SettingsScreen(
                                 Toast.makeText(context, failReason, Toast.LENGTH_LONG).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Schedule, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
@@ -2954,7 +3060,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isPendingSelected) Color(0xFFEAF4EE) else Color.White.copy(alpha = 0.85f))
+                                .background(if (isPendingSelected) MoazenInkEmerald.copy(alpha = 0.14f) else MoazenChipUnselectedBg)
                                 .border(
                                     width = if (isPendingSelected) 1.5.dp else 1.dp,
                                     color = if (isPendingSelected) MoazenInkEmerald else MoazenCardBorder,
@@ -3171,7 +3277,19 @@ fun SettingsScreen(
                         text = "تطبيق رفيق المسلم (الإصدار 2.2.0)",
                         color = MoazenInkEmerald,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable {
+                            val now = System.currentTimeMillis()
+                            aboutVersionTapCount = if (now - lastAboutTapMs <= 3_000L) aboutVersionTapCount + 1 else 1
+                            lastAboutTapMs = now
+                            if (aboutVersionTapCount >= 7) {
+                                aboutVersionTapCount = 0
+                                showDeveloperDiagnostics = true
+                            } else if (aboutVersionTapCount >= 5) {
+                                val rem = 7 - aboutVersionTapCount
+                                Toast.makeText(context, "باقي $rem خطوات لفتح تشخيص المطور", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                     Text(
                         text = "تطبيق إسلامي شامل صدقة جارية خالصة لوجه الله تعالى بدون أي إعلانات.",
@@ -3446,6 +3564,12 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showDeveloperDiagnostics) {
+        DeveloperDiagnosticsDialog(
+            onDismiss = { showDeveloperDiagnostics = false }
+        )
+    }
 }
 
 private data class CompactSettingsTileItem(
@@ -3469,7 +3593,7 @@ private fun CompactSettingsOverviewGrid(
                 CompactSettingsTileItem(1, "Profile & Stats", "Khatma & Tasbih Totals", Icons.Default.Person, R.drawable.ic_settings_profile),
                 CompactSettingsTileItem(2, "App Permissions", "Alarms, Notifications & Battery", Icons.Default.Security, R.drawable.ic_settings_permissions),
                 CompactSettingsTileItem(3, "Location & Time", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
-                CompactSettingsTileItem(4, "Language & RTL/LTR", "English (LTR)", Icons.Default.Language, R.drawable.ic_settings_language),
+                CompactSettingsTileItem(4, "Language & Theme", "English (LTR) • Theme", Icons.Default.Language, R.drawable.ic_settings_language),
                 CompactSettingsTileItem(5, "Azan & Iqama Audio", "Muezzins & Audio Tester", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
                 CompactSettingsTileItem(6, "Azkar & Salawat", "Morning, Evening & Salawat", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
                 CompactSettingsTileItem(7, "Ramadan & Suhoor", "Musaharati & Imsak", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
@@ -3482,7 +3606,7 @@ private fun CompactSettingsOverviewGrid(
                 CompactSettingsTileItem(1, "الملف الشخصي", "الإحصائيات والختمة", Icons.Default.Person, R.drawable.ic_settings_profile),
                 CompactSettingsTileItem(2, "الأذونات والصلاحيات", "البطارية والتنبيهات", Icons.Default.Security, R.drawable.ic_settings_permissions),
                 CompactSettingsTileItem(3, "تحديد الموقع والوقت", selectedCityName, Icons.Default.LocationOn, R.drawable.ic_settings_location),
-                CompactSettingsTileItem(4, "اختيار اللغة", "العربية (RTL)", Icons.Default.Language, R.drawable.ic_settings_language),
+                CompactSettingsTileItem(4, "اللغة والمظهر", "العربية • فاتح / داكن", Icons.Default.Language, R.drawable.ic_settings_language),
                 CompactSettingsTileItem(5, "إعدادات الأذان والإقامة", "الأصوات والاختبار", Icons.Default.VolumeUp, R.drawable.ic_settings_azan),
                 CompactSettingsTileItem(6, "التحكم في الأذكار", "الصباح والمساء", Icons.Default.Alarm, R.drawable.ic_settings_azkar),
                 CompactSettingsTileItem(7, "إعدادات رمضان والسحور", "المسحراتي والإمساك", Icons.Default.NightsStay, R.drawable.ic_settings_ramadan),
@@ -3627,8 +3751,8 @@ private fun CitySelectionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
-            .border(1.dp, if (isSelected) MoazenInkEmerald else MoazenCardBorder, RoundedCornerShape(8.dp))
+            .background(if (isSelected) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
+            .border(1.dp, if (isSelected) MoazenGold else MoazenCardBorder, RoundedCornerShape(8.dp))
             .clickable(onClick = onSelect)
             .padding(10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,

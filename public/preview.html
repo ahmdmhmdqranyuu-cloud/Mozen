@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>رفيق المسلم — مواقيت الصلاة والأذان والقرآن والأذكار</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --canvas-top: #fbf6e8;
+      --canvas-mid: #f7efe0;
+      --canvas-bottom: #f3e8d0;
+      --card-start: #fffbf1;
+      --card-end: #f4e8ce;
+      --sub-card: #faf2df;
+      --border-gold: #caa34e;
+      --gold: #c59b3f;
+      --gold-dark: #9a7324;
+      --ink-primary: #172a28;
+      --ink-emerald: #104b40;
+      --ink-muted: #4b5b58;
+      --pill-emerald: #0d5c3e;
+      --chip-bg: rgba(255, 255, 255, 0.82);
+      --shadow: 0 8px 24px rgba(16, 75, 64, 0.08);
+    }
+
+    html[data-theme="dark"] {
+      --canvas-top: #061410;
+      --canvas-mid: #0a1d18;
+      --canvas-bottom: #0e2720;
+      --card-start: #123027;
+      --card-end: #0c211b;
+      --sub-card: #173a30;
+      --border-gold: #caa34e;
+      --gold: #d6ac4a;
+      --gold-dark: #e7c768;
+      --ink-primary: #f4efe2;
+      --ink-emerald: #6ce6ba;
+      --ink-muted: #b3c7bf;
+      --pill-emerald: #136b50;
+      --chip-bg: #173a30;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(180deg, var(--canvas-top), var(--canvas-mid), var(--canvas-bottom));
+      color: var(--ink-primary);
+      display: flex;
+      justify-content: center;
+      padding: 12px 12px 92px;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .gold-card {
+      background: linear-gradient(135deg, var(--card-start), var(--card-end));
+      border: 1.5px solid var(--border-gold);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sub-box {
+      background: var(--sub-card);
+      border: 1px solid var(--border-gold);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    /* Hero Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, #0d5c3e, #104b40 55%, #166c58);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 16px;
+      color: #fffdf5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-title {
+      font-family: 'Amiri', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff3bf;
+      line-height: 1.15;
+    }
+
+    .hero-subtitle {
+      font-size: 12px;
+      color: rgba(255, 250, 232, 0.88);
+      margin-top: 2px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1.5px solid var(--gold);
+      background: linear-gradient(180deg, #fffdf2, #f3e1b2);
+      color: #104b40;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    /* Date & Weather Strip */
+    .row-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .emerald-title {
+      color: var(--ink-emerald);
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .muted-text {
+      color: var(--ink-muted);
+      font-size: 12px;
+    }
+
+    .gold-badge {
+      background: rgba(197, 155, 63, 0.18);
+      border: 1px solid var(--border-gold);
+      color: var(--gold-dark);
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Prayer Countdown & 7 Times Grid */
+    .prayer-top {
+      display: grid;
+      grid-template-columns: 116px 1fr;
+      gap: 10px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+
+    .countdown-box {
+      background: var(--sub-card);
+      border: 1.5px solid var(--gold);
+      border-radius: 14px;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 3px;
+    }
+
+    .countdown-timer {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--ink-primary);
+      direction: ltr;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .prayer-chips {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .prayer-chip {
+      background: var(--sub-card);
+      border: 1px solid var(--border-gold);
+      border-radius: 10px;
+      padding: 6px 4px;
+      text-align: center;
+      transition: transform 0.15s ease;
+    }
+
+    .prayer-chip.active {
+      background: var(--pill-emerald);
+      border-color: var(--gold);
+      color: #ffffff;
+    }
+
+    .prayer-chip.active .p-name,
+    .prayer-chip.active .p-time {
+      color: #ffffff;
+    }
+
+    .p-name { font-size: 10px; color: var(--ink-muted); font-weight: 700; }
+    .p-time { font-size: 11px; color: var(--ink-primary); font-weight: 800; direction: ltr; }
+
+    /* Weather Bar */
+    .weather-grid {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .weather-temp {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--ink-primary);
+      direction: ltr;
+    }
+
+    .weather-pills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btn-emerald {
+      background: var(--pill-emerald);
+      color: #ffffff;
+      border: 1px solid var(--gold);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-outline {
+      background: var(--chip-bg);
+      color: var(--ink-primary);
+      border: 1px solid var(--border-gold);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-outline.active {
+      background: var(--pill-emerald);
+      color: #ffffff;
+      border-color: var(--gold);
+    }
+
+    /* 16 Core Sections Grid */
+    .sections-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .section-tile {
+      background: linear-gradient(135deg, var(--card-start), var(--card-end));
+      border: 1.2px solid var(--border-gold);
+      border-radius: 13px;
+      padding: 10px 4px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: transform 0.14s ease;
+    }
+
+    .section-tile:hover { transform: translateY(-2px); }
+
+    .section-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--sub-card);
+      border: 1px solid var(--gold);
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--ink-emerald);
+      line-height: 1.2;
+    }
+
+    .section-sub {
+      font-size: 9px;
+      color: var(--ink-muted);
+    }
+
+    /* Mushaf / Media Banner */
+    .mushaf-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    .mushaf-thumb {
+      width: 78px;
+      height: 78px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 1.5px solid var(--gold);
+      flex-shrink: 0;
+    }
+
+    .quran-text {
+      font-family: 'Amiri', serif;
+      font-size: 21px;
+      line-height: 1.9;
+      color: var(--ink-primary);
+    }
+
+    .tab-panel { display: none; flex-direction: column; gap: 12px; }
+    .tab-panel.active { display: flex; }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(180deg, var(--card-start), var(--card-end));
+      border-top: 1.5px solid var(--border-gold);
+      border-left: 1px solid var(--border-gold);
+      border-right: 1px solid var(--border-gold);
+      border-radius: 22px 22px 0 0;
+      padding: 6px 8px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      box-shadow: 0 -6px 24px rgba(0,0,0,0.12);
+      z-index: 40;
+    }
+
+    .nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--ink-muted);
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .nav-btn.active { color: var(--ink-emerald); }
+
+    .nav-pill {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--sub-card);
+      border: 1px solid var(--border-gold);
+      display: grid;
+      place-items: center;
+      font-size: 15px;
+    }
+
+    .nav-btn.active .nav-pill {
+      background: rgba(197, 155, 63, 0.28);
+      border-color: var(--gold);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 9px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--border-gold);
+      background: var(--chip-bg);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .tasbih-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #177a5c, #0d5c3e);
+      border: 3px solid var(--gold);
+      color: #fffdf5;
+      font-size: 28px;
+      font-weight: 800;
+      cursor: pointer;
+      margin: 8px auto;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(13, 92, 62, 0.35);
+    }
+
+    .list-stack { display: flex; flex-direction: column; gap: 8px; }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <!-- Top Banner -->
+    <header class="hero-banner">
+      <div>
+        <div class="hero-title" id="brandTitle">رفيق المسلم</div>
+        <div class="hero-subtitle" id="brandSub">مواقيت الصلاة • القرآن الكريم • الأذكار • الطقس</div>
+      </div>
+      <div class="hero-actions">
+        <button class="icon-btn" id="quickThemeBtn" title="تبديل المظهر">🌓</button>
+        <button class="icon-btn" id="quickLangBtn" title="AR / EN">🌐</button>
+        <button class="icon-btn" id="quickSettingsBtn" title="الإعدادات">⚙️</button>
+      </div>
+    </header>
+
+    <!-- HOME TAB -->
+    <section id="tab-home" class="tab-panel active">
+      <!-- Live Hijri & Gregorian Calendar Card -->
+      <div class="gold-card">
+        <div class="row-between">
+          <div>
+            <div class="emerald-title" id="hijriDateText">جاري حساب التاريخ الهجري...</div>
+            <div class="muted-text" id="gregDateText">جاري حساب التاريخ الميلادي...</div>
+          </div>
+          <span class="gold-badge" id="calcMethodBadge">أم القرى</span>
+        </div>
+      </div>
+
+      <!-- Prayer Times Summary + Countdown -->
+      <div class="gold-card">
+        <div class="row-between">
+          <div class="emerald-title">📍 <span id="cityDisplay">مكة المكرمة</span></div>
+          <button class="btn-outline" id="detectLocBtn" style="padding:4px 10px;font-size:11px;">تحديد موقعي</button>
+        </div>
+
+        <div class="prayer-top">
+          <div class="countdown-box">
+            <div class="emerald-title" id="nextPrayerName">الظهر</div>
+            <div class="muted-text" id="remainingLabel" style="font-size:10px;">متبقي للصلاة</div>
+            <div class="countdown-timer" id="countdownClock">00:00:00</div>
+          </div>
+          <div class="prayer-chips" id="homePrayerChips"></div>
+        </div>
+      </div>
+
+      <!-- City & Weather Widget -->
+      <div class="gold-card">
+        <div class="weather-grid">
+          <div>
+            <div class="emerald-title" id="weatherCityTitle">الطقس في مكة المكرمة</div>
+            <div class="muted-text" id="weatherConditionText">جاري جلب بيانات الطقس المحلية...</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="weatherEmoji" style="font-size:28px;">☀️</span>
+            <span class="weather-temp" id="weatherTemp">--°C</span>
+          </div>
+        </div>
+        <div class="weather-pills">
+          <div class="sub-box" id="weatherHumidity">الرطوبة: --%</div>
+          <div class="sub-box" id="weatherWind">الرياح: -- كم/س</div>
+        </div>
+      </div>
+
+      <!-- 16 Core Islamic Sections -->
+      <div class="gold-card">
+        <div class="row-between" style="margin-bottom:10px;">
+          <div class="emerald-title" id="sectionsHeading">الأقسام الإسلامية الشاملة (16)</div>
+          <span class="gold-badge">Android Native Preview</span>
+        </div>
+        <div class="sections-grid" id="sectionsGrid"></div>
+      </div>
+
+      <!-- Verse of the Day -->
+      <div class="gold-card mushaf-card" onclick="switchTab('quran')">
+        <div style="flex:1;">
+          <div class="emerald-title">آية اليوم • القرآن الكريم</div>
+          <div class="quran-text" style="font-size:17px;margin-top:4px;">﴿إِنَّ مَعَ الْعُسْرِ يُسْرًا﴾</div>
+          <div class="muted-text">سورة الشرح • اضغط للقراءة والتفسير</div>
+        </div>
+        <img class="mushaf-thumb" src="/assets/images/open_mushaf_rehal_1792331334829.jpg" alt="المصحف الشريف" />
+      </div>
+    </section>
+
+    <!-- PRAYERS & WEATHER TAB -->
+    <section id="tab-prayers" class="tab-panel">
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;">التقويم الهجري والميلادي ومواقيت اليوم</div>
+        <div class="sub-box" style="margin-bottom:10px;">
+          <div class="emerald-title" id="prayersHijriLine">--</div>
+          <div class="muted-text" id="prayersGregLine">--</div>
+        </div>
+        <div class="list-stack" id="fullPrayerList"></div>
+      </div>
+
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;">اختيار المدينة والبحث العالمي</div>
+        <div style="display:flex;gap:8px;">
+          <input id="citySearchInput" placeholder="ابحث عن مدينة (مثلاً: القاهرة، الرياض، إسطنبول)..." />
+          <button class="btn-emerald" id="citySearchBtn">بحث</button>
+        </div>
+        <div class="list-stack" id="citySearchResults" style="margin-top:8px;"></div>
+      </div>
+    </section>
+
+    <!-- QURAN TAB -->
+    <section id="tab-quran" class="tab-panel">
+      <div class="gold-card">
+        <div class="row-between" style="margin-bottom:10px;">
+          <div class="emerald-title">المصحف الشريف والتفسير الميسر</div>
+          <select id="surahSelect" style="width:auto;min-width:160px;"></select>
+        </div>
+        <div class="list-stack" id="ayahsContainer"></div>
+      </div>
+    </section>
+
+    <!-- AZKAR, TASBIH, QIBLA & SECTIONS TAB -->
+    <section id="tab-azkar" class="tab-panel">
+      <div class="gold-card" style="text-align:center;">
+        <div class="emerald-title">السبحة الإلكترونية</div>
+        <div class="muted-text" id="tasbihPhrase">سبحان الله وبحمده</div>
+        <button class="tasbih-btn" id="tasbihBtn">0</button>
+        <div style="display:flex;gap:8px;justify-content:center;">
+          <button class="btn-outline" id="tasbihResetBtn">تصفير</button>
+          <button class="btn-outline" id="tasbihPhraseBtn">تغيير الذكر</button>
+        </div>
+      </div>
+
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;">مشغل الأذان والأذكار الصوتية</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="audioBtns"></div>
+        <audio id="nativeAudioPreview" controls style="width:100%;margin-top:10px;"></audio>
+      </div>
+
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;" id="sectionDetailTitle">أذكار الصباح والمساء</div>
+        <div class="list-stack" id="sectionDetailBody"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS TAB (THEME + LANGUAGE + ZAKAT LIVE API) -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;">مظهر التطبيق (Theme Switcher)</div>
+        <div class="segmented">
+          <button class="btn-outline" data-theme-choice="system">🌓 تلقائي</button>
+          <button class="btn-outline" data-theme-choice="light">☀️ فاتح</button>
+          <button class="btn-outline" data-theme-choice="dark">🌙 داكن</button>
+        </div>
+
+        <div class="emerald-title" style="margin:14px 0 8px;">لغة الواجهة (RTL / LTR)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn-outline" data-lang-choice="ar">العربية (RTL)</button>
+          <button class="btn-outline" data-lang-choice="en">English (LTR)</button>
+        </div>
+      </div>
+
+      <div class="gold-card">
+        <div class="emerald-title" style="margin-bottom:8px;">حاسبة الزكاة المباشرة (أسعار الذهب والفضة)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <select id="zakatCurrency">
+            <option value="EGP">الجنيه المصري (EGP)</option>
+            <option value="SAR">الريال السعودي (SAR)</option>
+            <option value="AED">الدرهم الإماراتي (AED)</option>
+            <option value="USD">الدولار الأمريكي (USD)</option>
+          </select>
+          <button class="btn-emerald" id="loadZakatRatesBtn">تحديث السعر</button>
+        </div>
+        <div class="sub-box" id="zakatSummaryBox">اضغط لتحديث أسعار الذهب والنصاب الفعلي</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="home"><span class="nav-pill">🏠</span><span>الرئيسية</span></button>
+    <button class="nav-btn" data-tab="prayers"><span class="nav-pill">🕌</span><span>الأوقات</span></button>
+    <button class="nav-btn" data-tab="quran"><span class="nav-pill">📖</span><span>القرآن</span></button>
+    <button class="nav-btn" data-tab="azkar"><span class="nav-pill">📿</span><span>الأذكار</span></button>
+    <button class="nav-btn" data-tab="settings"><span class="nav-pill">⚙️</span><span>الإعدادات</span></button>
+  </nav>
+
+  <script>
+    const state = {
+      themeMode: localStorage.getItem('almoazen_theme') || 'system',
+      lang: localStorage.getItem('almoazen_lang') || 'ar',
+      city: localStorage.getItem('almoazen_city') || 'مكة المكرمة',
+      lat: Number(localStorage.getItem('almoazen_lat') || 21.4225),
+      lng: Number(localStorage.getItem('almoazen_lng') || 39.8262),
+      tasbihCount: Number(localStorage.getItem('almoazen_tasbih') || 0),
+      tasbihIdx: 0,
+      quranData: null,
+      tafseerData: null
+    };
+
+    const SECTIONS = [
+      { id: 'quran', icon: '📖', ar: 'القرآن الكريم', en: 'Holy Quran', sub: 'قراءة وتفسير' },
+      { id: 'prayers', icon: '🕌', ar: 'مواقيت الصلاة', en: 'Prayer Times', sub: 'أذان وتنبيه' },
+      { id: 'azkar', icon: '🌿', ar: 'الأذكار اليومية', en: 'Daily Azkar', sub: 'الصباح والمساء' },
+      { id: 'qibla', icon: '🧭', ar: 'القبلة', en: 'Qibla', sub: 'اتجاه الكعبة' },
+      { id: 'hadith', icon: '📜', ar: 'الأحاديث النبوية', en: 'Hadith', sub: 'الجامع الصحيح' },
+      { id: 'duas', icon: '🤲', ar: 'الأدعية', en: 'Duas', sub: 'قرآنية ونبوية' },
+      { id: 'seerah', icon: '🕋', ar: 'السيرة النبوية', en: 'Seerah', sub: 'حياة النبي ﷺ' },
+      { id: 'hajj', icon: '⛺', ar: 'الحج والعمرة', en: 'Hajj & Umrah', sub: 'المناسك والأدعية' },
+      { id: 'tasbih', icon: '📿', ar: 'السبحة', en: 'Tasbih', sub: 'سبح بحمد ربك' },
+      { id: 'names', icon: '✨', ar: 'أسماء الله', en: '99 Names', sub: 'الأسماء الحسنى' },
+      { id: 'audio', icon: '🎧', ar: 'التلاوات والأذان', en: 'Audio', sub: 'صوتيات نقية' },
+      { id: 'wallpapers', icon: '🖼️', ar: 'خلفيات إسلامية', en: 'Wallpapers', sub: 'تراثية عالية الدقة' },
+      { id: 'quiz', icon: '❓', ar: 'مسابقة إسلامي', en: 'Islamic Quiz', sub: 'اختبر معلوماتك' },
+      { id: 'ramadan', icon: '🌙', ar: 'رمضان مبارك', en: 'Ramadan', sub: 'الصيام والقيام' },
+      { id: 'ruqyah', icon: '🛡️', ar: 'الرقية والسنن', en: 'Ruqyah', sub: 'التحصين والشفاء' },
+      { id: 'prophets', icon: '📚', ar: 'قصص الأنبياء', en: 'Prophets', sub: 'دروس وعبر' }
+    ];
+
+    const AZKAR_ITEMS = [
+      'أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ.',
+      'اللَّهُمَّ بِكَ أَصْبَحْنَا وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا وَبِكَ نَمُوتُ وَإِلَيْكَ النُّشُورُ.',
+      'سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ (٣ مرات).',
+      'حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ (٧ مرات).'
+    ];
+
+    const PHRASES = ['سبحان الله وبحمده', 'أستغفر الله العظيم', 'لا إله إلا الله وحده لا شريك له', 'اللهم صل وسلم على نبينا محمد'];
+
+    function applyThemeAndLang() {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const effectiveTheme = state.themeMode === 'system' ? (prefersDark ? 'dark' : 'light') : state.themeMode;
+      document.documentElement.setAttribute('data-theme', effectiveTheme);
+      document.documentElement.lang = state.lang;
+      document.documentElement.dir = state.lang === 'en' ? 'ltr' : 'rtl';
+      localStorage.setItem('almoazen_theme', state.themeMode);
+      localStorage.setItem('almoazen_lang', state.lang);
+
+      document.querySelectorAll('[data-theme-choice]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === state.themeMode);
+      });
+      document.querySelectorAll('[data-lang-choice]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-lang-choice') === state.lang);
+      });
+
+      document.getElementById('brandTitle').textContent = state.lang === 'en' ? 'Rafeeq Al-Muslim' : 'رفيق المسلم';
+      document.getElementById('brandSub').textContent = state.lang === 'en'
+        ? 'Prayer Times • Holy Quran • Azkar • Local Weather'
+        : 'مواقيت الصلاة • القرآن الكريم • الأذكار • الطقس';
+      updateDates();
+      renderSectionsGrid();
+    }
+
+    function updateDates() {
+      const now = new Date();
+      let hijri = '';
+      try {
+        hijri = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US-u-ca-islamic-umalqura' : 'ar-SA-u-ca-islamic-umalqura', {
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        }).format(now);
+      } catch {
+        hijri = state.lang === 'en' ? 'Islamic Hijri Calendar' : 'التقويم الهجري';
+      }
+      const greg = new Intl.DateTimeFormat(state.lang === 'en' ? 'en-US' : 'ar-EG', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      }).format(now);
+
+      document.getElementById('hijriDateText').textContent = hijri;
+      document.getElementById('gregDateText').textContent = greg;
+      document.getElementById('prayersHijriLine').textContent = hijri;
+      document.getElementById('prayersGregLine').textContent = greg;
+    }
+
+    // Simplified astronomical solar prayer calculation matching Umm Al-Qura defaults
+    function calcPrayerMinutes(lat, lng, date = new Date()) {
+      const rad = Math.PI / 180;
+      const start = new Date(date.getFullYear(), 0, 0);
+      const doy = Math.floor((date - start) / 86400000);
+      const decl = 23.44 * Math.sin(rad * ((360 / 365) * (doy - 81)));
+      const b = rad * ((360 / 365) * (doy - 81));
+      const eqTime = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+      const tzHours = -date.getTimezoneOffset() / 60;
+      const dhuhrHours = 12 + tzHours - lng / 15 - eqTime / 60;
+
+      const hourAngle = (angleDeg) => {
+        const num = -Math.sin(rad * angleDeg) - Math.sin(rad * lat) * Math.sin(rad * decl);
+        const den = Math.cos(rad * lat) * Math.cos(rad * decl);
+        const cosH = Math.max(-1, Math.min(1, num / den));
+        return (Math.acos(cosH) / rad) / 15;
+      };
+
+      const fajrH = dhuhrHours - hourAngle(18.5);
+      const sunriseH = dhuhrHours - hourAngle(0.833);
+      const duhaH = sunriseH + 0.33;
+      const asrAlt = Math.atan(1 / (1 + Math.tan(Math.abs(lat - decl) * rad))) / rad;
+      const asrH = dhuhrHours + hourAngle(-asrAlt);
+      const maghribH = dhuhrHours + hourAngle(0.833);
+      const ishaH = maghribH + 1.5;
+
+      const toMin = (h) => {
+        let m = Math.round(h * 60) % 1440;
+        if (m < 0) m += 1440;
+        return m;
+      };
+      return [
+        { key: 'fajr', ar: 'الفجر', en: 'Fajr', min: toMin(fajrH), main: true },
+        { key: 'sunrise', ar: 'الشروق', en: 'Sunrise', min: toMin(sunriseH), main: false },
+        { key: 'duha', ar: 'الضحى', en: 'Duha', min: toMin(duhaH), main: false },
+        { key: 'dhuhr', ar: 'الظهر', en: 'Dhuhr', min: toMin(dhuhrH), main: true },
+        { key: 'asr', ar: 'العصر', en: 'Asr', min: toMin(asrH), main: true },
+        { key: 'maghrib', ar: 'المغرب', en: 'Maghrib', min: toMin(maghribH), main: true },
+        { key: 'isha', ar: 'العشاء', en: 'Isha', min: toMin(ishaH), main: true }
+      ];
+    }
+
+    function fmtMin(m) {
+      const h = String(Math.floor(m / 60) % 24).padStart(2, '0');
+      const mm = String(m % 60).padStart(2, '0');
+      return `${h}:${mm}`;
+    }
+
+    function updatePrayersUI() {
+      const now = new Date();
+      const curMin = now.getHours() * 60 + now.getMinutes();
+      const curSec = now.getSeconds();
+      const list = calcPrayerMinutes(state.lat, state.lng, now);
+      const mainOnly = list.filter(p => p.main);
+      const next = mainOnly.find(p => p.min > curMin) || mainOnly[0];
+      let diffMin = next.min - curMin;
+      if (diffMin <= 0) diffMin += 1440;
+      const remTotalSec = Math.max(0, diffMin * 60 - curSec);
+      const hh = String(Math.floor(remTotalSec / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((remTotalSec % 3600) / 60)).padStart(2, '0');
+      const ss = String(remTotalSec % 60).padStart(2, '0');
+
+      document.getElementById('cityDisplay').textContent = state.city;
+      document.getElementById('nextPrayerName').textContent = state.lang === 'en' ? next.en : next.ar;
+      document.getElementById('countdownClock').textContent = `${hh}:${mm}:${ss}`;
+
+      const chipsEl = document.getElementById('homePrayerChips');
+      chipsEl.innerHTML = list.map(p => `
+        <div class="prayer-chip ${p.key === next.key ? 'active' : ''}">
+          <div class="p-name">${state.lang === 'en' ? p.en : p.ar}</div>
+          <div class="p-time">${fmtMin(p.min)}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('fullPrayerList').innerHTML = list.map(p => `
+        <div class="sub-box row-between" style="${p.key === next.key ? 'border-color:var(--gold);background:var(--pill-emerald);color:#fff;' : ''}">
+          <strong>${state.lang === 'en' ? p.en : p.ar}</strong>
+          <strong style="direction:ltr;">${fmtMin(p.min)}</strong>
+        </div>
+      `).join('');
+    }
+
+    async function loadWeather() {
+      document.getElementById('weatherCityTitle').textContent =
+        (state.lang === 'en' ? 'Weather in ' : 'الطقس في ') + state.city;
+      try {
+        const res = await fetch(`/api/weather?lat=${state.lat}&lng=${state.lng}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Weather error');
+        document.getElementById('weatherEmoji').textContent = data.emoji || '☀️';
+        document.getElementById('weatherTemp').textContent = `${data.temperatureCelsius}°C`;
+        document.getElementById('weatherConditionText').textContent =
+          `${state.lang === 'en' ? data.conditionEn : data.conditionAr} • ${(state.lang === 'en' ? 'Feels like' : 'المحسوسة')} ${data.apparentCelsius}°C`;
+        document.getElementById('weatherHumidity').textContent =
+          `${state.lang === 'en' ? 'Humidity' : 'الرطوبة'}: ${data.humidityPercent}%`;
+        document.getElementById('weatherWind').textContent =
+          `${state.lang === 'en' ? 'Wind' : 'الرياح'}: ${data.windSpeedKmh} ${state.lang === 'en' ? 'km/h' : 'كم/س'}`;
+      } catch {
+        document.getElementById('weatherConditionText').textContent =
+          state.lang === 'en' ? 'Live weather unavailable offline' : 'تعذر جلب الطقس المباشر حاليًا';
+      }
+    }
+
+    function renderSectionsGrid() {
+      const grid = document.getElementById('sectionsGrid');
+      grid.innerHTML = SECTIONS.map(s => `
+        <div class="section-tile" onclick="openSection('${s.id}')">
+          <div class="section-icon">${s.icon}</div>
+          <div class="section-title">${state.lang === 'en' ? s.en : s.ar}</div>
+          <div class="section-sub">${s.sub}</div>
+        </div>
+      `).join('');
+    }
+
+    window.openSection = function(id) {
+      if (id === 'quran' || id === 'audio') { switchTab(id === 'quran' ? 'quran' : 'azkar'); return; }
+      if (id === 'prayers') { switchTab('prayers'); return; }
+      if (id === 'zakat') { switchTab('settings'); return; }
+      switchTab('azkar');
+      const sec = SECTIONS.find(s => s.id === id);
+      document.getElementById('sectionDetailTitle').textContent = sec ? `${sec.icon} ${state.lang === 'en' ? sec.en : sec.ar}` : 'الأذكار';
+      const detail = document.getElementById('sectionDetailBody');
+      if (id === 'qibla') {
+        const bearing = computeQibla(state.lat, state.lng).toFixed(1);
+        detail.innerHTML = `<div class="sub-box">🧭 اتجاه القبلة من <strong>${state.city}</strong>: <strong dir="ltr">${bearing}°</strong> من الشمال الحقيقي نحو الكعبة المشرفة.</div>`;
+      } else {
+        detail.innerHTML = AZKAR_ITEMS.map(t => `<div class="sub-box">${t}</div>`).join('');
+      }
+    };
+
+    function computeQibla(lat, lng) {
+      const rad = Math.PI / 180;
+      const mLat = 21.4225 * rad, mLng = 39.8262 * rad;
+      const uLat = lat * rad, dLng = mLng - lng * rad;
+      const y = Math.sin(dLng);
+      const x = Math.cos(uLat) * Math.tan(mLat) - Math.sin(uLat) * Math.cos(dLng);
+      return ((Math.atan2(y, x) / rad) + 360) % 360;
+    }
+
+    window.switchTab = function(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === tabName));
+      if (tabName === 'quran' && !state.quranData) loadQuran();
+    };
+
+    async function loadQuran() {
+      const container = document.getElementById('ayahsContainer');
+      container.innerHTML = '<div class="sub-box">جاري تحميل المصحف الشريف...</div>';
+      try {
+        const [qRes, tRes] = await Promise.all([
+          fetch('/data/quran_uthmani.json'),
+          fetch('/data/quran_tafseer_muyassar.json')
+        ]);
+        state.quranData = await qRes.json();
+        state.tafseerData = await tRes.json();
+        const select = document.getElementById('surahSelect');
+        select.innerHTML = state.quranData.map((s, idx) => `<option value="${idx}">${s.number}. ${s.name}</option>`).join('');
+        select.onchange = () => renderSurah(Number(select.value));
+        renderSurah(0);
+      } catch {
+        container.innerHTML = '<div class="sub-box">تعذر تحميل ملف المصحف.</div>';
+      }
+    }
+
+    function renderSurah(idx) {
+      const surah = state.quranData?.[idx];
+      const byKey = state.tafseerData?.byKey || {};
+      if (!surah) return;
+      document.getElementById('ayahsContainer').innerHTML = (surah.ayahs || []).slice(0, 30).map((a) => {
+        const taf = byKey[`${surah.number}:${a.numberInSurah}`] || '';
+        return `
+          <div class="sub-box">
+            <div class="quran-text">${a.text} <span class="gold-badge">${a.numberInSurah}</span></div>
+            ${taf ? `<div class="muted-text" style="margin-top:6px;">التفسير الميسر: ${taf}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Event bindings
+    document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => switchTab(b.getAttribute('data-tab'))));
+    document.getElementById('quickSettingsBtn').addEventListener('click', () => switchTab('settings'));
+    document.getElementById('quickLangBtn').addEventListener('click', () => {
+      state.lang = state.lang === 'ar' ? 'en' : 'ar';
+      applyThemeAndLang();
+      updatePrayersUI();
+      loadWeather();
+    });
+    document.getElementById('quickThemeBtn').addEventListener('click', () => {
+      const order = ['system', 'light', 'dark'];
+      state.themeMode = order[(order.indexOf(state.themeMode) + 1) % order.length];
+      applyThemeAndLang();
+    });
+    document.querySelectorAll('[data-theme-choice]').forEach(b => b.addEventListener('click', () => {
+      state.themeMode = b.getAttribute('data-theme-choice');
+      applyThemeAndLang();
+    }));
+    document.querySelectorAll('[data-lang-choice]').forEach(b => b.addEventListener('click', () => {
+      state.lang = b.getAttribute('data-lang-choice');
+      applyThemeAndLang();
+      updatePrayersUI();
+      loadWeather();
+    }));
+
+    document.getElementById('detectLocBtn').addEventListener('click', () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        state.lat = pos.coords.latitude;
+        state.lng = pos.coords.longitude;
+        localStorage.setItem('almoazen_lat', state.lat);
+        localStorage.setItem('almoazen_lng', state.lng);
+        try {
+          const rev = await fetch(`/api/locations/reverse?lat=${state.lat}&lng=${state.lng}`).then(r => r.json());
+          if (rev.success && (rev.city || rev.state)) {
+            state.city = rev.city || rev.state;
+            localStorage.setItem('almoazen_city', state.city);
+          }
+        } catch {}
+        updatePrayersUI();
+        loadWeather();
+      });
+    });
+
+    document.getElementById('citySearchBtn').addEventListener('click', async () => {
+      const q = document.getElementById('citySearchInput').value.trim();
+      if (q.length < 2) return;
+      const out = document.getElementById('citySearchResults');
+      out.innerHTML = '<div class="sub-box">جاري البحث...</div>';
+      try {
+        const res = await fetch(`/api/locations/search?q=${encodeURIComponent(q)}&limit=6`).then(r => r.json());
+        const items = res.results || [];
+        out.innerHTML = '';
+        if (!items.length) {
+          const empty = document.createElement('div');
+          empty.className = 'sub-box';
+          empty.textContent = 'لم يتم العثور على نتائج';
+          out.appendChild(empty);
+          return;
+        }
+        items.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'sub-box row-between';
+          row.style.cursor = 'pointer';
+          const left = document.createElement('div');
+          const strong = document.createElement('strong');
+          strong.textContent = item.name || '';
+          const sub = document.createElement('div');
+          sub.className = 'muted-text';
+          sub.textContent = item.country || '';
+          left.appendChild(strong);
+          left.appendChild(sub);
+          const badge = document.createElement('span');
+          badge.className = 'gold-badge';
+          badge.textContent = 'اختيار';
+          row.appendChild(left);
+          row.appendChild(badge);
+          row.addEventListener('click', () => selectCity(String(item.name || ''), Number(item.latitude), Number(item.longitude)));
+          out.appendChild(row);
+        });
+      } catch {
+        out.innerHTML = '<div class="sub-box">تعذر البحث حاليًا</div>';
+      }
+    });
+
+    window.selectCity = function(name, lat, lng) {
+      state.city = name; state.lat = lat; state.lng = lng;
+      localStorage.setItem('almoazen_city', name);
+      localStorage.setItem('almoazen_lat', lat);
+      localStorage.setItem('almoazen_lng', lng);
+      updatePrayersUI();
+      loadWeather();
+      switchTab('home');
+    };
+
+    const tasbihBtn = document.getElementById('tasbihBtn');
+    tasbihBtn.textContent = state.tasbihCount;
+    tasbihBtn.addEventListener('click', () => {
+      state.tasbihCount++;
+      localStorage.setItem('almoazen_tasbih', state.tasbihCount);
+      tasbihBtn.textContent = state.tasbihCount;
+    });
+    document.getElementById('tasbihResetBtn').addEventListener('click', () => {
+      state.tasbihCount = 0;
+      localStorage.setItem('almoazen_tasbih', 0);
+      tasbihBtn.textContent = 0;
+    });
+    document.getElementById('tasbihPhraseBtn').addEventListener('click', () => {
+      state.tasbihIdx = (state.tasbihIdx + 1) % PHRASES.length;
+      document.getElementById('tasbihPhrase').textContent = PHRASES[state.tasbihIdx];
+    });
+
+    const AUDIO_TRACKS = [
+      { file: '/audio/makkah.mp3', label: 'أذان مكة' },
+      { file: '/audio/madinah.mp3', label: 'أذان المدينة' },
+      { file: '/audio/azkar_sabah.mp3', label: 'أذكار الصباح' },
+      { file: '/audio/azkar_massa.mp3', label: 'أذكار المساء' },
+      { file: '/audio/asmaa_allah_al_husna.mp3', label: 'أسماء الله الحسنى' }
+    ];
+    document.getElementById('audioBtns').innerHTML = AUDIO_TRACKS.map(t => `
+      <button class="btn-outline" onclick="playPreviewAudio('${t.file}')">▶️ ${t.label}</button>
+    `).join('');
+    window.playPreviewAudio = function(src) {
+      const a = document.getElementById('nativeAudioPreview');
+      a.src = src;
+      a.play().catch(() => {});
+    };
+
+    document.getElementById('loadZakatRatesBtn').addEventListener('click', async () => {
+      const code = document.getElementById('zakatCurrency').value;
+      const box = document.getElementById('zakatSummaryBox');
+      box.textContent = 'جاري جلب الأسعار...';
+      try {
+        const d = await fetch(`/api/zakat/metals?currency=${code}`).then(r => r.json());
+        box.innerHTML = `
+          <div>عيار 24: <strong>${d.gold24PerGram} ${d.symbol}/جم</strong> • عيار 21: <strong>${d.gold21PerGram} ${d.symbol}/جم</strong></div>
+          <div class="muted-text" style="margin-top:4px;">نصاب الذهب (85 جم): ${d.nisabGoldThreshold} ${d.symbol} • زكاة الفطر المقترحة: ${d.suggestedFitrPerPerson} ${d.symbol}</div>
+        `;
+      } catch {
+        box.textContent = 'تعذر جلب أسعار الزكاة';
+      }
+    });
+
+    document.getElementById('sectionDetailBody').innerHTML = AZKAR_ITEMS.map(t => `<div class="sub-box">${t}</div>`).join('');
+    applyThemeAndLang();
+    updatePrayersUI();
+    loadWeather();
+    setInterval(updatePrayersUI, 1000);
+  </script>
+</body>
+</html>

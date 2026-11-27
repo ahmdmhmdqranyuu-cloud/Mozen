@@ -634,7 +634,7 @@ fun SheikhTutorSection(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelectedTab) MoazenInkEmerald else Color.Transparent)
+                            .background(if (isSelectedTab) MuslimPlusPillEmerald else Color.Transparent)
                             .clickable {
                                 if (uploadState != NativeUploadState.RECORDING && !micTestRunning) activeTab = idx
                             }
@@ -671,7 +671,7 @@ fun SheikhTutorSection(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (unitType == key) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                    .background(if (unitType == key) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                     .clickable {
                                         if (uploadState != NativeUploadState.RECORDING) {
                                             resetActiveState()
@@ -699,7 +699,7 @@ fun SheikhTutorSection(
                         ) {
                             Button(
                                 onClick = { showSurahPicker = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
@@ -859,7 +859,7 @@ fun SheikhTutorSection(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(7.dp))
-                                                    .background(if (targetRepeats == rep) MoazenInkEmerald else Color.White)
+                                                    .background(if (targetRepeats == rep) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                                     .clickable { targetRepeats = rep }
                                                     .padding(horizontal = 7.dp, vertical = 4.dp)
                                             ) {
@@ -877,7 +877,7 @@ fun SheikhTutorSection(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(7.dp))
-                                                    .background(if (reciterSpeed == spd) MoazenGoldDark else Color.White)
+                                                    .background(if (reciterSpeed == spd) MoazenGoldDark else MoazenChipUnselectedBg)
                                                     .clickable {
                                                         reciterSpeed = spd
                                                         NativeAudioPlayerManager.setPlaybackSpeed(spd)
@@ -971,7 +971,7 @@ fun SheikhTutorSection(
                                 val clip = QuranRecitationManager.lastPreparedClip ?: return@Button
                                 scope.launch { evaluateClip(clip, selectedAyahNum, rawExpectedText) }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(30.dp)
@@ -1097,7 +1097,7 @@ fun SheikhTutorSection(
                                         "correct" -> Color(0xFFD1FAE5)
                                         "error", "missing" -> Color(0xFFFEE2E2)
                                         "uncertain" -> Color(0xFFFEF3C7)
-                                        else -> Color.White.copy(alpha = 0.72f)
+                                        else -> MoazenChipUnselectedBg
                                     }
                                     val chipText = when (wEval?.status) {
                                         "correct" -> Color(0xFF065F46)
@@ -1465,7 +1465,7 @@ fun SheikhTutorSection(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(if (quizType == key) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                        .background(if (quizType == key) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable {
                                             quizType = key
                                             quizRevealed = false
@@ -1653,6 +1653,9 @@ fun SheikhTutorSection(
                         Text("الإنجاز اليومي (آخر 7 أيام)", color = MoazenInkEmerald, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         val maxDaily = (last7Days.maxOfOrNull { maxOf(it.second, it.third) } ?: 1).coerceAtLeast(1)
 
+                        val barEmeraldColor = MoazenInkEmerald
+                        val barMutedColor = MoazenCardBorder
+                        val barGoldColor = MoazenGold
                         Canvas(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1669,7 +1672,7 @@ fun SheikhTutorSection(
                                 if (attemptsCnt > 0) {
                                     val hAttempt = (attemptsCnt.toFloat() / maxDaily) * chartH
                                     drawRoundRect(
-                                        color = MoazenGold.copy(alpha = 0.3f),
+                                        color = barGoldColor.copy(alpha = 0.3f),
                                         topLeft = Offset(xLeft, size.height - hAttempt),
                                         size = Size(barWidth, hAttempt),
                                         cornerRadius = CornerRadius(8f, 8f)
@@ -1677,7 +1680,7 @@ fun SheikhTutorSection(
                                 }
                                 val hMastered = if (masteredCnt > 0) (masteredCnt.toFloat() / maxDaily) * chartH else 6f
                                 drawRoundRect(
-                                    color = if (masteredCnt > 0) MoazenInkEmerald else MoazenCardBorder,
+                                    color = if (masteredCnt > 0) barEmeraldColor else barMutedColor,
                                     topLeft = Offset(xLeft, size.height - hMastered),
                                     size = Size(barWidth, hMastered),
                                     cornerRadius = CornerRadius(8f, 8f)
@@ -1846,7 +1849,7 @@ fun SheikhTutorSection(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (noiseGateLevel == k) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                        .background(if (noiseGateLevel == k) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable { noiseGateLevel = k }
                                         .padding(vertical = 8.dp, horizontal = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -1901,7 +1904,7 @@ fun SheikhTutorSection(
                                         }
                                     },
                                     enabled = !micTestRunning && uploadState != NativeUploadState.RECORDING,
-                                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -1952,7 +1955,7 @@ fun SheikhTutorSection(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (analysisSpeed == k) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                        .background(if (analysisSpeed == k) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable { analysisSpeed = k }
                                         .padding(vertical = 9.dp),
                                     contentAlignment = Alignment.Center
@@ -2028,7 +2031,7 @@ fun SheikhTutorSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (surah.number == selectedSurahNum) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                .background(if (surah.number == selectedSurahNum) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                 .clickable {
                                     selectedSurahNum = surah.number
                                     navigateToAyah(1)
@@ -2072,7 +2075,7 @@ fun SheikhTutorSection(
                         showPagePicker = false
                         navigateToPage(p)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
+                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
                 ) { Text("فتح الصفحة", color = Color.White, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
@@ -2102,10 +2105,10 @@ fun SheikhTutorSection(
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         when {
-                                            isCurrent -> MoazenInkEmerald
+                                            isCurrent -> MuslimPlusPillEmerald
                                             isMastered -> Color(0xFFD1FAE5)
                                             isWeak -> Color(0xFFFEE2E2)
-                                            else -> Color.White.copy(alpha = 0.72f)
+                                            else -> MoazenChipUnselectedBg
                                         }
                                     )
                                     .clickable {
@@ -2200,7 +2203,7 @@ fun SheikhTutorSection(
                         if (QuranRecitationManager.hasMicrophonePermission(context)) startMicRecording()
                         else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -2226,7 +2229,7 @@ fun SheikhTutorSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (selectedReciterIdx == idx) MoazenInkEmerald else Color.White.copy(alpha = 0.72f))
+                                .background(if (selectedReciterIdx == idx) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                 .clickable {
                                     selectedReciterIdx = idx
                                     prefs.sheikhReciterIndex = idx

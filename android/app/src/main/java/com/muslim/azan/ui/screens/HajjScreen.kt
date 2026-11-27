@@ -548,7 +548,7 @@ fun HajjScreen(
                                                 .padding(top = 2.dp)
                                                 .size(22.dp)
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isDone) MoazenGold else Color.White)
+                                                .background(if (isDone) MoazenGold else MoazenSubCardBg)
                                                 .border(1.2.dp, MoazenGoldDark, RoundedCornerShape(6.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -556,7 +556,7 @@ fun HajjScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.Check,
                                                     contentDescription = null,
-                                                    tint = MoazenInkPrimary,
+                                                    tint = Color(0xFF1A2220),
                                                     modifier = Modifier.size(14.dp)
                                                 )
                                             }
@@ -710,7 +710,7 @@ fun HajjScreen(
                                         modifier = Modifier
                                             .size(30.dp)
                                             .clip(CircleShape)
-                                            .background(MoazenInkEmerald),
+                                            .background(MuslimPlusPillEmerald),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text("${step.id}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)

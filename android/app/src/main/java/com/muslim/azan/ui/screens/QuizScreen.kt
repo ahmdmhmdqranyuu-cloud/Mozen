@@ -200,7 +200,7 @@ fun QuizScreen(onBack: () -> Unit) {
                                 score = 0
                                 quizCompleted = false
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {

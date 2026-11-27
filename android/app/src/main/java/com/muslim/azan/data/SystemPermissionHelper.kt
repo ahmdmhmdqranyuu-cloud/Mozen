@@ -363,9 +363,19 @@ object SystemPermissionHelper {
             else -> String.format(Locale.US, "موقعي (%.3f, %.3f)", location.latitude, location.longitude)
         }
 
-        val tzId = TimeZone.getDefault().id.ifEmpty {
-            nearestPair?.first?.timezoneId ?: "Asia/Riyadh"
-        }
+        val cityTimezoneId = nearestPair
+            ?.takeIf { it.second <= 120.0 }
+            ?.first
+            ?.timezoneId
+            ?.takeIf {
+                it.isNotBlank() &&
+                TimeZone.getTimeZone(it).id == it
+            }
+
+        val deviceTimezoneId = TimeZone.getDefault().id
+
+        val tzId = cityTimezoneId
+            ?: deviceTimezoneId
 
         val resolvedCalcMethod = mapCountryCodeToCalcMethod(
             countryCode = countryCode,

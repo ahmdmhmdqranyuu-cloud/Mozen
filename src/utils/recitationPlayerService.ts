@@ -21,6 +21,7 @@ export interface RecitationPlayerState {
   currentReciter: Reciter;
   isPlaying: boolean;
   isLoading: boolean;
+  isPlayingOffline: boolean;
   currentTime: number;
   duration: number;
   playbackSpeed: number;
@@ -30,10 +31,16 @@ export interface RecitationPlayerState {
 
 type Listener = (state: RecitationPlayerState) => void;
 
+interface CandidateSource {
+  url: string;
+  isOffline: boolean;
+}
+
 class RecitationPlayerService {
   private audio: HTMLAudioElement | null = null;
-  private candidateUrls: string[] = [];
+  private candidateSources: CandidateSource[] = [];
   private candidateIndex: number = 0;
+  private activeObjectUrl: string | null = null;
   private listeners: Set<Listener> = new Set();
   private lastTrackedPlaybackTime: number = 0;
   private activeToken: string | null = null;
@@ -43,6 +50,7 @@ class RecitationPlayerService {
     currentReciter: RECITERS_LIST[0],
     isPlaying: false,
     isLoading: false,
+    isPlayingOffline: false,
     currentTime: 0,
     duration: 0,
     playbackSpeed: 1.0,
@@ -155,19 +163,33 @@ class RecitationPlayerService {
       currentReciter: reciter,
       isLoading: true,
       isPlaying: false,
+      isPlayingOffline: false,
       currentTime: 0,
       duration: 0,
       errorMessage: null,
     });
 
-    const rawCandidates = getSurahAudioCandidateUrls(reciter, surah.number);
-    const firstPlayable = await recitationOfflineManager.getPlayableUrl(
+    const rawCandidates = getSurahAudioCandidateUrls(reciter, surah.number).map((url) => ({
+      url,
+      isOffline: false,
+    }));
+    const offlineBlobUrl = await recitationOfflineManager.getOfflineBlobUrl(
       reciter.id,
-      surah.number,
-      rawCandidates[0]
+      surah.number
     );
+    this.activeObjectUrl = offlineBlobUrl;
 
-    this.candidateUrls = [firstPlayable, ...rawCandidates.slice(1)];
+    const prioritizeOffline = recitationOfflineManager.getPrioritizeOfflinePlayback();
+    const isNavigatorOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+    if (offlineBlobUrl && (prioritizeOffline || isNavigatorOffline)) {
+      this.candidateSources = [{ url: offlineBlobUrl, isOffline: true }, ...rawCandidates];
+    } else if (offlineBlobUrl) {
+      this.candidateSources = [...rawCandidates, { url: offlineBlobUrl, isOffline: true }];
+    } else {
+      this.candidateSources = rawCandidates;
+    }
+
     this.candidateIndex = 0;
 
     this.loadAndPlayCurrentCandidate();
@@ -176,23 +198,25 @@ class RecitationPlayerService {
   private loadAndPlayCurrentCandidate() {
     const surah = this.state.currentSurah;
     const reciter = this.state.currentReciter;
-    if (!surah || this.candidateIndex >= this.candidateUrls.length) {
+    if (!surah || this.candidateIndex >= this.candidateSources.length) {
       this.updateState({
         isLoading: false,
         isPlaying: false,
+        isPlayingOffline: false,
         errorMessage: 'تعذر تحميل التلاوة، يرجى التحقق من الاتصال بالإنترنت',
       });
       return;
     }
 
     const quranPrefs = this.getSavedQuranSoundPrefs();
-    const url = this.candidateUrls[this.candidateIndex];
+    const candidate = this.candidateSources[this.candidateIndex];
     const audio = new Audio();
     audio.preload = 'auto';
-    audio.src = url;
+    audio.src = candidate.url;
     audio.playbackRate = this.state.playbackSpeed;
     audio.volume = quranPrefs.enabled ? Math.max(0, Math.min(1, quranPrefs.volumePercent / 100)) : 0;
     this.audio = audio;
+    this.updateState({ isPlayingOffline: candidate.isOffline });
 
     audio.onloadedmetadata = () => {
       if (this.audio !== audio) return;
@@ -251,7 +275,7 @@ class RecitationPlayerService {
       if (this.audio !== audio) return;
       // Try next CDN candidate seamlessly
       this.candidateIndex += 1;
-      if (this.candidateIndex < this.candidateUrls.length) {
+      if (this.candidateIndex < this.candidateSources.length) {
         this.loadAndPlayCurrentCandidate();
       } else {
         const tok = this.activeToken;
@@ -260,6 +284,7 @@ class RecitationPlayerService {
         this.updateState({
           isLoading: false,
           isPlaying: false,
+          isPlayingOffline: false,
           errorMessage: 'تعذر تشغيل الملف الصوتي من الخادم حالياً',
         });
       }
@@ -278,7 +303,7 @@ class RecitationPlayerService {
           // Try next candidate if source failed
           if (audio.error) {
             this.candidateIndex += 1;
-            if (this.candidateIndex < this.candidateUrls.length) {
+            if (this.candidateIndex < this.candidateSources.length) {
               this.loadAndPlayCurrentCandidate();
               return;
             }
@@ -373,6 +398,7 @@ class RecitationPlayerService {
       currentSurah: null,
       isPlaying: false,
       isLoading: false,
+      isPlayingOffline: false,
       currentTime: 0,
       duration: 0,
       isExpanded: false,
@@ -394,6 +420,14 @@ class RecitationPlayerService {
         // ignore
       }
       this.audio = null;
+    }
+    if (this.activeObjectUrl) {
+      try {
+        URL.revokeObjectURL(this.activeObjectUrl);
+      } catch {
+        // ignore
+      }
+      this.activeObjectUrl = null;
     }
   }
 

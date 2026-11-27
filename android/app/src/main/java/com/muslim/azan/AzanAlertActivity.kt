@@ -69,8 +69,14 @@ class AzanAlertActivity : ComponentActivity() {
             }
         }
 
+        val prefs = NativePreferences(this)
+        val layoutDirection = if (prefs.language == "en") androidx.compose.ui.unit.LayoutDirection.Ltr else androidx.compose.ui.unit.LayoutDirection.Rtl
+
         setContent {
-            AlMoazenTheme {
+            AlMoazenTheme(
+                layoutDirection = layoutDirection,
+                themeMode = prefs.themeMode
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -153,7 +159,7 @@ class AzanAlertActivity : ComponentActivity() {
                                     startService(stopIntent)
                                     finish()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()

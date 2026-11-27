@@ -18,7 +18,7 @@ import {
   SURAH_LIST,
   Reciter,
   SurahAudioItem,
-  getSurahAudioUrl,
+  getSurahAudioCandidateUrls,
 } from '../../data/recitersData';
 import {
   recitationOfflineManager,
@@ -48,17 +48,26 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDownloadedOnly, setFilterDownloadedOnly] = useState(false);
+  const [filterMajorOnly, setFilterMajorOnly] = useState(false);
 
-  const [downloadingSurahNumber, setDownloadingSurahNumber] = useState<number | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [batchDownloading, setBatchDownloading] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<string | null>(null);
   const [, setDownloadedList] = useState<DownloadedItem[]>([]);
+  const [, setOfflineRevision] = useState<number>(0);
 
-  // Subscribe to global recitation player state
+  // Subscribe to global recitation player state and offline manager state
   useEffect(() => {
-    const unsubscribe = recitationPlayerService.subscribe((newState) => {
+    const unsubscribePlayer = recitationPlayerService.subscribe((newState) => {
       setPlayerState(newState);
     });
-    return unsubscribe;
+    const unsubscribeOffline = recitationOfflineManager.subscribe(() => {
+      setDownloadedList(recitationOfflineManager.getDownloadedList());
+      setOfflineRevision((r) => r + 1);
+    });
+    return () => {
+      unsubscribePlayer();
+      unsubscribeOffline();
+    };
   }, []);
 
   // Sync downloaded list on load
@@ -76,13 +85,17 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
       String(s.number).includes(searchQuery.trim()) ||
       s.englishName.toLowerCase().includes(searchQuery.toLowerCase().trim());
 
-    if (filterDownloadedOnly) {
-      return (
-        matchesSearch &&
-        recitationOfflineManager.isDownloaded(selectedReciter.id, s.number)
-      );
+    if (!matchesSearch) return false;
+
+    if (filterDownloadedOnly && !recitationOfflineManager.isDownloaded(selectedReciter.id, s.number)) {
+      return false;
     }
-    return matchesSearch;
+
+    if (filterMajorOnly && !recitationOfflineManager.isMajorSurah(s.number, selectedReciter)) {
+      return false;
+    }
+
+    return true;
   });
 
   const handlePlaySurah = (surah: SurahAudioItem) => {
@@ -91,23 +104,16 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
 
   const handleDownload = async (e: React.MouseEvent, surah: SurahAudioItem) => {
     e.stopPropagation();
-    if (downloadingSurahNumber !== null) return;
+    if (recitationOfflineManager.isDownloading(selectedReciter.id, surah.number)) return;
 
-    setDownloadingSurahNumber(surah.number);
-    setDownloadProgress(20);
-
-    const audioUrl = getSurahAudioUrl(selectedReciter.serverUrl, surah.number);
+    const candidates = getSurahAudioCandidateUrls(selectedReciter, surah.number);
     const success = await recitationOfflineManager.downloadSurah(
       selectedReciter.id,
       selectedReciter.name,
       surah.number,
       surah.name,
-      audioUrl,
-      (prog) => setDownloadProgress(prog)
+      candidates
     );
-
-    setDownloadingSurahNumber(null);
-    setDownloadProgress(0);
 
     if (success) {
       setDownloadedList(recitationOfflineManager.getDownloadedList());
@@ -116,13 +122,41 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
 
   const handleDeleteDownload = async (e: React.MouseEvent, surah: SurahAudioItem) => {
     e.stopPropagation();
-    const audioUrl = getSurahAudioUrl(selectedReciter.serverUrl, surah.number);
+    const candidates = getSurahAudioCandidateUrls(selectedReciter, surah.number);
     await recitationOfflineManager.deleteDownloadedSurah(
       selectedReciter.id,
       surah.number,
-      audioUrl
+      candidates[0]
     );
     setDownloadedList(recitationOfflineManager.getDownloadedList());
+  };
+
+  const majorSurahNumbers = recitationOfflineManager.getMajorSurahNumbersForReciter(selectedReciter);
+  const pendingMajorSurahs = SURAH_LIST.filter(
+    (s) =>
+      majorSurahNumbers.includes(s.number) &&
+      !recitationOfflineManager.isDownloaded(selectedReciter.id, s.number)
+  );
+
+  const handleDownloadMajorRecitations = async () => {
+    if (batchDownloading || pendingMajorSurahs.length === 0) return;
+    setBatchDownloading(true);
+    let completed = 0;
+    for (const surah of pendingMajorSurahs) {
+      setBatchStatus(`جاري حفظ سورة ${surah.name} (${completed + 1}/${pendingMajorSurahs.length})...`);
+      const candidates = getSurahAudioCandidateUrls(selectedReciter, surah.number);
+      const ok = await recitationOfflineManager.downloadSurah(
+        selectedReciter.id,
+        selectedReciter.name,
+        surah.number,
+        surah.name,
+        candidates
+      );
+      if (ok) completed += 1;
+    }
+    setBatchDownloading(false);
+    setBatchStatus(`تم حفظ ${completed} من السور الرئيسية في IndexedDB`);
+    setTimeout(() => setBatchStatus(null), 3500);
   };
 
   return (
@@ -204,37 +238,77 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
         </div>
 
         {/* Search & Filter Strip */}
-        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200/60 flex items-center gap-2 shrink-0">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              placeholder="ابحث برقم أو اسم السورة..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-8 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 text-right"
-            />
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
-            {searchQuery && (
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-200/60 space-y-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="ابحث برقم أو اسم السورة..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-8 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 text-right"
+              />
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-2 pointer-events-none" />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute left-2.5 top-2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setFilterMajorOnly(!filterMajorOnly)}
+              className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 ${
+                filterMajorOnly
+                  ? 'bg-[#C5A059] text-white border-[#9A7732]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <span>السور الرئيسية</span>
+            </button>
+
+            <button
+              onClick={() => setFilterDownloadedOnly(!filterDownloadedOnly)}
+              className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 ${
+                filterDownloadedOnly
+                  ? 'bg-emerald-700 text-white border-emerald-800'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <WifiOff className="w-3 h-3" />
+              <span>المُحمّلة</span>
+            </button>
+          </div>
+
+          {/* Quick Download Banner for Major Recitations */}
+          <div className="flex items-center justify-between gap-2 bg-white border border-[#C5A059]/35 rounded-xl px-2.5 py-1.5">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-[#104B40] truncate">
+                {batchStatus ||
+                  (pendingMajorSurahs.length > 0
+                    ? `التلاوات الكبرى المختارة (${pendingMajorSurahs.length} سورة متاحة للحفظ أوفلاين)`
+                    : 'تم حفظ جميع السور الرئيسية لهذا القارئ في IndexedDB')}
+              </p>
+            </div>
+            {pendingMajorSurahs.length > 0 && (
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute left-2.5 top-2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                type="button"
+                onClick={handleDownloadMajorRecitations}
+                disabled={batchDownloading}
+                className="flex items-center gap-1 text-[10px] font-bold bg-[#104B40] hover:bg-[#0B3D35] disabled:opacity-60 text-white px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
               >
-                <X className="w-3.5 h-3.5" />
+                {batchDownloading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Download className="w-3 h-3" />
+                )}
+                <span>{batchDownloading ? 'جاري التحميل...' : 'تحميل السور الرئيسية'}</span>
               </button>
             )}
           </div>
-
-          <button
-            onClick={() => setFilterDownloadedOnly(!filterDownloadedOnly)}
-            className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer shrink-0 ${
-              filterDownloadedOnly
-                ? 'bg-emerald-700 text-white border-emerald-800'
-                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
-            }`}
-          >
-            <WifiOff className="w-3 h-3" />
-            <span>المُحمّلة فقط</span>
-          </button>
         </div>
 
         {/* Organized Vertical Surah Index List */}
@@ -249,7 +323,12 @@ export const RecitationsModal: React.FC<RecitationsModalProps> = ({
               playerState.currentReciter.id === selectedReciter.id;
             const isActivelyPlaying = isCurrentPlaying && playerState.isPlaying;
             const isLoadingThis = isCurrentPlaying && playerState.isLoading;
-            const isDownloading = downloadingSurahNumber === surah.number;
+            const isDownloading = recitationOfflineManager.isDownloading(
+              selectedReciter.id,
+              surah.number
+            );
+            const downloadProgress =
+              recitationOfflineManager.getDownloadProgress(selectedReciter.id, surah.number) ?? 0;
 
             return (
               <div

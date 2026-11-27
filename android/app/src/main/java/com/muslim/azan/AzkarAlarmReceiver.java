@@ -107,9 +107,10 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             return;
         }
 
-        // Cooldown deduplication (skip for explicit user background tests so repeated tests always fire)
+        // Cooldown deduplication check (skip for explicit user background tests so repeated tests always fire)
+        // Persist timestamp only after startForegroundService/startService succeeds.
+        String dedupKey = null;
         if (!isTestAlarm) {
-            String dedupKey;
             long cooldownMs;
             if ("prayer_azan".equals(section) && prayerName != null) {
                 dedupKey = "last_trigger_azan_" + prayerName;
@@ -130,7 +131,6 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                 Log.d(TAG, "Duplicate rapid trigger skipped for " + dedupKey);
                 return;
             }
-            prefs.edit().putLong(dedupKey, nowMs).apply();
         }
 
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -165,6 +165,9 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
             } else {
                 context.startService(serviceIntent);
             }
+            if (!isTestAlarm && dedupKey != null) {
+                prefs.edit().putLong(dedupKey, nowMs).apply();
+            }
         } catch (Exception e) {
             Log.e(TAG, "Failed to start foreground service from receiver, posting fallback alarm notification", e);
             if (isTestAlarm) {
@@ -173,7 +176,7 @@ public class AzkarAlarmReceiver extends BroadcastReceiver {
                         context,
                         new AlarmScheduleTracker.BackgroundTestStatus(
                                 "failed",
-                                prevTest != null ? prevTest.scheduleMode : AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE,
+                                AlarmScheduleTracker.ScheduleMode.FAILED,
                                 prevTest != null && prevTest.exactPermissionGranted,
                                 prevTest != null ? prevTest.scheduledAtMs : nowMs,
                                 prevTest != null ? prevTest.triggerAtMs : nowMs,

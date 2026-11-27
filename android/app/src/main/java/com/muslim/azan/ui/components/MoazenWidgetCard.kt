@@ -129,6 +129,8 @@ fun MoazenWidgetCard(
         shadowElevation = elevation,
         border = BorderStroke(borderWidth, effectiveBevelBrush)
     ) {
+        val isDark = LocalAlMoazenIsDark.current
+        val innerRimColor = if (isDark) Color(0x33D4AF37) else Color.White.copy(alpha = 0.75f)
         Box(
             modifier = Modifier
                 .background(
@@ -138,7 +140,7 @@ fun MoazenWidgetCard(
                 )
                 .border(
                     width = 0.9.dp,
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = innerRimColor,
                     shape = shape
                 )
         ) {
@@ -147,12 +149,12 @@ fun MoazenWidgetCard(
                     painter = painterResource(id = R.drawable.img_hadith_mosque),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    alpha = watermarkAlpha,
+                    alpha = if (isDark) watermarkAlpha * 1.4f else watermarkAlpha,
                     modifier = Modifier.matchParentSize()
                 )
             }
             Canvas(modifier = Modifier.matchParentSize()) {
-                drawIslamicGeometricOrnament()
+                drawIslamicGeometricOrnament(alpha = if (isDark) 0.11f else 0.08f)
             }
             content()
         }

@@ -64,7 +64,7 @@ fun FloatingAudioBar() {
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(MoazenInkEmerald),
+                            .background(MuslimPlusPillEmerald),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -232,7 +232,7 @@ fun FloatingAudioBar() {
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(MoazenInkEmerald)
+                            .background(MuslimPlusPillEmerald)
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

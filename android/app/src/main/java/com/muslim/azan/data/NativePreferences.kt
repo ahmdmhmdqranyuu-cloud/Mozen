@@ -237,6 +237,16 @@ class NativePreferences(context: Context) {
         get() = prefs.getString("app_language", "ar") ?: "ar"
         set(value) = prefs.edit().putString("app_language", value).apply()
 
+    var themeMode: String
+        get() {
+            val saved = prefs.getString("app_theme_mode", "system") ?: "system"
+            return if (saved in listOf("system", "light", "dark")) saved else "system"
+        }
+        set(value) {
+            val normalized = if (value in listOf("system", "light", "dark")) value else "system"
+            prefs.edit().putString("app_theme_mode", normalized).apply()
+        }
+
     var onboardingCompleted: Boolean
         get() = prefs.getBoolean("onboarding_completed", false)
         set(value) = prefs.edit().putBoolean("onboarding_completed", value).apply()

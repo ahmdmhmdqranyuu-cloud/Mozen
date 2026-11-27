@@ -421,7 +421,7 @@ fun OnboardingSetupScreen(
                                     }
                                 },
                                 enabled = !isDetectingGps,
-                                colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()

@@ -167,7 +167,7 @@ fun AzkarScreen(
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isSabahPlaying) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.72f),
+                        color = if (isSabahPlaying) MuslimPlusPillEmerald else MoazenChipUnselectedBg,
                         border = BorderStroke(1.dp, if (isSabahPlaying) MoazenGold else MoazenCardBorder),
                         modifier = Modifier
                             .weight(1f)
@@ -213,7 +213,7 @@ fun AzkarScreen(
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isMassaPlaying) MuslimPlusPillEmerald else Color.White.copy(alpha = 0.72f),
+                        color = if (isMassaPlaying) MuslimPlusPillEmerald else MoazenChipUnselectedBg,
                         border = BorderStroke(1.dp, if (isMassaPlaying) MoazenGold else MoazenCardBorder),
                         modifier = Modifier
                             .weight(1f)

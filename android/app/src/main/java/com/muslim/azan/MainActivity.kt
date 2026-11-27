@@ -29,6 +29,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -98,6 +99,25 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var appLanguage by remember { mutableStateOf(prefs.language) }
+            var appThemeMode by remember { mutableStateOf(prefs.themeMode) }
+            val isDarkActive = when (appThemeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> isSystemInDarkTheme()
+            }
+            DisposableEffect(isDarkActive) {
+                val barStyle = if (isDarkActive) {
+                    SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    )
+                }
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                onDispose {}
+            }
+
             val layoutDirection = if (appLanguage == "en") LayoutDirection.Ltr else LayoutDirection.Rtl
             val reduceMotion = remember {
                 try {
@@ -116,7 +136,11 @@ class MainActivity : ComponentActivity() {
                 showAnimatedSplash = false
             }
 
-            AlMoazenTheme(layoutDirection = layoutDirection) {
+            AlMoazenTheme(
+                layoutDirection = layoutDirection,
+                themeMode = appThemeMode,
+                darkThemeOverride = isDarkActive
+            ) {
                 var showOnboarding by remember { mutableStateOf(!prefs.onboardingCompleted) }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -243,6 +267,7 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.PrayerTimes.route) {
                                 PrayerTimesScreen(
                                     prefs = prefs,
+                                    language = appLanguage,
                                     onBack = { navController.popBackStack() },
                                     onOpenPrayerSettings = { prayerKey ->
                                         navController.navigate(Screen.PrayerSettings.routeFor(prayerKey))
@@ -359,6 +384,7 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                     onReopenOnboarding = { showOnboarding = true },
                                     onLanguageChanged = { newLang -> appLanguage = newLang },
+                                    onThemeModeChanged = { newTheme -> appThemeMode = newTheme },
                                     onOpenProfile = {
                                         navController.navigate(Screen.Profile.route)
                                     }
@@ -534,11 +560,7 @@ private fun RafeeqSplashIntroOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFFFDF8EA), Color(0xFFFBF4DF), Color(0xFFF3E7C9))
-                )
-            )
+            .background(MuslimPlusCanvasBrush)
             .alpha(entryAlpha),
         contentAlignment = Alignment.Center
     ) {

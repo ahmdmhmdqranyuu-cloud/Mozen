@@ -193,7 +193,7 @@ fun ProfileScreen(
                                         modifier = Modifier
                                             .size(44.dp)
                                             .clip(CircleShape)
-                                            .background(if (done) MoazenInkEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
+                                            .background(if (done) MuslimPlusPillEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -381,7 +381,7 @@ fun ProfileScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(if (isUnlocked) MoazenInkEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
+                                        .background(if (isUnlocked) MuslimPlusPillEmerald else MoazenInkEmerald.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(

@@ -72,10 +72,52 @@ public class AlarmScheduleTrackerTest {
     }
 
     @Test
-    public void executeScheduleBatch_fallsBackToInexactWhenExactPermissionDenied() throws Exception {
+    public void executeScheduleBatch_prayerAzanUsesExactWhileIdleFallbackOnAlarmClockDenial_andNeverInexact() throws Exception {
         long now = 1_700_000_000_000L;
         JSONArray candidates = new JSONArray();
         candidates.put(makeAlarm("prayer_azan", now + 60_000L));
+
+        Set<String> exactWhileIdleCalled = new HashSet<>();
+        Set<String> inexactCalled = new HashSet<>();
+        AlarmScheduleTracker.AlarmBackend alarmClockDeniedBackend = new AlarmScheduleTracker.AlarmBackend() {
+            @Override
+            public void scheduleAlarmClock(JSONObject item, int requestCode, long triggerEpochMs) {
+                throw new SecurityException("AlarmClock denied");
+            }
+
+            @Override
+            public void scheduleExactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) {
+                exactWhileIdleCalled.add(item.optString("section") + "_" + triggerEpochMs);
+            }
+
+            @Override
+            public void scheduleExactLegacy(JSONObject item, int requestCode, long triggerEpochMs) {}
+
+            @Override
+            public void scheduleInexactWhileIdle(JSONObject item, int requestCode, long triggerEpochMs) {
+                inexactCalled.add(item.optString("section") + "_" + triggerEpochMs);
+            }
+        };
+
+        AlarmScheduleTracker.ExecutionResult res = AlarmScheduleTracker.executeScheduleBatch(
+                candidates, now, 100, true, 33, alarmClockDeniedBackend
+        );
+
+        assertEquals(1, res.outcome.scheduledCount);
+        assertEquals(1, res.outcome.exactCount);
+        assertEquals(0, res.outcome.inexactCount);
+        assertEquals(0, res.outcome.failedCount);
+        assertEquals(AlarmScheduleTracker.ScheduleMode.EXACT_WHILE_IDLE, res.outcome.getPrimaryMode());
+        assertEquals(1, exactWhileIdleCalled.size());
+        assertEquals(0, inexactCalled.size());
+    }
+
+    @Test
+    public void executeScheduleBatch_prayerAzanFailsInsteadOfInexact_whileNonAzanFallsBackToInexact() throws Exception {
+        long now = 1_700_000_000_000L;
+        JSONArray candidates = new JSONArray();
+        candidates.put(makeAlarm("prayer_azan", now + 60_000L));
+        candidates.put(makeAlarm("morningAzkar", now + 120_000L));
 
         Set<String> inexactCalled = new HashSet<>();
         AlarmScheduleTracker.AlarmBackend securityExBackend = new AlarmScheduleTracker.AlarmBackend() {
@@ -106,9 +148,12 @@ public class AlarmScheduleTrackerTest {
 
         assertEquals(1, res.outcome.scheduledCount);
         assertEquals(1, res.outcome.inexactCount);
-        assertEquals(0, res.outcome.failedCount);
-        assertEquals(AlarmScheduleTracker.ScheduleMode.INEXACT_WHILE_IDLE, res.outcome.getPrimaryMode());
+        assertEquals(1, res.outcome.failedCount);
+        assertTrue(res.failedSections.contains("prayer_azan"));
+        assertFalse(res.confirmedAlarmIds.contains("prayer_azan_" + (now + 60_000L)));
+        assertTrue(res.confirmedAlarmIds.contains("morningAzkar_" + (now + 120_000L)));
         assertEquals(1, inexactCalled.size());
+        assertTrue(inexactCalled.contains("morningAzkar_" + (now + 120_000L)));
     }
 
     @Test

@@ -1,14 +1,9 @@
 import express, { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -1031,31 +1026,130 @@ app.post('/api/sheikh/quiz-challenge', async (req: Request, res: Response): Prom
   }
 });
 
-/**
- * Mount Vite in dev mode or serve static files in production
- */
-async function startServer() {
-  const isDev = process.env.NODE_ENV !== 'production';
+// ============================================================================
+// Current City & Local Weather API (Open-Meteo HTTPS with TTL cache)
+// ============================================================================
+function describeWeatherWmoCode(code: number, isDay: boolean) {
+  const map: Record<number, [string, string, string]> = {
+    0: [isDay ? 'سماء صافية' : 'ليلة صافية', isDay ? 'Clear Sky' : 'Clear Night', isDay ? '☀️' : '🌙'],
+    1: ['صافي غالباً', 'Mainly Clear', isDay ? '🌤️' : '🌙'],
+    2: ['غائم جزئياً', 'Partly Cloudy', '⛅'],
+    3: ['غائم كلياً', 'Overcast', '☁️'],
+    45: ['ضباب', 'Fog', '🌫️'],
+    48: ['ضباب متجمد', 'Depositing Rime Fog', '🌫️'],
+    51: ['رذاذ خفيف', 'Light Drizzle', '🌦️'],
+    53: ['رذاذ متوسط', 'Moderate Drizzle', '🌦️'],
+    55: ['رذاذ كثيف', 'Dense Drizzle', '🌧️'],
+    61: ['مطر خفيف', 'Slight Rain', '🌧️'],
+    63: ['أمطار متوسطة', 'Moderate Rain', '🌧️'],
+    65: ['أمطار غزيرة', 'Heavy Rain', '⛈️'],
+    80: ['زخات مطر', 'Rain Showers', '🌦️'],
+    81: ['زخات غزيرة', 'Heavy Showers', '🌧️'],
+    95: ['عواصف رعدية', 'Thunderstorm', '⛈️'],
+  };
+  return map[code] || ['معتدل', 'Fair', isDay ? '🌤️' : '🌙'];
+}
 
-  if (isDev) {
-    const hmrDisabled = process.env.DISABLE_HMR === 'true';
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        hmr: !hmrDisabled,
-        ...(hmrDisabled ? { ws: false as const } : {}),
-        watch: hmrDisabled ? null : undefined,
-      },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+app.get('/api/weather', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const lat = Number(req.query.lat ?? 21.4225);
+    const lng = Number(req.query.lng ?? 39.8262);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      res.status(400).json({ success: false, error: 'Invalid coordinates' });
+      return;
+    }
+
+    const cacheKey = `weather:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+    const cached = getGeoCached<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      res.json({ success: true, cached: true, ...cached });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const upstream = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day&timezone=auto`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+
+    if (!upstream.ok) {
+      res.status(502).json({ success: false, error: `Weather upstream HTTP ${upstream.status}` });
+      return;
+    }
+
+    const json = (await upstream.json()) as {
+      timezone?: string;
+      current?: {
+        temperature_2m?: number;
+        apparent_temperature?: number;
+        relative_humidity_2m?: number;
+        weather_code?: number;
+        wind_speed_10m?: number;
+        is_day?: number;
+      };
+    };
+
+    const cur = json.current || {};
+    const isDay = cur.is_day !== 0;
+    const code = Number(cur.weather_code ?? 0);
+    const [conditionAr, conditionEn, emoji] = describeWeatherWmoCode(code, isDay);
+
+    const payload = {
+      latitude: lat,
+      longitude: lng,
+      timezone: json.timezone || 'UTC',
+      temperatureCelsius: Math.round(Number(cur.temperature_2m ?? 0)),
+      apparentCelsius: Math.round(Number(cur.apparent_temperature ?? cur.temperature_2m ?? 0)),
+      humidityPercent: Math.round(Number(cur.relative_humidity_2m ?? 0)),
+      windSpeedKmh: Math.round(Number(cur.wind_speed_10m ?? 0)),
+      weatherCode: code,
+      isDay,
+      conditionAr,
+      conditionEn,
+      emoji,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setGeoCached(cacheKey, payload);
+    res.json({ success: true, cached: false, ...payload });
+  } catch (error: any) {
+    res.status(502).json({
+      success: false,
+      error: error?.message || 'Weather service unavailable',
     });
   }
+});
+
+/**
+ * Root AI Studio Interactive Preview & Static Native Assets + API metadata
+ */
+async function startServer() {
+  const publicDir = path.join(process.cwd(), 'public');
+  app.use(express.static(publicDir));
+
+  app.get('/api/info', (_req: Request, res: Response) => {
+    res.json({
+      service: 'AlMoazen (رفيق المسلم) Backend API',
+      mode: 'pure-android-native',
+      endpoints: [
+        '/api/sheikh/health',
+        '/api/sheikh/evaluate',
+        '/api/sheikh/evaluate-raw',
+        '/api/sheikh/speak',
+        '/api/sheikh/quiz-challenge',
+        '/api/zakat/metals',
+        '/api/locations/search',
+        '/api/locations/reverse',
+        '/api/weather'
+      ]
+    });
+  });
+
+  app.get('/', (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, 'preview.html'));
+  });
 
   const httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Islamic Muezzin & Smart Sheikh] Server listening on http://0.0.0.0:${PORT}`);

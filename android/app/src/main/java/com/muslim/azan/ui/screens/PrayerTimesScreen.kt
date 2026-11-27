@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,12 +30,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.muslim.azan.BootReceiver
 import com.muslim.azan.PrayerTimeCalculator
+import com.muslim.azan.data.HijriCalendarUtility
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.data.SystemPermissionHelper
 import com.muslim.azan.theme.*
+import com.muslim.azan.ui.components.CityWeatherWidget
 import com.muslim.azan.ui.components.MoazenSubWidgetBox
 import com.muslim.azan.ui.components.MoazenWidgetCard
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
@@ -44,12 +48,14 @@ import java.util.TimeZone
 @Composable
 fun PrayerTimesScreen(
     prefs: NativePreferences,
+    language: String = prefs.language,
     onBack: () -> Unit,
     onOpenPrayerSettings: (String) -> Unit = {},
     onOpenMasajid: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isEnglish = language == "en"
 
     var cityName by remember { mutableStateOf(prefs.cityName) }
     var lat by remember { mutableDoubleStateOf(prefs.latitude) }
@@ -69,10 +75,26 @@ fun PrayerTimesScreen(
     var isDetectingGps by remember { mutableStateOf(false) }
     var gpsDetail by remember { mutableStateOf<String?>(null) }
 
+    var refreshTick by remember { mutableIntStateOf(0) }
+    var nowEpochMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var hasLocationPermission by remember {
+        mutableStateOf(SystemPermissionHelper.checkPermissions(context).locationGranted)
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L)
+            nowEpochMs = System.currentTimeMillis()
+        }
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                refreshTick++
+                nowEpochMs = System.currentTimeMillis()
+                hasLocationPermission = SystemPermissionHelper.checkPermissions(context).locationGranted
                 cityName = prefs.cityName
                 lat = prefs.latitude
                 lng = prefs.longitude
@@ -93,15 +115,18 @@ fun PrayerTimesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val cal = remember(cityTimezoneId) {
+    val cal = remember(cityTimezoneId, nowEpochMs / 30_000L, refreshTick) {
         val tz = if (cityTimezoneId.isNotEmpty()) TimeZone.getTimeZone(cityTimezoneId) else TimeZone.getDefault()
-        Calendar.getInstance(tz)
+        Calendar.getInstance(tz).apply { timeInMillis = nowEpochMs }
     }
-    val tzOffsetHours = remember(cityTimezoneId, lng, cal.timeInMillis) {
+    val dateSnapshot = remember(cal.get(Calendar.YEAR), cal.get(Calendar.DAY_OF_YEAR), cityTimezoneId, refreshTick) {
+        HijriCalendarUtility.calculateFromEpochMs(cal.timeInMillis, cityTimezoneId)
+    }
+    val tzOffsetHours = remember(cityTimezoneId, lng, cal.get(Calendar.DAY_OF_YEAR), refreshTick) {
         PrayerTimeCalculator.resolveTimezoneOffsetHours(cityTimezoneId, cal.timeInMillis, lng)
     }
 
-    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, highLatRule, tzOffsetHours, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff) {
+    val times = remember(lat, lng, cityTimezoneId, calcMethod, asrMethod, highLatRule, tzOffsetHours, fajrOff, sunriseOff, duhaOff, dhuhrOff, asrOff, maghribOff, ishaOff, cal.get(Calendar.DAY_OF_YEAR)) {
         PrayerTimeCalculator.calculateDailyPrayers(
             cal,
             lat,
@@ -156,6 +181,7 @@ fun PrayerTimesScreen(
     ) { grants ->
         val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
         if (granted) {
             triggerGpsDetection()
         } else {
@@ -187,10 +213,14 @@ fun PrayerTimesScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowForward, contentDescription = "رجوع", tint = MoazenInkEmerald)
+                            Icon(
+                                imageVector = if (isEnglish) Icons.Default.ArrowBack else Icons.Default.ArrowForward,
+                                contentDescription = if (isEnglish) "Back" else "رجوع",
+                                tint = MoazenInkEmerald
+                            )
                         }
                         Text(
-                            text = "مواقيت الصلاة الدقيقة",
+                            text = if (isEnglish) "Accurate Prayer Times" else "مواقيت الصلاة الدقيقة",
                             color = MoazenInkEmerald,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
@@ -199,10 +229,78 @@ fun PrayerTimesScreen(
                     TextButton(onClick = onOpenMasajid) {
                         Icon(Icons.Default.Mosque, contentDescription = null, tint = MoazenGoldDark, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("المساجد", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEnglish) "Mosques" else "المساجد", color = MoazenInkEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+
+        // Hijri & Gregorian Calendar Card
+        item {
+            MoazenWidgetCard(
+                cornerRadius = 18.dp,
+                borderColor = MoazenCardBorder,
+                elevation = 4.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("hijri_gregorian_date_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        tint = MoazenGoldDark,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            text = if (isEnglish) dateSnapshot.hijriFormattedEn else dateSnapshot.hijriFormattedAr,
+                            color = MoazenInkEmerald,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isEnglish) dateSnapshot.gregorianFormattedEn else dateSnapshot.gregorianFormattedAr,
+                            color = MoazenInkMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        // Current City & Local Weather Widget
+        item {
+            CityWeatherWidget(
+                cityName = cityName,
+                latitude = lat,
+                longitude = lng,
+                hasLocationPermission = hasLocationPermission,
+                language = language,
+                isDetectingGps = isDetectingGps,
+                onRequestLocationOrRefresh = {
+                    if (SystemPermissionHelper.checkPermissions(context).locationGranted) {
+                        triggerGpsDetection()
+                    } else {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                }
+            )
         }
 
         // Location & Next prayer highlight
@@ -225,7 +323,7 @@ fun PrayerTimesScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "الصلاة القادمة: صلاة $nextPrayerName",
+                        text = if (isEnglish) "Next Prayer: $nextPrayerName" else "الصلاة القادمة: صلاة $nextPrayerName",
                         color = MoazenInkPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -234,7 +332,7 @@ fun PrayerTimesScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = gpsDetail ?: "",
-                            color = Color(0xFF047857),
+                            color = MoazenInkEmerald,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -254,7 +352,7 @@ fun PrayerTimesScreen(
                             }
                         },
                         enabled = !isDetectingGps,
-                        colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                        colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Icon(
@@ -265,7 +363,11 @@ fun PrayerTimesScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isDetectingGps) "جاري التقاط موقعك الدقيق..." else "تحديث موقعي الدقيق بالـ GPS",
+                            text = if (isDetectingGps) {
+                                if (isEnglish) "Detecting GPS..." else "جاري التقاط موقعك الدقيق..."
+                            } else {
+                                if (isEnglish) "Update Location via GPS" else "تحديث موقعي الدقيق بالـ GPS"
+                            },
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -368,9 +470,9 @@ fun PrayerTimesScreen(
                             },
                             label = { Text("الجمهور (شافعي/مالكي/حنبلي)", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White.copy(alpha = 0.78f),
+                                containerColor = MoazenChipUnselectedBg,
                                 labelColor = MoazenInkPrimary,
-                                selectedContainerColor = MoazenInkEmerald,
+                                selectedContainerColor = MuslimPlusPillEmerald,
                                 selectedLabelColor = Color.White
                             )
                         )
@@ -383,9 +485,9 @@ fun PrayerTimesScreen(
                             },
                             label = { Text("حنفي", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White.copy(alpha = 0.78f),
+                                containerColor = MoazenChipUnselectedBg,
                                 labelColor = MoazenInkPrimary,
-                                selectedContainerColor = MoazenInkEmerald,
+                                selectedContainerColor = MuslimPlusPillEmerald,
                                 selectedLabelColor = Color.White
                             )
                         )
@@ -492,7 +594,7 @@ fun PrayerTimesScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) MoazenInkEmerald else Color.White.copy(alpha = 0.85f))
+                                .background(if (isSelected) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                 .clickable {
                                     calcMethod = key
                                     prefs.setCalculationMethodManually(key)

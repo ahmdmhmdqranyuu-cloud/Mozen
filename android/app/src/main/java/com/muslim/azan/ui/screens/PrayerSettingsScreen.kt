@@ -580,7 +580,7 @@ fun PrayerSettingsScreen(
                     if (draft.silentDuringPrayer && !hasNotificationPolicyAccess) {
                         Button(
                             onClick = { SystemPermissionHelper.openNotificationPolicySettings(context) },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.DoNotDisturbOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -653,7 +653,7 @@ fun PrayerSettingsScreen(
                         Switch(
                             checked = draft.duaAfterPrayerEnabled,
                             onCheckedChange = { draft = draft.copy(duaAfterPrayerEnabled = it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MuslimPlusPillEmerald)
                         )
                     },
                     onHelpClick = {
@@ -732,7 +732,7 @@ fun PrayerSettingsScreen(
                         helpDialogTitle = null
                         helpDialogBody = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
+                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
                 ) {
                     Text("حسنًا", color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -776,7 +776,7 @@ fun PrayerSettingsScreen(
                         Toast.makeText(context, "تم تطبيق الإعدادات على جميع الصلوات بنجاح", Toast.LENGTH_SHORT).show()
                         onBack()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
+                    colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
                 ) {
                     Text("تطبيق على جميع الصلوات", color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -875,7 +875,7 @@ private fun PrayerSettingSwitchCard(
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MoazenInkEmerald)
+                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MuslimPlusPillEmerald)
             )
         }
     )
@@ -959,7 +959,7 @@ private fun PrayerDropdownCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(MoazenInkEmerald)
+                        .background(MuslimPlusPillEmerald)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,

@@ -437,7 +437,23 @@ public class BootReceiver extends BroadcastReceiver {
             Log.d(TAG, "Recalculation complete for " + cityName + " (" + cityTimezoneId + "). Priority slots: "
                     + priorityArray.length() + ", Salawat slots: " + salawatArray.length());
 
-            AlarmScheduler.rescheduleFromJson(context, mergedSchedule.toString());
+            AlarmScheduleTracker.ScheduleOutcome scheduleOutcome =
+                    AlarmScheduler.rescheduleFromJson(context, mergedSchedule.toString());
+
+            if (scheduleOutcome == null) {
+                throw new IllegalStateException("AlarmScheduler returned null ScheduleOutcome");
+            }
+            if (scheduleOutcome.failedCount > 0) {
+                String failMsg = (scheduleOutcome.lastFailureReason != null && !scheduleOutcome.lastFailureReason.isEmpty())
+                        ? scheduleOutcome.lastFailureReason
+                        : "فشل جدولة " + scheduleOutcome.failedCount + " منبهات";
+                prefs.edit()
+                        .putString("last_recalc_error", failMsg)
+                        .apply();
+                Log.w(TAG, "Autonomous recalculation had scheduling failures: failedCount="
+                        + scheduleOutcome.failedCount + ", reason=" + failMsg);
+                return;
+            }
 
             prefs.edit()
                     .putLong("last_recalculated_epoch_ms", nowMs)

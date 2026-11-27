@@ -50,6 +50,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.muslim.azan.PrayerTimeCalculator
 import com.muslim.azan.R
 import com.muslim.azan.data.DailyIslamicContent
+import com.muslim.azan.data.HijriCalendarUtility
 import com.muslim.azan.data.NativeDataManager
 import com.muslim.azan.data.NativePreferences
 import com.muslim.azan.theme.*
@@ -115,28 +116,13 @@ fun HomeScreen(
         DailyIslamicContent.getTodaySnapshot(cal)
     }
 
-    val liveDatesLabel = remember(cal.get(Calendar.YEAR), cal.get(Calendar.DAY_OF_YEAR)) {
-        val greg = runCatching {
-            SimpleDateFormat("d MMMM yyyy", Locale("ar")).format(cal.time)
-        }.getOrDefault("")
-        val hijri = runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                val hijriCal = android.icu.util.IslamicCalendar()
-                hijriCal.timeInMillis = cal.timeInMillis
-                val months = arrayOf(
-                    "محرم", "صفر", "ربيع الأول", "ربيع الآخر",
-                    "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان",
-                    "رمضان", "شوال", "ذو القعدة", "ذو الحجة"
-                )
-                val hDay = hijriCal.get(android.icu.util.IslamicCalendar.DAY_OF_MONTH)
-                val hMonthIdx = hijriCal.get(android.icu.util.IslamicCalendar.MONTH).coerceIn(0, 11)
-                val hYear = hijriCal.get(android.icu.util.IslamicCalendar.YEAR)
-                "$hDay ${months[hMonthIdx]} $hYear هـ"
-            } else {
-                ""
-            }
-        }.getOrDefault("")
-        if (hijri.isNotBlank() && greg.isNotBlank()) "$hijri • $greg" else greg.ifBlank { "التقويم الهجري والميلادي" }
+    val dateSnapshot = remember(cal.get(Calendar.YEAR), cal.get(Calendar.DAY_OF_YEAR), cityTimezoneId) {
+        HijriCalendarUtility.calculateFromEpochMs(cal.timeInMillis, cityTimezoneId)
+    }
+    val liveDatesLabel = if (isEnglish) {
+        "${dateSnapshot.hijriFormattedEn} • ${dateSnapshot.gregorianFormattedEn}"
+    } else {
+        "${dateSnapshot.hijriFormattedAr} • ${dateSnapshot.gregorianFormattedAr}"
     }
 
     val prayers = remember(
@@ -565,7 +551,7 @@ fun HomeScreen(
                                                             .clip(CircleShape)
                                                             .background(
                                                                 Brush.verticalGradient(
-                                                                    colors = listOf(Color(0xFFFFFDF8), MoazenSubCardBg)
+                                                                    colors = listOf(MoazenCardStart, MoazenSubCardBg)
                                                                 )
                                                             )
                                                             .border(1.1.dp, MoazenGold.copy(alpha = 0.72f), CircleShape)
@@ -638,7 +624,7 @@ fun HomeScreen(
                                             Icons.Default.KeyboardArrowDown
                                         },
                                         contentDescription = null,
-                                        tint = Color.Black,
+                                        tint = MoazenInkPrimary,
                                         modifier = Modifier.size(19.dp)
                                     )
                                 }
@@ -649,6 +635,9 @@ fun HomeScreen(
                     // Prominent Featured Quran Banner Widget (Slightly more compact, daily-rotating Ayah + Dynamic Share)
                     val activeSurahName = dailySnapshot.ayah.surahName
                     val activeAyahSnippet = dailySnapshot.ayah.arabicText
+                    val isDarkHome = LocalAlMoazenIsDark.current
+                    val scrimCardBase = if (isDarkHome) DarkCardEnd else Color(0xFFF6EEDC)
+                    val scrimCardAlt = if (isDarkHome) DarkCardStart else Color(0xFFEDE2C8)
                     MoazenWidgetCard(
                         cornerRadius = 18.dp,
                         borderColor = MoazenGold,
@@ -664,12 +653,12 @@ fun HomeScreen(
                         }
                     ) {
                         Box(modifier = Modifier.fillMaxWidth()) {
-                            // Large borderless Open Mushaf integrated smoothly into creamy-ivory surface
+                            // Large borderless Open Mushaf integrated smoothly into themed surface
                             Image(
                                 painter = painterResource(id = R.drawable.img_quran_mushaf),
                                 contentDescription = "المصحف الشريف المفتوح",
                                 contentScale = ContentScale.Crop,
-                                alpha = 0.86f,
+                                alpha = if (isDarkHome) 0.45f else 0.86f,
                                 modifier = Modifier
                                     .matchParentSize()
                                     .align(Alignment.CenterEnd)
@@ -679,9 +668,9 @@ fun HomeScreen(
                                     .matchParentSize()
                                     .background(
                                         Brush.horizontalGradient(
-                                            0.0f to Color(0x30EDE2C8),
-                                            0.48f to Color(0xE8F6EEDC),
-                                            1.0f to Color(0xFFF6EEDC)
+                                            0.0f to scrimCardAlt.copy(alpha = 0.25f),
+                                            0.48f to scrimCardBase.copy(alpha = 0.91f),
+                                            1.0f to scrimCardBase
                                         )
                                     )
                             )
@@ -690,9 +679,9 @@ fun HomeScreen(
                                     .matchParentSize()
                                     .background(
                                         Brush.verticalGradient(
-                                            0.0f to Color(0x88F6EEDC),
+                                            0.0f to scrimCardBase.copy(alpha = 0.55f),
                                             0.5f to Color.Transparent,
-                                            1.0f to Color(0x88EDE2C8)
+                                            1.0f to scrimCardAlt.copy(alpha = 0.55f)
                                         )
                                     )
                             )
@@ -858,7 +847,7 @@ fun HomeScreen(
                                     painter = painterResource(id = R.drawable.img_azkar_tasbih),
                                     contentDescription = "سبحة وأذكار",
                                     contentScale = ContentScale.Crop,
-                                    alpha = 0.80f,
+                                    alpha = if (isDarkHome) 0.42f else 0.80f,
                                     modifier = Modifier.matchParentSize()
                                 )
                                 Box(
@@ -866,9 +855,9 @@ fun HomeScreen(
                                         .matchParentSize()
                                         .background(
                                             Brush.verticalGradient(
-                                                0.0f to Color(0xF5F6EEDC),
-                                                0.55f to Color(0xB8F6EEDC),
-                                                1.0f to Color(0x6CEEE2C8)
+                                                0.0f to scrimCardBase.copy(alpha = 0.96f),
+                                                0.55f to scrimCardBase.copy(alpha = 0.72f),
+                                                1.0f to scrimCardAlt.copy(alpha = 0.44f)
                                             )
                                         )
                                 )
@@ -957,7 +946,7 @@ fun HomeScreen(
                                     painter = painterResource(id = R.drawable.img_hadith_mosque),
                                     contentDescription = "المسجد النبوي الشريف",
                                     contentScale = ContentScale.Crop,
-                                    alpha = 0.80f,
+                                    alpha = if (isDarkHome) 0.42f else 0.80f,
                                     modifier = Modifier.matchParentSize()
                                 )
                                 Box(
@@ -965,9 +954,9 @@ fun HomeScreen(
                                         .matchParentSize()
                                         .background(
                                             Brush.verticalGradient(
-                                                0.0f to Color(0xF5F6EEDC),
-                                                0.55f to Color(0xB8F6EEDC),
-                                                1.0f to Color(0x6CEEE2C8)
+                                                0.0f to scrimCardBase.copy(alpha = 0.96f),
+                                                0.55f to scrimCardBase.copy(alpha = 0.72f),
+                                                1.0f to scrimCardAlt.copy(alpha = 0.44f)
                                             )
                                         )
                                 )

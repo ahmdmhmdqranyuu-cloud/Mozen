@@ -252,6 +252,7 @@ export interface UserProfile {
   // Quran Settings
   quranFontSize?: 'normal' | 'large' | 'xlarge';
   quranNightMode?: boolean;
+  prioritizeOfflineAudio?: boolean;
   khatmaGoalDays?: number;
   khatmaCurrentDay?: number;
   khatmaCompletedPages?: number;

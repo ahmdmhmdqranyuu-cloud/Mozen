@@ -249,7 +249,7 @@ fun ZakatScreen(
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald),
+                                colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.height(30.dp)
@@ -271,7 +271,7 @@ fun ZakatScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selected) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
+                                        .background(if (selected) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable {
                                             selectedCurrencyIdx = idx
                                             prefs.zakatCurrencyIdx = idx
@@ -305,7 +305,7 @@ fun ZakatScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(if (nisabStandard == key) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
+                                        .background(if (nisabStandard == key) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable {
                                             nisabStandard = key
                                             prefs.zakatNisabStandard = key
@@ -430,7 +430,7 @@ fun ZakatScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (stocksInvestmentMode == isInv) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
+                                        .background(if (stocksInvestmentMode == isInv) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable { stocksInvestmentMode = isInv }
                                         .padding(vertical = 7.dp),
                                     contentAlignment = Alignment.Center
@@ -482,7 +482,7 @@ fun ZakatScreen(
                         }
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color.White.copy(alpha = 0.78f),
+                            color = MoazenSubCardBg,
                             border = BorderStroke(1.dp, MoazenCardBorder),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -514,7 +514,7 @@ fun ZakatScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (cropsNaturalIrrigation == isNat) MoazenInkEmerald else Color.White.copy(alpha = 0.78f))
+                                        .background(if (cropsNaturalIrrigation == isNat) MuslimPlusPillEmerald else MoazenChipUnselectedBg)
                                         .clickable { cropsNaturalIrrigation = isNat }
                                         .padding(vertical = 7.dp),
                                     contentAlignment = Alignment.Center
@@ -573,8 +573,8 @@ private fun ZakatCompactField(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MoazenInkEmerald,
                 unfocusedBorderColor = MoazenCardBorder,
-                focusedContainerColor = Color.White.copy(alpha = 0.78f),
-                unfocusedContainerColor = Color.White.copy(alpha = 0.65f),
+                focusedContainerColor = MoazenSubCardBg,
+                unfocusedContainerColor = MoazenChipUnselectedBg,
                 focusedTextColor = MoazenInkPrimary,
                 unfocusedTextColor = MoazenInkPrimary
             ),
@@ -607,8 +607,8 @@ fun ZakatInputField(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MoazenInkEmerald,
                     unfocusedBorderColor = MoazenCardBorder,
-                    focusedContainerColor = Color.White.copy(alpha = 0.78f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.65f),
+                    focusedContainerColor = MoazenSubCardBg,
+                    unfocusedContainerColor = MoazenChipUnselectedBg,
                     focusedTextColor = MoazenInkPrimary,
                     unfocusedTextColor = MoazenInkPrimary
                 ),

@@ -75,6 +75,32 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     public static volatile String currentSection = "";
     public static volatile String activeTrackLabel = "";
     public static volatile String lastAudioError = null;
+    public static volatile String currentAudioFocusLabel = "NONE";
+    public static volatile int lastAudioFocusResultCode = Integer.MIN_VALUE;
+    public static volatile int lastAudioFocusCallbackEvent = Integer.MIN_VALUE;
+    public static volatile long lastWakeLockAcquireAtMs = 0L;
+    public static volatile long lastWakeLockReleaseAtMs = 0L;
+    private static volatile AzkarAudioService activeInstance = null;
+
+    public static boolean isPlaybackWakeLockHeld() {
+        AzkarAudioService inst = activeInstance;
+        return inst != null && inst.wakeLock != null && inst.wakeLock.isHeld();
+    }
+
+    public static int getPendingQueueSize() {
+        AzkarAudioService inst = activeInstance;
+        return inst != null ? inst.pendingAudioQueue.size() : 0;
+    }
+
+    public static boolean isPausedByTransientAudioFocus() {
+        AzkarAudioService inst = activeInstance;
+        return inst != null && inst.focusStateMachine.getWasPausedByTransientFocus();
+    }
+
+    public static boolean isAudioFocusDucked() {
+        AzkarAudioService inst = activeInstance;
+        return inst != null && inst.focusStateMachine.isDucked();
+    }
 
     public static boolean isAzanOrPrayerAlertPlaying() {
         return isPlayingNow && VolumeKeyStopPolicy.isAzanOrPrayerAlertSection(currentSection);
@@ -228,6 +254,24 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     }
 
     private void handleAudioFocusChange(int focusChange) {
+        lastAudioFocusCallbackEvent = focusChange;
+        switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_GAIN:
+                currentAudioFocusLabel = "AUDIOFOCUS_GAIN";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS:
+                currentAudioFocusLabel = "AUDIOFOCUS_LOSS";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                currentAudioFocusLabel = "AUDIOFOCUS_LOSS_TRANSIENT";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                currentAudioFocusLabel = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
+                break;
+            default:
+                currentAudioFocusLabel = "FOCUS_EVENT_" + focusChange;
+                break;
+        }
         if (focusChange == AudioManager.AUDIOFOCUS_GAIN && pendingDelayedAudioFocusStart) {
             pendingDelayedAudioFocusStart = false;
             mainHandler.removeCallbacks(delayedFocusFallbackRunnable);
@@ -304,6 +348,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
     @Override
     public void onCreate() {
         super.onCreate();
+        activeInstance = this;
         createNotificationChannels();
 
         Notification initialNotification = buildNotification("رفيق المسلم", "جاري تشغيل تنبيه الأذان والأذكار...", "", "");
@@ -314,6 +359,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AlMoazen::AudioPlaybackWakeLock");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire(5 * 60 * 1000L);
+            lastWakeLockAcquireAtMs = System.currentTimeMillis();
         }
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -332,6 +378,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         if (wakeLock != null && !wakeLock.isHeld()) {
             try {
                 wakeLock.acquire(5 * 60 * 1000L);
+                lastWakeLockAcquireAtMs = System.currentTimeMillis();
             } catch (Exception ignored) {}
         }
     }
@@ -1340,8 +1387,13 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         if (audioManager == null) {
             audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         }
-        if (audioManager == null) return AudioManager.AUDIOFOCUS_REQUEST_FAILED;
+        if (audioManager == null) {
+            lastAudioFocusResultCode = AudioManager.AUDIOFOCUS_REQUEST_FAILED;
+            currentAudioFocusLabel = "AUDIOFOCUS_REQUEST_FAILED (no AudioManager)";
+            return AudioManager.AUDIOFOCUS_REQUEST_FAILED;
+        }
         focusStateMachine.reset();
+        int res;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                     .setAudioAttributes(
@@ -1353,7 +1405,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     .setAcceptsDelayedFocusGain(true)
                     .setOnAudioFocusChangeListener(audioFocusChangeListener, mainHandler)
                     .build();
-            return audioManager.requestAudioFocus(audioFocusRequest);
+            res = audioManager.requestAudioFocus(audioFocusRequest);
         } else {
             @SuppressWarnings("deprecation")
             int legacyResult = audioManager.requestAudioFocus(
@@ -1361,8 +1413,17 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
                     AudioManager.STREAM_ALARM,
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
             );
-            return legacyResult;
+            res = legacyResult;
         }
+        lastAudioFocusResultCode = res;
+        if (res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            currentAudioFocusLabel = "AUDIOFOCUS_REQUEST_GRANTED";
+        } else if (res == AudioManager.AUDIOFOCUS_REQUEST_DELAYED) {
+            currentAudioFocusLabel = "AUDIOFOCUS_REQUEST_DELAYED";
+        } else {
+            currentAudioFocusLabel = "AUDIOFOCUS_REQUEST_FAILED";
+        }
+        return res;
     }
 
     private void abandonAudioFocus() {
@@ -1375,6 +1436,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
             int ignored = audioManager.abandonAudioFocus(audioFocusChangeListener);
         }
         focusStateMachine.reset();
+        currentAudioFocusLabel = "ABANDONED";
     }
 
     private void stopAudioAndCleanUp() {
@@ -1399,6 +1461,7 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         if (wakeLock != null && wakeLock.isHeld()) {
             try {
                 wakeLock.release();
+                lastWakeLockReleaseAtMs = System.currentTimeMillis();
             } catch (Exception ignored) {}
         }
     }
@@ -1470,6 +1533,9 @@ public class AzkarAudioService extends Service implements MediaPlayer.OnCompleti
         releaseWakeLock();
         isPlayingNow = false;
         currentIsTestAlarm = false;
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
         super.onDestroy();
     }
 

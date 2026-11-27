@@ -83,6 +83,7 @@ import {
   requestOrOpenSpecificPermission,
   ManagedPermissionKey,
 } from './utils/androidPermissionsManager';
+import { recitationOfflineManager } from './utils/recitationOfflineManager';
 
 const DEFAULT_PROFILE: UserProfile = {
   name: 'أحمد محمد',
@@ -137,6 +138,7 @@ const DEFAULT_PROFILE: UserProfile = {
   iqamaVoice: 'iqama_1',
   quranFontSize: 'normal',
   quranNightMode: false,
+  prioritizeOfflineAudio: true,
   khatmaGoalDays: 30,
   darkMode: false,
   ramadanFastingTracker: {},
@@ -482,6 +484,9 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('azan_user_profile', JSON.stringify(user));
+      recitationOfflineManager.setPrioritizeOfflinePlayback(
+        user.prioritizeOfflineAudio !== false
+      );
     } catch {
       // ignore
     }

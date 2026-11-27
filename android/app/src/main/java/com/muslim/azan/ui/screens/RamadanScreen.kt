@@ -139,7 +139,7 @@ fun RamadanScreen(
                             onClick = {
                                 NativeAudioPlayerManager.playAssetAudio(context, "audio/iftar_cannon.mp3", "مدفع الإفطار", "تكبيرات ومدفع الإفطار")
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = MoazenInkEmerald)
+                            colors = ButtonDefaults.buttonColors(containerColor = MuslimPlusPillEmerald)
                         ) {
                             Text(text = "سماع صوت مدفع الإفطار", color = Color.White, fontWeight = FontWeight.Bold)
                         }
@@ -268,7 +268,7 @@ fun RamadanScreen(
                                     val bgColor = when (st) {
                                         "fasted" -> MuslimPlusPillEmerald
                                         "missed" -> Color(0xFFFDE8E8)
-                                        else -> Color.White.copy(alpha = 0.85f)
+                                        else -> MoazenChipUnselectedBg
                                     }
                                     val borderColor = when (st) {
                                         "fasted" -> MoazenGold
